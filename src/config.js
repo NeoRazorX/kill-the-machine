@@ -1,0 +1,133 @@
+// Constantes globales y definiciones de unidades / edificios.
+
+export const N = 128;            // celdas por lado
+export const CELL = 2;           // unidades de mundo por celda
+export const SIZE = N * CELL;    // tamaño del mapa en unidades de mundo
+export const PLAYER = 'human';
+export const BUILD_RADIUS = 24;  // distancia máxima a un edificio propio para construir
+export const START_CREDITS = 4000;
+
+export const other = (t) => (t === 'human' ? 'machine' : 'human');
+
+export const TEAMS = {
+  human:   { id: 'human',   name: 'Humanos',  color: 0x3d8bff, css: '#3d8bff', front: -1, startCell: [24, 100] },
+  machine: { id: 'machine', name: 'Máquinas', color: 0xff3b30, css: '#ff3b30', front: 1,  startCell: [103, 27] },
+};
+
+export const DIFFICULTY = {
+  easy:   { label: 'Fácil',   income: 0.7, think: 1.3, firstWave: 360, waveGap: 150, minArmy: 6 },
+  normal: { label: 'Normal',  income: 0.9, think: 0.9, firstWave: 280, waveGap: 115, minArmy: 8 },
+  hard:   { label: 'Difícil', income: 1.2, think: 0.5, firstWave: 210, waveGap: 80,  minArmy: 10 },
+};
+
+export const DEFS = {};
+const def = (d) => { DEFS[d.id] = d; return d; };
+
+// ---------------------------------------------------------------- edificios
+// role: hq | power | refinery | barracks | factory | turret
+const B = (o) => def({ kind: 'building', buildable: true, ...o });
+
+B({ id: 'h_hq', team: 'human', role: 'hq', name: 'Cuartel General', buildable: false, cost: 0, time: 0,
+    w: 3, h: 3, hp: 2200, power: 30, sight: 30, height: 5,
+    desc: 'Centro de mando. Si caen todos tus edificios, pierdes.' });
+B({ id: 'h_power', team: 'human', role: 'power', name: 'Planta de Energía', cost: 300, time: 10,
+    w: 2, h: 2, hp: 700, power: 100, sight: 16, height: 4,
+    desc: 'Genera +100 de energía. Sin energía, la producción se ralentiza.' });
+B({ id: 'h_refinery', team: 'human', role: 'refinery', name: 'Refinería', cost: 1000, time: 20, requires: ['power'],
+    w: 3, h: 3, hp: 1100, power: -30, sight: 18, height: 4.5,
+    desc: 'Procesa mineral. Incluye una cosechadora gratis.' });
+B({ id: 'h_barracks', team: 'human', role: 'barracks', name: 'Cuartel', cost: 400, time: 12, requires: ['power'],
+    w: 3, h: 2, hp: 900, power: -20, sight: 18, height: 3.2, produces: 'barracks',
+    desc: 'Entrena infantería.' });
+B({ id: 'h_factory', team: 'human', role: 'factory', name: 'Fábrica', cost: 1200, time: 24, requires: ['refinery', 'power'],
+    w: 3, h: 3, hp: 1300, power: -40, sight: 18, height: 4.5, produces: 'factory',
+    desc: 'Construye vehículos blindados y cosechadoras.' });
+B({ id: 'h_turret', team: 'human', role: 'turret', name: 'Torreta', cost: 500, time: 12, requires: ['barracks'],
+    w: 2, h: 2, hp: 600, power: -15, sight: 28, height: 3.4, muzzleF: 1.6, muzzleY: 2.6,
+    weapon: { range: 26, damage: 16, cd: 0.55, proj: 'bullet', mult: { light: 1, armor: 0.7, building: 0.5 } },
+    desc: 'Defensa automática contra todo tipo de unidades.' });
+
+B({ id: 'm_hq', team: 'machine', role: 'hq', name: 'Núcleo Central', buildable: false, cost: 0, time: 0,
+    w: 3, h: 3, hp: 2200, power: 30, sight: 30, height: 5,
+    desc: 'La inteligencia que controla la red.' });
+B({ id: 'm_power', team: 'machine', role: 'power', name: 'Reactor', cost: 300, time: 10,
+    w: 2, h: 2, hp: 700, power: 100, sight: 16, height: 4,
+    desc: 'Reactor de fusión: +100 de energía.' });
+B({ id: 'm_refinery', team: 'machine', role: 'refinery', name: 'Fundición', cost: 1000, time: 20, requires: ['power'],
+    w: 3, h: 3, hp: 1100, power: -30, sight: 18, height: 4.5,
+    desc: 'Funde mineral. Incluye un recolector gratis.' });
+B({ id: 'm_barracks', team: 'machine', role: 'barracks', name: 'Ensambladora', cost: 400, time: 12, requires: ['power'],
+    w: 3, h: 2, hp: 900, power: -20, sight: 18, height: 3.2, produces: 'barracks',
+    desc: 'Ensambla drones y centinelas.' });
+B({ id: 'm_factory', team: 'machine', role: 'factory', name: 'Forja', cost: 1200, time: 24, requires: ['refinery', 'power'],
+    w: 3, h: 3, hp: 1300, power: -40, sight: 18, height: 4.5, produces: 'factory',
+    desc: 'Forja máquinas pesadas y recolectores.' });
+B({ id: 'm_turret', team: 'machine', role: 'turret', name: 'Torre Láser', cost: 500, time: 12, requires: ['barracks'],
+    w: 2, h: 2, hp: 600, power: -15, sight: 28, height: 3.4, muzzleF: 1.7, muzzleY: 2.7,
+    weapon: { range: 26, damage: 18, cd: 0.7, proj: 'laserbolt', mult: { light: 1, armor: 0.7, building: 0.5 } },
+    desc: 'Defensa láser automática.' });
+
+// ----------------------------------------------------------------- unidades
+// cls: light | armor (para multiplicadores de daño). producer: barracks | factory
+const U = (o) => def({ kind: 'unit', turn: 8, sight: 20, ...o });
+
+U({ id: 'h_rifle', team: 'human', role: 'inf1', name: 'Fusilero', cost: 100, time: 5, producer: 'barracks',
+    hp: 60, speed: 5.5, radius: 0.7, cls: 'light', height: 1.9, muzzleF: 0.9, muzzleY: 1.2, sight: 18,
+    weapon: { range: 12, damage: 7, cd: 0.7, proj: 'bullet', mult: { light: 1, armor: 0.4, building: 0.25 } },
+    desc: 'Infantería ligera. Eficaz contra infantería.' });
+U({ id: 'h_rocket', team: 'human', role: 'inf2', name: 'Lanzacohetes', cost: 250, time: 8, producer: 'barracks',
+    hp: 70, speed: 4.6, radius: 0.75, cls: 'light', height: 2, muzzleF: 1.1, muzzleY: 1.7, sight: 18,
+    weapon: { range: 20, damage: 30, cd: 2.2, proj: 'rocket', splash: 2, mult: { light: 0.5, armor: 1.5, building: 1.2 } },
+    desc: 'Cohetes antiblindaje. Débil contra infantería.' });
+U({ id: 'h_tank', team: 'human', role: 'tank', name: 'Tanque Atlas', cost: 600, time: 14, producer: 'factory',
+    hp: 320, speed: 5, turn: 2.4, radius: 1.5, cls: 'armor', height: 2.2, turret: true, turretTurn: 3.5, fireOnMove: true,
+    muzzleF: 2.4, muzzleY: 1.6, sight: 22,
+    weapon: { range: 18, damage: 32, cd: 1.5, proj: 'shell', splash: 2.5, mult: { light: 0.8, armor: 1, building: 1 } },
+    desc: 'Tanque principal. Dispara en movimiento.' });
+U({ id: 'h_arty', team: 'human', role: 'arty', name: 'Artillería', cost: 750, time: 16, producer: 'factory',
+    hp: 140, speed: 3.8, turn: 2, radius: 1.4, cls: 'armor', height: 2.2, turret: true, turretTurn: 2,
+    muzzleF: 2, muzzleY: 2.1, sight: 20,
+    weapon: { range: 40, damage: 55, cd: 4, proj: 'arty', splash: 5, mult: { light: 1, armor: 0.8, building: 1.3 } },
+    desc: 'Artillería de largo alcance con daño en área.' });
+U({ id: 'h_harv', team: 'human', role: 'harv', name: 'Cosechadora', cost: 700, time: 14, producer: 'factory',
+    hp: 350, speed: 4, turn: 2.2, radius: 1.6, cls: 'armor', height: 2, harvester: true, capacity: 400,
+    gatherRate: 28, unloadRate: 110, sight: 16,
+    desc: 'Recolecta mineral y lo lleva a la refinería.' });
+
+U({ id: 'm_drone', team: 'machine', role: 'inf1', name: 'Dron', cost: 80, time: 4, producer: 'barracks',
+    hp: 45, speed: 9, radius: 0.6, cls: 'light', height: 1.6, hover: true, muzzleF: 0.6, muzzleY: 1.3, sight: 22,
+    weapon: { range: 11, damage: 5, cd: 0.5, proj: 'laserbolt', mult: { light: 1, armor: 0.35, building: 0.25 } },
+    desc: 'Dron veloz y barato. Ataca en enjambre.' });
+U({ id: 'm_sentinel', team: 'machine', role: 'inf2', name: 'Centinela', cost: 230, time: 8, producer: 'barracks',
+    hp: 100, speed: 4.8, radius: 0.9, cls: 'armor', height: 2.8, muzzleF: 1.2, muzzleY: 2, sight: 20,
+    weapon: { range: 19, damage: 24, cd: 2, proj: 'beam', mult: { light: 0.6, armor: 1.4, building: 1.2 } },
+    desc: 'Caminante con cañón láser antiblindaje.' });
+U({ id: 'm_crusher', team: 'machine', role: 'tank', name: 'Segador', cost: 580, time: 14, producer: 'factory',
+    hp: 350, speed: 4.6, turn: 2.6, radius: 1.6, cls: 'armor', height: 2.6, turret: true, turretTurn: 3.2, fireOnMove: true,
+    muzzleF: 2.2, muzzleY: 2.2, sight: 22,
+    weapon: { range: 17, damage: 30, cd: 1.4, proj: 'plasma', splash: 2.5, mult: { light: 0.85, armor: 1, building: 1 } },
+    desc: 'Máquina de guerra arácnida con cañón de plasma.' });
+U({ id: 'm_siege', team: 'machine', role: 'arty', name: 'Araña de Asedio', cost: 750, time: 16, producer: 'factory',
+    hp: 130, speed: 4, turn: 2.2, radius: 1.4, cls: 'armor', height: 2.8, turret: true, turretTurn: 2,
+    muzzleF: 1.4, muzzleY: 3, sight: 20,
+    weapon: { range: 40, damage: 50, cd: 3.8, proj: 'plasmalob', splash: 5, mult: { light: 1, armor: 0.8, building: 1.3 } },
+    desc: 'Mortero de plasma de largo alcance.' });
+U({ id: 'm_harv', team: 'machine', role: 'harv', name: 'Recolector', cost: 700, time: 14, producer: 'factory',
+    hp: 330, speed: 4.2, turn: 2.4, radius: 1.6, cls: 'armor', height: 2, harvester: true, capacity: 400,
+    gatherRate: 28, unloadRate: 110, sight: 16,
+    desc: 'Taladra mineral y lo transporta a la fundición.' });
+
+// Índices auxiliares
+export const ROLE = { human: {}, machine: {} };
+for (const d of Object.values(DEFS)) ROLE[d.team][d.role] = d;
+
+export const STRUCT_ROLES = ['power', 'refinery', 'barracks', 'factory', 'turret'];
+export const UNIT_ROLES = {
+  barracks: ['inf1', 'inf2'],
+  factory: ['tank', 'arty', 'harv'],
+};
+
+export const ROLE_NAMES = {
+  hq: 'Cuartel General', power: 'Energía', refinery: 'Refinería',
+  barracks: 'Cuartel', factory: 'Fábrica', turret: 'Torreta',
+};
