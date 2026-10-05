@@ -1,5 +1,5 @@
 import { SIZE } from './config.js';
-import { findPath } from './pathfinding.js';
+import { findPath, clearLine } from './pathfinding.js';
 import { buildUnitModel } from './models.js';
 import { RANKS, isCombatUnit } from './experience.js';
 
@@ -90,10 +90,11 @@ export class Unit {
     this.guard = { x: this.x, z: this.z };
   }
 
-  pathTo(x, z) {
+  pathTo(x, z, recovering = false) {
     this.dest = { x, z };
     this.path = findPath(this.game.map.grid, this.x, this.z, x, z, this.radius);
-    this.pathI = 0; this.navVer = this.game.navVersion; this.stuckCount = 0; this.stuckT = 0;
+    this.pathI = 0; this.navVer = this.game.navVersion; this.stuckT = 0;
+    if (!recovering) this.stuckCount = 0;
     this.lastPX = this.x; this.lastPZ = this.z;
     return !!this.path;
   }
@@ -112,13 +113,15 @@ export class Unit {
     const g = this.game;
     if (this.navVer !== g.navVersion) {
       this.navVer = g.navVersion;
-      if (this.dest) this.pathTo(this.dest.x, this.dest.z);
+      if (this.dest) this.pathTo(this.dest.x, this.dest.z, true);
       if (!this.path) return true;
     }
     let wp = this.path[this.pathI];
     let dx = wp.x - this.x, dz = wp.z - this.z, d = Math.hypot(dx, dz);
     const last = this.pathI === this.path.length - 1;
-    if (d < (last ? 0.5 : 1.1)) {
+    const next = this.path[this.pathI + 1];
+    const canSkip = !next || clearLine(g.map.grid, this.x, this.z, next.x, next.z, this.radius);
+    if (d < (last ? 0.5 : .35) && canSkip) {
       this.pathI++;
       if (this.pathI >= this.path.length) { this.path = null; return true; }
       wp = this.path[this.pathI]; dx = wp.x - this.x; dz = wp.z - this.z; d = Math.hypot(dx, dz);
@@ -130,8 +133,12 @@ export class Unit {
     const ad = Math.abs(diff);
     if (ad > 0.5 && this.def.turn < 4) sp *= Math.max(0.15, 1 - ad / 1.6);
     const step = Math.min(sp * dt, d);
-    this.tryMove(this.x + Math.sin(this.heading) * step, this.z + Math.cos(this.heading) * step);
-    this.moving = true;
+    const oldX = this.x, oldZ = this.z;
+    // Turn on the spot if the curved approach would leave the safe path at a corner.
+    const nx = this.x + Math.sin(this.heading) * step, nz = this.z + Math.cos(this.heading) * step;
+    if (clearLine(g.map.grid, this.x, this.z, nx, nz, this.radius) && clearLine(g.map.grid, nx, nz, wp.x, wp.z, this.radius)) this.tryMove(nx, nz);
+    else if (Math.abs(diff) < .1) this.tryMove(nx, nz);
+    this.moving = Math.hypot(this.x - oldX, this.z - oldZ) > .0001;
 
     this.stuckT += dt;
     if (this.stuckT >= 0.5) {
@@ -139,8 +146,7 @@ export class Unit {
       this.stuckT = 0; this.lastPX = this.x; this.lastPZ = this.z;
       if (moved < this.def.speed * 0.12) {
         this.stuckCount++;
-        if (this.stuckCount === 2 && this.dest) this.pathTo(this.dest.x, this.dest.z);
-        else if (this.stuckCount >= 3 && this.dest && Math.hypot(this.dest.x - this.x, this.dest.z - this.z) < 9) { this.path = null; return true; }
+        if ((this.stuckCount === 2 || this.stuckCount === 4) && this.dest) this.pathTo(this.dest.x, this.dest.z, true);
         else if (this.stuckCount >= 7) { this.path = null; return true; }
       } else this.stuckCount = 0;
     }

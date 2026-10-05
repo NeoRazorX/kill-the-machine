@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "start": "python3 tools/serve.py",
+    "test:navigation": "node tests/navigation.mjs",
     "test:experience": "node tests/run-experience.mjs"
   }
 }

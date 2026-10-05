@@ -109,3 +109,12 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 ausencia de bonificaciones compartidas (Node.js 22.15+).
 [Vista y pruebas de los rangos](http://localhost:8765/tests/experience.html) añade
 la comprobación de fichas y distintivos con los modelos del juego.
+
+## Pruebas de navegación
+
+`npm run test:navigation` comprueba el radio completo en pasos estrechos, esquinas,
+destinos pegados a obstáculos y rutas modificadas por edificios. También simula
+el movimiento de tanques entre bases y la recuperación de bloqueos temporales
+y persistentes. Planificación y colisiones usan la misma huella circular; los
+recálculos de recuperación conservan el contador y se limitan a dos intentos
+antes de detener el movimiento si el bloqueo persiste.

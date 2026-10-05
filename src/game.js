@@ -6,7 +6,7 @@ import { Building } from './buildings.js';
 import { FX } from './fx.js';
 import { GameAudio } from './audio.js';
 import { AI } from './ai.js';
-import { nearestFreeCell } from './pathfinding.js';
+import { nearestFreeCell, canOccupy } from './pathfinding.js';
 
 const HASH = 8, HN = SIZE / HASH;
 const newTeam = () => ({
@@ -197,10 +197,7 @@ export class Game {
   }
 
   canStand(x, z, r) {
-    if (x < 2.2 || z < 2.2 || x > SIZE - 2.2 || z > SIZE - 2.2) return false;
-    const g = this.map.grid, k = r * 0.7;
-    const at = (px, pz) => g[Math.floor(pz / CELL) * N + Math.floor(px / CELL)] !== 0;
-    return !(at(x, z) || at(x + k, z + k) || at(x - k, z + k) || at(x + k, z - k) || at(x - k, z - k));
+    return canOccupy(this.map.grid, x, z, r);
   }
 
   nearestField(x, z) {
@@ -413,7 +410,7 @@ export class Game {
     const g = this.map.grid;
     for (const u of this.units) {
       if (u.dead || u.x < b.rect.x0 - u.radius || u.x > b.rect.x1 + u.radius || u.z < b.rect.z0 - u.radius || u.z > b.rect.z1 + u.radius) continue;
-      const c = nearestFreeCell(g, u.x, u.z, 10);
+      const c = nearestFreeCell(g, u.x, u.z, 10, u.radius);
       if (c < 0) continue;
       let nx = ((c % N) + 0.5) * CELL, nz = (((c / N) | 0) + 0.5) * CELL;
       // alejar del borde del edificio lo suficiente para el radio de la unidad
