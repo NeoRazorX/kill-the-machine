@@ -3,14 +3,41 @@ import { Game } from './game.js';
 import { Input } from './input.js';
 import { UI } from './ui.js';
 import { SIZE, TEAMS, DIFFICULTY } from './config.js';
+import { preloadModels, assetStatus } from './assets.js';
 
 const params = new URLSearchParams(location.search);
+const startButton = document.getElementById('btn-start');
+const spectateButton = document.getElementById('btn-spectate');
+const loadMessage = document.getElementById('model-status');
+const retryButton = document.getElementById('btn-retry-models');
+startButton.disabled = spectateButton.disabled = true;
+// Keep the menu usable on failure, with an explicit retry instead of substitute models.
+while (true) {
+  retryButton.hidden = true;
+  startButton.textContent = 'CARGANDO MODELOS…';
+  try {
+    await preloadModels((done, total) => { loadMessage.textContent = `Cargando gráficos: ${done} / ${total}`; });
+    break;
+  } catch {
+    startButton.textContent = 'COMENZAR MISIÓN';
+    loadMessage.textContent = 'No se han podido cargar los gráficos. Comprueba la conexión y vuelve a intentarlo.';
+    retryButton.hidden = false;
+    await new Promise(resolve => { retryButton.onclick = resolve; });
+  }
+}
+retryButton.onclick = null;
+loadMessage.textContent = '';
+startButton.textContent = 'COMENZAR MISIÓN';
+startButton.disabled = spectateButton.disabled = false;
 const canvas = document.getElementById('gl');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+// Read-only graphics diagnostics.
+window.__graphics = () => ({ ...assetStatus, calls: renderer.info.render.calls,
+  triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries });
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0e1216);
@@ -76,7 +103,7 @@ speed = Math.max(1, Math.min(20, parseInt(params.get('speed') || '1', 10)));
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
   last = now;
   if (started) {
     for (let i = 0; i < speed; i++) game.update(dt);

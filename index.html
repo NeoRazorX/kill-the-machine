@@ -70,8 +70,10 @@
         <button class="diff active" data-d="normal">Normal</button>
         <button class="diff" data-d="hard">Difícil</button>
       </div>
-      <button id="btn-start">COMENZAR MISIÓN</button>
-      <button id="btn-spectate" class="ghost">Ver IA contra IA</button>
+      <p id="model-status" role="status" aria-live="polite">Cargando gráficos…</p>
+      <button id="btn-retry-models" class="ghost" hidden>Reintentar carga</button>
+      <button id="btn-start" disabled>COMENZAR MISIÓN</button>
+      <button id="btn-spectate" class="ghost" disabled>Ver IA contra IA</button>
       <small class="hint">Construye energía, refinería y fábricas · cosecha mineral · destruye todos los edificios enemigos</small>
     </div>
   </div>

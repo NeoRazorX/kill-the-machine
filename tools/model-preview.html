@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Catálogo Blender · Kill the Machine</title>
+<script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#11171c;color:#e9efed;font:15px system-ui}header,main,footer{position:relative;z-index:1}header{padding:22px 28px 14px}h1{margin:0 0 5px;font-size:25px}p{color:#a8b9bf;margin:4px 0}a{color:#76b5ff}nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}button{background:#202d35;border:1px solid #3c505c;color:#bbcbd3;padding:8px 16px;border-radius:5px;cursor:pointer}button[aria-pressed=true]{color:white;border-color:#75b4ff;background:#26466a}.machine button[aria-pressed=true]{border-color:#ee7567;background:#603833}main{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0 24px;gap:12px}.card{position:relative;height:205px;background:transparent;border:1px solid #334047;border-radius:7px}.label{position:absolute;left:13px;top:10px;font-size:14px;font-weight:600}.kind{position:absolute;right:12px;top:12px;color:#839aab;font:10px system-ui;text-transform:uppercase;letter-spacing:.08em}.stats{position:absolute;left:13px;bottom:10px;color:#9dafb8;font:11px monospace}canvas{z-index:0;position:fixed;inset:0;pointer-events:none}footer{padding:14px 28px}#status{font-size:12px}.view{margin-left:auto}@media(max-width:850px){main{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:560px){main{grid-template-columns:repeat(2,minmax(0,1fr));padding:0 10px}.card{height:185px}.kind{display:none}header{padding:16px}}
+</style>
+<header><h1>Kill the Machine · catálogo Blender</h1><p>25 modelos originales. Todas las unidades, edificios y elementos del entorno.</p>
+<nav aria-label="Catálogo"><button data-team="human" aria-pressed="true">Humanos</button><button data-team="machine" aria-pressed="false">Máquinas</button><button data-team="environment" aria-pressed="false">Entorno</button><button class="view" id="rotate">Girar vista</button></nav></header>
+<main id="catalog"></main>
+<footer><p><a href="../?autostart=easy">Jugar</a> · <a href="../?autostart=normal&spectate=1">Ver IA contra IA</a></p><p id="status" role="status">Cargando modelos…</p></footer>
+<script type="module" src="./model-preview.js"></script>
+</html>

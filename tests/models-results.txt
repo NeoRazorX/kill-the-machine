@@ -1,0 +1,17 @@
+PASS both GLB files load
+PASS three tank meshes, one factory mesh
+PASS animation hierarchy
+PASS Y up / +Z forward / muzzle pivot
+PASS factory fits footprint and height
+PASS clone animation isolation
+PASS placement ghost material isolation
+PASS real Unit rotation and recoil
+PASS procedural harvester still animates
+PASS real building construction animation
+PASS projectile starts at muzzle with current combat pose
+PASS fewer draw calls with 100 tanks and 10 factories
+BENCHMARK {"before":{"frame":1,"calls":3740,"triangles":91680,"points":0,"lines":0},"after":{"frame":2,"calls":620,"triangles":651200,"points":0,"lines":0}}
+PASS partial load failure
+PASS per-model procedural fallback
+PASS comparison switch clears imported templates
+ALL PASSED

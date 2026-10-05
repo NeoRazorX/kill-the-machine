@@ -3,5 +3,7 @@
   "version": "1.0.0",
   "description": "RTS estilo Command & Conquer en Three.js: humanos contra máquinas",
   "private": true,
-  "scripts": { "start": "python3 -m http.server 8765" }
+  "scripts": {
+    "start": "python3 tools/serve.py"
+  }
 }

@@ -1,0 +1,66 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Game startup and production checks</title>
+<style>body{background:#11171c;color:#e5efed;font:13px monospace}iframe{width:100%;height:620px;border:1px solid #334047}pre{white-space:pre-wrap}</style>
+<pre id="results">RUNNING</pre><iframe title="Partida de prueba"></iframe>
+<script type="module">
+import { DEFS } from '../src/config.js';
+const frame=document.querySelector('iframe'),out=document.getElementById('results'),lines=[];
+function check(ok,text){if(!ok)throw new Error(text);lines.push('PASS '+text);out.textContent=lines.join('\n');}
+async function until(predicate){const deadline=performance.now()+15000;while(!predicate()){if(performance.now()>deadline)throw new Error('Timed out waiting for startup');await new Promise(r=>setTimeout(r,30));}}
+try {
+  let html=await (await fetch('../index.html')).text();
+  // Run the actual entry point, injecting only a failed network response before it starts.
+  const setup=`<base href="${location.origin}/"><script>
+    window.__allowModels=false; window.__testErrors=[];
+    window.addEventListener('error',e=>window.__testErrors.push(e.message));
+    window.addEventListener('unhandledrejection',e=>window.__testErrors.push(String(e.reason)));
+    const fetchReal=window.fetch.bind(window);
+    window.fetch=(url,options)=> !window.__allowModels && String(url).endsWith('/m_harv.glb')
+      ? Promise.resolve(new Response('',{status:404})) : fetchReal(url,options);
+  <\/script>`;
+  frame.srcdoc=html.replace('<head>','<head>'+setup);
+  await until(()=>frame.contentDocument.getElementById('btn-retry-models')?.hidden===false);
+  const win=frame.contentWindow,doc=frame.contentDocument;
+  check(!win.__game&&doc.getElementById('btn-start').disabled&&doc.getElementById('btn-spectate').disabled,'failed model blocks play and spectator startup');
+  check(doc.getElementById('model-status').textContent.includes('No se han podido'),'load error is visible');
+  win.__allowModels=true;doc.getElementById('btn-retry-models').click();
+  await until(()=>win.__game&&!doc.getElementById('btn-start').disabled);
+  check(win.getComputedStyle(doc.getElementById('btn-retry-models')).display==='none','retry control disappears after successful reload');
+  doc.getElementById('btn-start').click();
+  await until(()=>doc.getElementById('app').classList.contains('playing'));
+  const game=win.__game,input=win.__input;
+  // Avoid unnecessary audio and automatic enemy building while testing production deterministically.
+  game.audio.play=()=>{};game.audio.say=()=>{};game.ais=[];
+  check(game.units.length>0&&game.buildings.length===6,'real game starts after retry');
+  check(game.units.concat(game.buildings).every(e=>e.mesh.userData.modelSource==='glb'),'all initial entities use imported models');
+  check(win.__graphics().loaded.length===25,'full graphics catalog in main entry point');
+  for(const def of Object.values(DEFS).filter(d=>d.kind==='building')) {
+    input.beginPlacement(def);
+    check(input.ghost.children[0].userData.modelSource==='glb',def.id+': real placement preview');
+    input.cancelPlacement();
+  }
+  // Place all non-starting structures through the real placement rules.
+  for(const def of Object.values(DEFS).filter(d=>d.kind==='building'&&['barracks','factory','turret','power'].includes(d.role))) {
+    let spot;
+    for(let z=1;z<127&&!spot;z++)for(let x=1;x<127;x++)if(game.canPlace(def.team,def,x,z,true)){spot={x,z};break;}
+    check(!!spot,def.id+': free placement found');
+    game.placeBuilding(def.team,def.id,spot.x,spot.z,true);
+  }
+  for(const team of ['human','machine'])game.teams[team].credits=100000;
+  const before=new Map(Object.values(DEFS).filter(d=>d.kind==='unit').map(d=>[d.id,game.units.filter(u=>u.def.id===d.id).length]));
+  for(const id of before.keys())check(game.queueUnit(DEFS[id].team,id),id+': production queued');
+  const mover=game.units.find(u=>u.def.id==='h_tank'),origin={x:mover.x,z:mover.z};
+  mover.cmdMove(mover.x+7,mover.z-4);
+  // Time slicing lets the browser paint the test status instead of freezing during simulation.
+  for(let i=0;i<40;i++){win.__step(100,.05);await new Promise(r=>setTimeout(r,0));}
+  check(Math.hypot(mover.x-origin.x,mover.z-origin.z)>1,'imported tank moves along a real path');
+  for(const [id,count] of before)check(game.units.filter(u=>u.def.id===id&&!u.dead).length>count,id+': produced in live simulation');
+  let finite=true;
+  game.scene.traverse(o=>{finite &&= [...o.position,...o.scale,...o.quaternion].every(Number.isFinite);});
+  check(finite,'all scene transforms remain finite after 200 simulated seconds');
+  check(game.units.concat(game.buildings).every(e=>e.mesh.userData.modelSource==='glb'),'produced entities are GLB-only');
+  check(win.__testErrors.length===0,'no uncaught errors in main entry point');
+  game.paused=true;
+  out.textContent=lines.join('\n')+'\nALL PASSED';
+}catch(error){out.textContent=lines.join('\n')+'\nFAIL '+error.stack;}
+</script>
+</html>

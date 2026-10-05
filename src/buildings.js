@@ -64,9 +64,9 @@ export class Building {
 
     // animaciones decorativas
     if (p.dish) p.dish.rotation.y += dt * 1.2;
-    if (p.crystal) { p.crystal.rotation.y += dt * 1.5; p.crystal.position.y = 5 + Math.sin(g.time * 2) * 0.15; }
-    if (p.ring) { p.ring.rotation.z += dt * 1.8; }
-    if (p.rings) p.rings.forEach((r, i) => { r.rotation.z += dt * (1.5 + i * 0.7); });
+    if (p.crystal) { p.crystal.rotation.y += dt * 1.5; p.crystal.position.y = p.crystalBase + Math.sin(g.time * 2) * 0.15; }
+    if (p.ring) { p.ring.rotation.y += dt * 1.8; }
+    if (p.rings) p.rings.forEach((r, i) => { r.rotation.y += dt * (1.5 + i * 0.7); });
 
     // humo / fuego al estar dañado
     const frac = this.hp / this.maxHp;
@@ -121,7 +121,7 @@ export class Building {
     if (p.turret) p.turret.rotation.y = angleDiff(this.aim, this.mesh.rotation.y);
     if (p.barrel) {
       this.recoil = Math.max(0, this.recoil - dt * 4);
-      p.barrel.position.z = p.barrelZ - this.recoil * 0.35;
+      p.barrel.position.copy(p.barrelRest).addScaledVector(p.recoilAxis, -this.recoil * 0.35);
     }
   }
 }

@@ -269,6 +269,10 @@ export class UI {
     for (const t of this.game.map.trees) x.fillRect(t.x * k - 1, t.z * k - 1, 2.2, 2.2);
     x.fillStyle = 'rgba(110,110,110,0.95)';
     for (const r of this.game.map.rocks) x.fillRect(r.x * k - 2.2, r.z * k - 2.2, 4.4, 4.4);
+    x.fillStyle = '#969783';
+    for (const l of this.game.map.landmarks) {
+      x.beginPath(); x.arc(l.x * k, l.z * k, l.radius * k, 0, Math.PI * 2); x.fill();
+    }
     this.miniBase = c;
   }
 

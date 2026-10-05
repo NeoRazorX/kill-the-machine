@@ -227,8 +227,14 @@ export class FX {
   fireWeapon(att, target) {
     const w = att.def.weapon, style = PROJ_STYLE[w.proj];
     const aim = att.aim;
-    const mx = att.x + Math.sin(aim) * (att.def.muzzleF || 0), mz = att.z + Math.cos(aim) * (att.def.muzzleF || 0);
-    const my = att.def.muzzleY || 1;
+    // Combat runs before syncMesh: synchronize the pose before reading the authored socket.
+    att.mesh.position.set(att.x, 0, att.z);
+    if (att.kind === 'unit') att.mesh.rotation.y = att.heading;
+    if (att.parts.turret) att.parts.turret.rotation.y = aim - att.mesh.rotation.y;
+    const muzzle = att.parts.muzzle;
+    muzzle.updateWorldMatrix(true, false);
+    const e = muzzle.matrixWorld.elements;
+    const mx = e[12], my = e[13], mz = e[14];
     const sp = target.kind === 'building' ? 1.2 : 0.35;
     const tx = target.x + (Math.random() - 0.5) * sp, tz = target.z + (Math.random() - 0.5) * sp, ty = this.hitY(target);
     att.recoil = 1;

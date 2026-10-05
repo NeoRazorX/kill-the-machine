@@ -43,7 +43,7 @@ B({ id: 'h_factory', team: 'human', role: 'factory', name: 'Fábrica', cost: 120
     w: 3, h: 3, hp: 1300, power: -40, sight: 18, height: 4.5, produces: 'factory',
     desc: 'Construye vehículos blindados y cosechadoras.' });
 B({ id: 'h_turret', team: 'human', role: 'turret', name: 'Torreta', cost: 500, time: 12, requires: ['barracks'],
-    w: 2, h: 2, hp: 600, power: -15, sight: 28, height: 3.4, muzzleF: 1.6, muzzleY: 2.6,
+    w: 2, h: 2, hp: 600, power: -15, sight: 28, height: 3.4,
     weapon: { range: 26, damage: 16, cd: 0.55, proj: 'bullet', mult: { light: 1, armor: 0.7, building: 0.5 } },
     desc: 'Defensa automática contra todo tipo de unidades.' });
 
@@ -63,7 +63,7 @@ B({ id: 'm_factory', team: 'machine', role: 'factory', name: 'Forja', cost: 1200
     w: 3, h: 3, hp: 1300, power: -40, sight: 18, height: 4.5, produces: 'factory',
     desc: 'Forja máquinas pesadas y recolectores.' });
 B({ id: 'm_turret', team: 'machine', role: 'turret', name: 'Torre Láser', cost: 500, time: 12, requires: ['barracks'],
-    w: 2, h: 2, hp: 600, power: -15, sight: 28, height: 3.4, muzzleF: 1.7, muzzleY: 2.7,
+    w: 2, h: 2, hp: 600, power: -15, sight: 28, height: 3.4,
     weapon: { range: 26, damage: 18, cd: 0.7, proj: 'laserbolt', mult: { light: 1, armor: 0.7, building: 0.5 } },
     desc: 'Defensa láser automática.' });
 
@@ -72,21 +72,21 @@ B({ id: 'm_turret', team: 'machine', role: 'turret', name: 'Torre Láser', cost:
 const U = (o) => def({ kind: 'unit', turn: 8, sight: 20, ...o });
 
 U({ id: 'h_rifle', team: 'human', role: 'inf1', name: 'Fusilero', cost: 100, time: 5, producer: 'barracks',
-    hp: 60, speed: 5.5, radius: 0.7, cls: 'light', height: 1.9, muzzleF: 0.9, muzzleY: 1.2, sight: 18,
+    hp: 60, speed: 5.5, radius: 0.7, cls: 'light', height: 1.9, sight: 18,
     weapon: { range: 12, damage: 7, cd: 0.7, proj: 'bullet', mult: { light: 1, armor: 0.4, building: 0.25 } },
     desc: 'Infantería ligera. Eficaz contra infantería.' });
 U({ id: 'h_rocket', team: 'human', role: 'inf2', name: 'Lanzacohetes', cost: 250, time: 8, producer: 'barracks',
-    hp: 70, speed: 4.6, radius: 0.75, cls: 'light', height: 2, muzzleF: 1.1, muzzleY: 1.7, sight: 18,
+    hp: 70, speed: 4.6, radius: 0.75, cls: 'light', height: 2, sight: 18,
     weapon: { range: 20, damage: 30, cd: 2.2, proj: 'rocket', splash: 2, mult: { light: 0.5, armor: 1.5, building: 1.2 } },
     desc: 'Cohetes antiblindaje. Débil contra infantería.' });
 U({ id: 'h_tank', team: 'human', role: 'tank', name: 'Tanque Atlas', cost: 600, time: 14, producer: 'factory',
     hp: 320, speed: 5, turn: 2.4, radius: 1.5, cls: 'armor', height: 2.2, turret: true, turretTurn: 3.5, fireOnMove: true,
-    muzzleF: 2.4, muzzleY: 1.6, sight: 22,
+    sight: 22,
     weapon: { range: 18, damage: 32, cd: 1.5, proj: 'shell', splash: 2.5, mult: { light: 0.8, armor: 1, building: 1 } },
     desc: 'Tanque principal. Dispara en movimiento.' });
 U({ id: 'h_arty', team: 'human', role: 'arty', name: 'Artillería', cost: 750, time: 16, producer: 'factory',
     hp: 140, speed: 3.8, turn: 2, radius: 1.4, cls: 'armor', height: 2.2, turret: true, turretTurn: 2,
-    muzzleF: 2, muzzleY: 2.1, sight: 20,
+    sight: 20,
     weapon: { range: 40, damage: 55, cd: 4, proj: 'arty', splash: 5, mult: { light: 1, armor: 0.8, building: 1.3 } },
     desc: 'Artillería de largo alcance con daño en área.' });
 U({ id: 'h_harv', team: 'human', role: 'harv', name: 'Cosechadora', cost: 700, time: 14, producer: 'factory',
@@ -95,21 +95,21 @@ U({ id: 'h_harv', team: 'human', role: 'harv', name: 'Cosechadora', cost: 700, t
     desc: 'Recolecta mineral y lo lleva a la refinería.' });
 
 U({ id: 'm_drone', team: 'machine', role: 'inf1', name: 'Dron', cost: 80, time: 4, producer: 'barracks',
-    hp: 45, speed: 9, radius: 0.6, cls: 'light', height: 1.6, hover: true, muzzleF: 0.6, muzzleY: 1.3, sight: 22,
+    hp: 45, speed: 9, radius: 0.6, cls: 'light', height: 1.6, hover: true, sight: 22,
     weapon: { range: 11, damage: 5, cd: 0.5, proj: 'laserbolt', mult: { light: 1, armor: 0.35, building: 0.25 } },
     desc: 'Dron veloz y barato. Ataca en enjambre.' });
 U({ id: 'm_sentinel', team: 'machine', role: 'inf2', name: 'Centinela', cost: 230, time: 8, producer: 'barracks',
-    hp: 100, speed: 4.8, radius: 0.9, cls: 'armor', height: 2.8, muzzleF: 1.2, muzzleY: 2, sight: 20,
+    hp: 100, speed: 4.8, radius: 0.9, cls: 'armor', height: 2.8, sight: 20,
     weapon: { range: 19, damage: 24, cd: 2, proj: 'beam', mult: { light: 0.6, armor: 1.4, building: 1.2 } },
     desc: 'Caminante con cañón láser antiblindaje.' });
 U({ id: 'm_crusher', team: 'machine', role: 'tank', name: 'Segador', cost: 580, time: 14, producer: 'factory',
     hp: 350, speed: 4.6, turn: 2.6, radius: 1.6, cls: 'armor', height: 2.6, turret: true, turretTurn: 3.2, fireOnMove: true,
-    muzzleF: 2.2, muzzleY: 2.2, sight: 22,
+    sight: 22,
     weapon: { range: 17, damage: 30, cd: 1.4, proj: 'plasma', splash: 2.5, mult: { light: 0.85, armor: 1, building: 1 } },
     desc: 'Máquina de guerra arácnida con cañón de plasma.' });
 U({ id: 'm_siege', team: 'machine', role: 'arty', name: 'Araña de Asedio', cost: 750, time: 16, producer: 'factory',
     hp: 130, speed: 4, turn: 2.2, radius: 1.4, cls: 'armor', height: 2.8, turret: true, turretTurn: 2,
-    muzzleF: 1.4, muzzleY: 3, sight: 20,
+    sight: 20,
     weapon: { range: 40, damage: 50, cd: 3.8, proj: 'plasmalob', splash: 5, mult: { light: 1, armor: 0.8, building: 1.3 } },
     desc: 'Mortero de plasma de largo alcance.' });
 U({ id: 'm_harv', team: 'machine', role: 'harv', name: 'Recolector', cost: 700, time: 14, producer: 'factory',

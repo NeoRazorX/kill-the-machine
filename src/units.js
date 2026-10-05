@@ -35,11 +35,6 @@ export class Unit {
 
     const m = buildUnitModel(def, team);
     this.mesh = m.group; this.parts = m.parts;
-    if (this.parts.fill) {
-      const f = this.parts.fill;
-      this.parts.fillH = f.geometry.parameters.height;
-      this.parts.fillBottom = f.position.y - this.parts.fillH / 2;
-    }
     game.scene.add(this.mesh);
     this.syncMesh(0);
   }
@@ -362,15 +357,18 @@ export class Unit {
       p.legs.forEach((l, i) => { l.rotation.x = Math.sin(this.anim + i * Math.PI) * 0.7 * w; });
       if (p.body) p.body.position.y = Math.abs(Math.sin(this.anim)) * 0.07 * w;
     }
-    if (p.spider) p.spider.forEach((l, i) => { l.rotation.y = l.userData.base + Math.sin(this.anim * 0.8 + (i % 2) * Math.PI) * 0.22 * w; });
+    if (p.spider) p.spider.forEach((l, i) => {
+      l.quaternion.copy(p.spiderRest[i]);
+      l.rotateY(Math.sin(this.anim * 0.8 + (i % 2) * Math.PI) * 0.22 * w);
+    });
     if (p.turret) p.turret.rotation.y = angleDiff(this.aim, this.heading);
     if (p.barrel) {
       this.recoil = Math.max(0, this.recoil - dt * 4);
-      p.barrel.position.z = p.barrelZ - this.recoil * 0.4;
+      p.barrel.position.copy(p.barrelRest).addScaledVector(p.recoilAxis, -this.recoil * 0.4);
     }
     if (p.bob) {
       p.bob.position.y = p.bobBase + Math.sin(t * 3 + this.id) * 0.12;
-      p.ring.rotation.z += dt * 6;
+      p.ring.rotation.y += dt * 6;
     }
     if (p.drill && (this.moving || this.gathering)) p.drill.rotation.z += dt * 9;
     if (p.fill) {

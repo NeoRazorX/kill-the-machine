@@ -10,6 +10,9 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 #gl { position: absolute; left: 0; top: 0; width: calc(100% - var(--side)); height: 100%; display: block; }
 #overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
 .hidden { display: none !important; }
+[hidden] { display: none !important; }
+button:disabled { opacity: .45; cursor: wait; }
+#model-status { color: var(--dim); font-size: 13px; min-height: 1em; }
 button { font: inherit; cursor: pointer; }
 
 /* ---------------------------------------------------------------- sidebar */
