@@ -372,7 +372,8 @@ export class Unit {
     }
     if (p.drill && (this.moving || this.gathering)) p.drill.rotation.z += dt * 9;
     if (p.fill) {
-      const frac = clamp(this.load / this.def.capacity, 0.02, 1);
+      const frac = clamp(this.load / this.def.capacity, 0, 1);
+      p.fill.visible = frac > 0;
       p.fill.scale.y = frac;
       p.fill.position.y = p.fillBottom + (p.fillH * frac) / 2;
     }

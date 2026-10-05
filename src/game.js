@@ -54,7 +54,6 @@ export class Game {
     if (spectate) this.ais.push(new AI(this, 'human', DIFFICULTY.normal));
     this.recomputePower();
     this.updateFog(true);
-    this.fogMesh.visible = !spectate;
   }
 
   setupBase(team) {
@@ -82,10 +81,6 @@ export class Game {
     this.fogTex = new THREE.DataTexture(this.fogData, N, N, THREE.RGBAFormat);
     this.fogTex.magFilter = THREE.LinearFilter; this.fogTex.minFilter = THREE.LinearFilter;
     this.fogTex.generateMipmaps = false; this.fogTex.needsUpdate = true;
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), new THREE.MeshBasicMaterial({ map: this.fogTex, transparent: true, depthWrite: false }));
-    m.rotation.x = -Math.PI / 2; m.position.set(SIZE / 2, 3.2, SIZE / 2); m.renderOrder = 5;
-    this.scene.add(m);
-    this.fogMesh = m;
     this.fogCanvas = document.createElement('canvas');
     this.fogCanvas.width = this.fogCanvas.height = N;
     this.fogCtx = this.fogCanvas.getContext('2d');
@@ -112,7 +107,7 @@ export class Game {
     const d = this.fogData, img = this.fogImg.data;
     if (!this.fogA) { this.fogA = new Float32Array(N * N); this.fogB = new Float32Array(N * N); }
     const A = this.fogA, Bf = this.fogB;
-    for (let i = 0; i < N * N; i++) A[i] = fog[i] === 2 ? 0 : fog[i] === 1 ? 125 : 238;
+    for (let i = 0; i < N * N; i++) A[i] = fog[i] === 2 ? 0 : fog[i] === 1 ? 125 : 255;
     for (let pass = 0; pass < 2; pass++) {
       for (let cz = 0; cz < N; cz++) for (let cx = 0; cx < N; cx++) {
         let sum = 0, n = 0;

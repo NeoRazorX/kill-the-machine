@@ -60,9 +60,27 @@ try {
         const p=instance.parts;
         assert(close(p.fill.scale.y,.5) && close(p.fill.position.y-p.fillH*p.fill.scale.y/2,p.fillBottom), `${def.id}: half cargo stays on bin floor`);
         instance.load=def.capacity;instance.syncMesh(.05);
-        assert(close(p.fill.scale.y,1), `${def.id}: full cargo`);
-        instance.load=0;instance.syncMesh(.05);
-        assert(close(p.fill.scale.y,.02) && Number.isFinite(p.fill.position.y), `${def.id}: empty cargo`);
+        assert(p.fill.visible && close(p.fill.scale.y,1), `${def.id}: full cargo`);
+        // Exercise the actual refinery transfer, not only a manually assigned load.
+        let delivered = 0;
+        const oldAddCredits = game.addCredits;
+        game.addCredits = (team, amount) => { delivered += amount; };
+        instance.refinery = { dead: false };
+        instance.hstate = 'unload';
+        instance.order = { type: 'harvest' };
+        instance.updateHarvester(def.capacity / def.unloadRate / 2);
+        instance.syncMesh(.05);
+        assert(p.fill.visible && close(instance.load, def.capacity / 2) && close(p.fill.scale.y, .5), `${def.id}: unloading lowers visible cargo`);
+        instance.updateHarvester(def.capacity / def.unloadRate / 2);
+        instance.syncMesh(.05);
+        assert(instance.load === 0 && instance.hstate === 'idle' && instance.refinery === null && close(delivered, def.capacity), `${def.id}: refinery receives the complete cargo`);
+        assert(!p.fill.visible && p.fill.scale.y === 0 && close(p.fill.position.y, p.fillBottom), `${def.id}: empty bin contains no visible mineral`);
+        game.addCredits = oldAddCredits;
+        instance.field = { x: instance.x, z: instance.z, amount: def.capacity };
+        instance.hstate = 'gather';
+        instance.updateHarvester(.1);
+        instance.syncMesh(.05);
+        assert(instance.load > 0 && p.fill.visible && p.fill.scale.y > 0, `${def.id}: gathering restores visible cargo`);
       }
     } else {
       instance = new Building(game,def,def.team,10,10);

@@ -368,7 +368,7 @@ def harvester(machine=False):
     objects += [armor('Cab',1.72,1.2,.83,1.86,.35,(0,1.04),hull),
                 box('Windscreen',(1.3,.32,.07),(0,1.53,1.57),GLASS if not machine else RED),
                 box('Bumper',(1.8,.2,.2),(0,.76,1.83),base)]
-    # Open cargo bin: fill remains visible at all load levels.
+    # Open cargo bin: the runtime hides the mineral mesh when the load is empty.
     for s in (-1,1):
         objects.append(box('Cargo side',(.17,.67,1.93),(s*.88,1.23,-.62),edge))
     objects += [box('Cargo floor',(1.72,.12,1.93),(0,.93,-.62),base),

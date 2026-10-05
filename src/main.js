@@ -4,6 +4,7 @@ import { Input } from './input.js';
 import { UI } from './ui.js';
 import { SIZE, TEAMS, DIFFICULTY } from './config.js';
 import { preloadModels, assetStatus } from './assets.js';
+import { WarFog } from './war-fog.js';
 
 const params = new URLSearchParams(location.search);
 const startButton = document.getElementById('btn-start');
@@ -64,6 +65,7 @@ resize();
 
 const game = new Game(scene, 20260);
 window.__game = game;
+const warFog = new WarFog(game);
 
 let input = null, ui = null, started = false, speed = 1;
 const diffEls = [...document.querySelectorAll('.diff')];
@@ -118,12 +120,12 @@ function frame(now) {
     sun.target.position.set(SIZE / 2, 0, SIZE / 2);
     game.fx.update(dt);
   }
-  renderer.render(scene, camera);
+  warFog.render(renderer, scene, camera);
 }
 requestAnimationFrame(frame);
 
 // Utilidad de pruebas: avanza la simulación y renderiza aunque la pestaña esté oculta.
 window.__step = (n = 1, dt = 0.05) => {
   for (let i = 0; i < n; i++) { game.update(dt); if (input) { input.update(dt); ui.update(dt); } }
-  renderer.render(scene, camera);
+  warFog.render(renderer, scene, camera);
 };
