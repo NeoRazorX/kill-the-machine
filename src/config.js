@@ -69,6 +69,7 @@ B({ id: 'm_turret', team: 'machine', role: 'turret', name: 'Torre Láser', cost:
 
 // ----------------------------------------------------------------- unidades
 // cls: light | armor (para multiplicadores de daño). producer: barracks | factory
+// repair.targets: productor de las unidades aliadas que puede curar o reparar.
 const U = (o) => def({ kind: 'unit', turn: 8, sight: 20, ...o });
 
 U({ id: 'h_rifle', team: 'human', role: 'inf1', name: 'Fusilero', cost: 100, time: 5, producer: 'barracks',
@@ -79,6 +80,10 @@ U({ id: 'h_rocket', team: 'human', role: 'inf2', name: 'Lanzacohetes', cost: 250
     hp: 70, speed: 4.6, radius: 0.75, cls: 'light', height: 2, sight: 18,
     weapon: { range: 20, damage: 30, cd: 2.2, proj: 'rocket', splash: 2, mult: { light: 0.5, armor: 1.5, building: 1.2 } },
     desc: 'Cohetes antiblindaje. Débil contra infantería.' });
+U({ id: 'h_medic', team: 'human', role: 'medic', name: 'Médico', cost: 150, time: 6, producer: 'barracks',
+    hp: 55, speed: 4.4, radius: 0.7, cls: 'light', height: 1.9, sight: 18,
+    repair: { targets: 'barracks', rate: 9, range: 5 },
+    desc: 'Cura a la infantería aliada cercana. Desarmado.' });
 U({ id: 'h_tank', team: 'human', role: 'tank', name: 'Tanque Atlas', cost: 600, time: 14, producer: 'factory',
     hp: 320, speed: 5, turn: 2.4, radius: 1.5, cls: 'armor', height: 2.2, turret: true, turretTurn: 3.5, fireOnMove: true,
     sight: 22,
@@ -89,6 +94,10 @@ U({ id: 'h_arty', team: 'human', role: 'arty', name: 'Artillería', cost: 750, t
     sight: 20,
     weapon: { range: 40, damage: 55, cd: 4, proj: 'arty', splash: 5, mult: { light: 1, armor: 0.8, building: 1.3 } },
     desc: 'Artillería de largo alcance con daño en área.' });
+U({ id: 'h_mech', team: 'human', role: 'repair', name: 'Vehículo de Reparación', cost: 500, time: 12, producer: 'factory',
+    hp: 240, speed: 3.5, turn: 2.6, radius: 1.4, cls: 'armor', height: 2.3, sight: 20,
+    repair: { targets: 'factory', rate: 16, range: 6 },
+    desc: 'Repara vehículos aliados cercanos. Desarmado.' });
 U({ id: 'h_harv', team: 'human', role: 'harv', name: 'Cosechadora', cost: 700, time: 14, producer: 'factory',
     hp: 350, speed: 4, turn: 2.2, radius: 1.6, cls: 'armor', height: 2, harvester: true, capacity: 400,
     gatherRate: 28, unloadRate: 110, sight: 16,
@@ -102,6 +111,10 @@ U({ id: 'm_sentinel', team: 'machine', role: 'inf2', name: 'Centinela', cost: 23
     hp: 100, speed: 4.8, radius: 0.9, cls: 'armor', height: 2.8, sight: 20,
     weapon: { range: 19, damage: 24, cd: 2, proj: 'beam', mult: { light: 0.6, armor: 1.4, building: 1.2 } },
     desc: 'Caminante con cañón láser antiblindaje.' });
+U({ id: 'm_nanite', team: 'machine', role: 'medic', name: 'Nanodron', cost: 140, time: 6, producer: 'barracks',
+    hp: 45, speed: 4.5, radius: 0.6, cls: 'light', height: 1.6, hover: true, sight: 20,
+    repair: { targets: 'barracks', rate: 9, range: 5 },
+    desc: 'Enjambre de nanobots que restaura drones y centinelas. Desarmado.' });
 U({ id: 'm_crusher', team: 'machine', role: 'tank', name: 'Segador', cost: 580, time: 14, producer: 'factory',
     hp: 350, speed: 4.6, turn: 2.6, radius: 1.6, cls: 'armor', height: 2.6, turret: true, turretTurn: 3.2, fireOnMove: true,
     sight: 22,
@@ -112,6 +125,10 @@ U({ id: 'm_siege', team: 'machine', role: 'arty', name: 'Araña de Asedio', cost
     sight: 20,
     weapon: { range: 40, damage: 50, cd: 3.8, proj: 'plasmalob', splash: 5, mult: { light: 1, armor: 0.8, building: 1.3 } },
     desc: 'Mortero de plasma de largo alcance.' });
+U({ id: 'm_welder', team: 'machine', role: 'repair', name: 'Soldador', cost: 500, time: 12, producer: 'factory',
+    hp: 250, speed: 3.5, turn: 2.6, radius: 1.4, cls: 'armor', height: 2.4, sight: 20,
+    repair: { targets: 'factory', rate: 16, range: 6 },
+    desc: 'Repara máquinas pesadas aliadas cercanas. Desarmado.' });
 U({ id: 'm_harv', team: 'machine', role: 'harv', name: 'Recolector', cost: 700, time: 14, producer: 'factory',
     hp: 330, speed: 4.2, turn: 2.4, radius: 1.6, cls: 'armor', height: 2, harvester: true, capacity: 400,
     gatherRate: 28, unloadRate: 110, sight: 16,
@@ -123,11 +140,15 @@ for (const d of Object.values(DEFS)) ROLE[d.team][d.role] = d;
 
 export const STRUCT_ROLES = ['power', 'refinery', 'barracks', 'factory', 'turret'];
 export const UNIT_ROLES = {
-  barracks: ['inf1', 'inf2'],
-  factory: ['tank', 'arty', 'harv'],
+  barracks: ['inf1', 'inf2', 'medic'],
+  factory: ['tank', 'arty', 'repair', 'harv'],
 };
 
 export const ROLE_NAMES = {
   hq: 'Cuartel General', power: 'Energía', refinery: 'Refinería',
   barracks: 'Cuartel', factory: 'Fábrica', turret: 'Torreta',
 };
+
+// Un médico cura lo que sale del cuartel; un reparador, lo que sale de la fábrica.
+export const canRepair = (healer, target) => !!healer.def.repair && healer !== target && !target.dead &&
+  target.kind === 'unit' && target.team === healer.team && target.def.producer === healer.def.repair.targets;

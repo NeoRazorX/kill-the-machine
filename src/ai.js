@@ -107,8 +107,20 @@ export class AI {
     const r = Math.random();
     const choices = [];
     const R = ROLE[team];
-    if (g.hasRole(team, 'barracks')) choices.push([R.inf1, 0.34], [R.inf2, 0.26]);
-    if (g.hasRole(team, 'factory')) choices.push([R.tank, 0.28], [R.arty, 0.12]);
+    // Sanadores: como mucho uno por cada seis unidades de su tipo.
+    const own = (producer) => g.units.filter((u) => u.team === team && !u.dead && !u.def.harvester && u.def.producer === producer);
+    const fewHealers = (producer, role) => {
+      const list = own(producer), healers = list.filter((u) => u.def.repair).length + g.queuedCount(team, R[role].id);
+      return list.length >= 4 && healers * 6 < list.length;
+    };
+    if (g.hasRole(team, 'barracks')) {
+      choices.push([R.inf1, 0.34], [R.inf2, 0.26]);
+      if (fewHealers('barracks', 'medic')) choices.push([R.medic, 0.1]);
+    }
+    if (g.hasRole(team, 'factory')) {
+      choices.push([R.tank, 0.28], [R.arty, 0.12]);
+      if (fewHealers('factory', 'repair')) choices.push([R.repair, 0.08]);
+    }
     let tot = choices.reduce((a, c) => a + c[1], 0), acc = 0;
     for (const [def, w] of choices) {
       acc += w / tot;
@@ -117,7 +129,7 @@ export class AI {
   }
 
   armyIdle() {
-    return this.g.units.filter((u) => u.team === this.team && !u.dead && !u.def.harvester && u.def.weapon && !this.group.includes(u) && (u.order.type === 'idle' || (u.order.type === 'move' && !u.path)));
+    return this.g.units.filter((u) => u.team === this.team && !u.dead && !u.def.harvester && (u.def.weapon || u.def.repair) && !this.group.includes(u) && (u.order.type === 'idle' || (u.order.type === 'move' && !u.path)));
   }
 
   pickTarget(from) {

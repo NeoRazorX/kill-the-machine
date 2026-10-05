@@ -23,6 +23,7 @@ BLACK = '#161d27'
 RED = '#ff3e31'
 ORANGE = '#ff921f'
 TEAL = '#46e6bc'
+WHITE = '#d8dcdc'
 
 
 def xyz(v):
@@ -283,9 +284,9 @@ def tracked_chassis(machine=False):
     return objects
 
 
-def infantry(machine=False, heavy=False):
+def infantry(machine=False, heavy=False, medic=False):
     reset()
-    id = 'm_sentinel' if machine else 'h_rocket' if heavy else 'h_rifle'
+    id = 'm_sentinel' if machine else 'h_medic' if medic else 'h_rocket' if heavy else 'h_rifle'
     hull, edge, base, accent = (MACHINE,MPLATE,BLACK,RED) if machine else (OLIVE,LIGHT,DARK,BLUE)
     hip = 1.16 if machine else .72
     body_y = 1.65 if machine else 1.1
@@ -302,7 +303,14 @@ def infantry(machine=False, heavy=False):
     objects = [armor('Torso',.91 if machine else .66,.57 if machine else .43,body_y-.33,body_y+.34,.14,(0,0),hull),
                box('Chest plate',(.66 if machine else .49,.29,.1),(0,body_y+.08,.28 if machine else .23),edge),
                box('Identification',(.55 if machine else .35,.07,.03),(0,body_y+.14,.34 if machine else .295),accent,.005),
-               box('Backpack',(.51,.52,.25),(0,body_y,-.35),base,.04)]
+               box('Backpack',(.51,.52,.25),(0,body_y,-.35),WHITE if medic else base,.04)]
+    if medic:
+        # Cruz roja en mochila y pecho; brazalete blanco.
+        objects += [box('Cross bar',(.3,.09,.02),(0,body_y,-.48),RED,.005),
+                    box('Cross post',(.09,.3,.02),(0,body_y,-.48),RED,.005),
+                    box('Chest cross bar',(.16,.05,.02),(0,body_y+.14,.3),RED,.004),
+                    box('Chest cross post',(.05,.16,.02),(0,body_y+.14,.3),RED,.004),
+                    box('Armband',(.32,.1,.37),(-.38,body_y+.02,0),WHITE,.02)]
     if machine:
         objects += [armor('Sensor head',.65,.5,2.2,2.61,.22,(0,0),base),
                     box('Visor',(.45,.075,.03),(0,2.43,.25),RED,.005)]
@@ -316,7 +324,14 @@ def infantry(machine=False, heavy=False):
                     beam('Forearm',(s*shoulder,body_y+.02,.05),(s*shoulder,body_y-.1,.35),.16,base)]
     gun_x = shoulder
     gun_y = 1.5 if heavy else 1.94 if machine else 1.18
-    if heavy:
+    if medic:
+        # Botiquín en una mano, emisor de vendaje en la otra.
+        objects += [box('Medkit',(.34,.26,.16),(-shoulder,1.0,.3),WHITE,.03),
+                    box('Medkit cross',(.12,.04,.17),(-shoulder,1.0,.3),RED,.004),
+                    box('Spray body',(.14,.14,.4),(gun_x,gun_y,.45),WHITE),
+                    cyl('Spray nozzle',.045,.18,(gun_x,gun_y,.73),STEEL,'z',8)]
+        muzzle_z = .83
+    elif heavy:
         objects += [cyl('Rocket launcher',.14,1.27,(gun_x,gun_y,.32),base,'z',8),
                     cyl('Rocket tube lip',.18,.12,(gun_x,gun_y,.93),edge,'z',8),
                     cyl('Launcher bore',.115,.012,(gun_x,gun_y,.995),BLACK,'z',8),
@@ -331,6 +346,66 @@ def infantry(machine=False, heavy=False):
     empty('muzzle',(gun_x,gun_y,muzzle_z),body)
     merge('Body armor',objects,body)
     save(id)
+
+
+def repair_truck():
+    reset()
+    objects = [box('Chassis',(2,.37,3.3),(0,.68,0),DARK,.07)]
+    for s in (-1,1):
+        for z in (-1.1,1.1):
+            objects += [cyl('Tire',.46,.38,(s*.99,.46,z),DARK,'x'),
+                        cyl('Hub',.23,.025,(s*1.19,.46,z),STEEL,'x')]
+    objects += [armor('Cab',1.72,1.15,.83,1.86,.35,(0,1.05),OLIVE),
+                box('Windscreen',(1.3,.32,.07),(0,1.53,1.56),GLASS),
+                box('Bumper',(1.8,.2,.2),(0,.76,1.78),DARK),
+                box('Beacon',(.5,.12,.18),(0,1.92,1.05),YELLOW,.02),
+                box('Tool bed',(1.86,.5,1.8),(0,1.1,-.65),LIGHT),
+                box('Tool locker',(1.9,.3,.5),(0,1.48,-1.25),OLIVE),
+                box('Hazard stripe',(1.92,.06,.12),(0,1.63,-1.5),YELLOW,.008),
+                cyl('Crane base',.3,.3,(0,1.5,-.3),STEEL),
+                beam('Crane boom',(0,1.65,-.3),(0,2.25,.55),.2,YELLOW),
+                beam('Crane jib',(0,2.25,.55),(0,1.95,1.05),.14,YELLOW),
+                cyl('Welder head',.12,.22,(0,1.9,1.12),DARK,'z',8),
+                box('Unit stripe',(.06,.18,.9),(1,1.1,-.65),BLUE,.008),
+                box('Unit stripe',(.06,.18,.9),(-1,1.1,-.65),BLUE,.008)]
+    merge('Repair truck',objects)
+    empty('muzzle',(0,1.88,1.25))
+    save('h_mech')
+
+
+def welder():
+    reset()
+    objects = tracked_chassis(True)
+    objects += [armor('Workshop',1.6,2.2,1.05,1.7,.35,(0,-.35),MPLATE),
+                box('Sensor bar',(.9,.1,.06),(0,1.55,.78),TEAL,.008),
+                cyl('Coolant tank',.22,1.2,(.55,1.9,-.6),BLACK,'z',8),
+                cyl('Coolant tank',.22,1.2,(-.55,1.9,-.6),BLACK,'z',8)]
+    for s in (-1,1):
+        objects += [cyl('Shoulder joint',.18,.2,(s*.55,1.55,.55),STEEL,'x',8),
+                    beam('Upper arm',(s*.55,1.6,.55),(s*.45,2.15,1.05),.14,MACHINE),
+                    beam('Forearm',(s*.45,2.15,1.05),(s*.2,1.7,1.55),.11,MPLATE),
+                    cone('Torch',.08,.02,.25,(s*.17,1.62,1.68),ORANGE,6)]
+    merge('Welder',objects)
+    empty('muzzle',(0,1.6,1.75))
+    save('m_welder')
+
+
+def nanite():
+    reset()
+    bob = empty('bob',(0,1.12,0))
+    objects = [gem('Nanite core',(.36,.36,.36),(0,1.12,0),TEAL),
+               gem('Shell',(.3,.18,.4),(0,1.32,-.05),MACHINE)]
+    for a in range(3):
+        ang = a * math.tau / 3
+        objects.append(armor('Petal',.28,.42,1.0,1.1,.1,(math.sin(ang)*.45,math.cos(ang)*.45),MPLATE))
+    merge('Nanite swarm hub',objects,bob)
+    ring = empty('ring',(0,-.22,0),bob)
+    objects = [torus('Nanite ring',.42,.04,(0,.9,0),TEAL)]
+    for a in (0,math.pi):
+        objects.append(box('Ring tab',(.09,.08,.14),(math.sin(a)*.42,.9,math.cos(a)*.42),MPLATE))
+    merge('Lift assembly',objects,ring)
+    empty('muzzle',(0,0,.4),bob)
+    save('m_nanite')
 
 
 def artillery():
@@ -692,6 +767,8 @@ BUILDERS = {
     'h_rifle': lambda: infantry(), 'h_rocket': lambda: infantry(heavy=True),
     'm_sentinel': lambda: infantry(machine=True), 'h_arty': artillery,
     'h_harv': lambda: harvester(), 'm_harv': lambda: harvester(True),
+    'h_medic': lambda: infantry(medic=True), 'h_mech': repair_truck,
+    'm_nanite': nanite, 'm_welder': welder,
     'm_drone': drone, 'm_crusher': lambda: spider(), 'm_siege': lambda: spider(True),
     'h_turret': lambda: turret_building(), 'm_turret': lambda: turret_building(True),
     'h_hq': human_hq, 'm_hq': machine_hq,

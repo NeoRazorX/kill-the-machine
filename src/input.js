@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SIZE, CELL, N, PLAYER, other } from './config.js';
+import { SIZE, CELL, N, PLAYER, other, canRepair } from './config.js';
 import { buildBuildingModel } from './models.js';
 import { nearestFreeCell } from './pathfinding.js';
 
@@ -177,7 +177,8 @@ export class Input {
   }
 
   commandAt(cx, cy) {
-    const g = this.game, units = this.selUnits();
+    const g = this.game;
+    let units = this.selUnits();
     const gp = this.groundAt(cx, cy);
     if (!gp) return;
     if (!units.length) {
@@ -192,6 +193,18 @@ export class Input {
       g.audio.play('attack');
       return;
     }
+    let rest = units;
+    if (hit && hit.kind === 'unit' && hit.team === this.player) {
+      // Clic derecho sobre un aliado herido: los sanadores compatibles lo atienden.
+      const healers = units.filter((u) => canRepair(u, hit));
+      if (healers.length && hit.hp < hit.maxHp) {
+        healers.forEach((u) => u.cmdRepair(hit));
+        g.fx.marker(hit.x, hit.z, 'move');
+        rest = units.filter((u) => !healers.includes(u));
+        if (!rest.length) { g.audio.play('order'); return; }
+      }
+    }
+    units = rest;
     const harvs = units.filter((u) => u.def.harvester), others = units.filter((u) => !u.def.harvester);
     let handled = false;
     if (harvs.length) {
@@ -209,7 +222,7 @@ export class Input {
   }
 
   attackMoveAt(cx, cy) {
-    const gp = this.groundAt(cx, cy), units = this.selUnits().filter((u) => u.def.weapon);
+    const gp = this.groundAt(cx, cy), units = this.selUnits().filter((u) => u.def.weapon || u.def.repair);
     if (!gp || !units.length) return;
     this.orderMove(units, gp.x, gp.z, true);
     this.game.fx.marker(gp.x, gp.z, 'attack');
@@ -366,7 +379,7 @@ export class Input {
     if (code === 'KeyP') { if (this.ui) this.ui.togglePause(); return; }
     if (code === 'KeyM') { if (this.ui) this.ui.toggleMute(); return; }
     if (g.over) return;
-    if (code === 'KeyA' && !e.ctrlKey) { if (this.selUnits().some((u) => u.def.weapon)) { this.attackMode = true; this.cancelPlacement(); } return; }
+    if (code === 'KeyA' && !e.ctrlKey) { if (this.selUnits().some((u) => u.def.weapon || u.def.repair)) { this.attackMode = true; this.cancelPlacement(); } return; }
     if (code === 'KeyA' && e.ctrlKey) { e.preventDefault(); this.setSelection(g.units.filter((u) => u.team === this.player && !u.dead)); return; }
     if (code === 'KeyS') { for (const u of this.selUnits()) u.cmdStop(); g.audio.play('order'); return; }
     if (code === 'KeyH') { const hq = g.teamBuildings(this.player, 'hq')[0]; if (hq) { this.centerOn(hq.x, hq.z); } return; }
@@ -422,6 +435,7 @@ export class Input {
     let cur = 'default';
     if (this.placing || this.attackMode) cur = 'crosshair';
     else if (this.hover && this.hover.team !== this.player && this.selUnits().some((u) => u.def.weapon)) cur = 'crosshair';
+    else if (this.hover && this.hover.team === this.player && this.hover.hp < this.hover.maxHp && this.selUnits().some((u) => canRepair(u, this.hover))) cur = 'cell';
     else if (this.hover && this.hover.team === this.player) cur = 'pointer';
     this.dom.style.cursor = cur;
   }

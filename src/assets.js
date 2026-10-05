@@ -9,9 +9,10 @@ const instanceAssets = new Map();
 const animatedNodes = ['turret', 'barrel', 'muzzle', 'body', 'fill', 'bob', 'ring', 'drill', 'dish', 'crystal'];
 const groups = { legs: 'leg_', spider: 'spider_', rings: 'ring_' };
 const requiredNodes = {
-  h_rifle: ['body', 'leg_0', 'leg_1'], h_rocket: ['body', 'leg_0', 'leg_1'],
+  h_rifle: ['body', 'leg_0', 'leg_1'], h_rocket: ['body', 'leg_0', 'leg_1'], h_medic: ['body', 'leg_0', 'leg_1', 'muzzle'],
   m_sentinel: ['body', 'leg_0', 'leg_1'],
-  h_harv: ['fill'], m_harv: ['fill', 'drill'], m_drone: ['bob', 'ring'],
+  h_harv: ['fill'], m_harv: ['fill', 'drill'], m_drone: ['bob', 'ring'], m_nanite: ['bob', 'ring', 'muzzle'],
+  h_mech: ['muzzle'], m_welder: ['muzzle'],
   m_crusher: Array.from({length: 4}, (_,i) => `spider_${i}`),
   m_siege: Array.from({length: 6}, (_,i) => `spider_${i}`),
   h_hq: ['dish'], m_hq: ['crystal', 'ring'], m_power: ['ring_0', 'ring_1', 'ring_2'],

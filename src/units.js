@@ -1,4 +1,4 @@
-import { SIZE } from './config.js';
+import { SIZE, canRepair } from './config.js';
 import { findPath, clearLine } from './pathfinding.js';
 import { buildUnitModel } from './models.js';
 import { RANKS, isCombatUnit } from './experience.js';
@@ -67,6 +67,11 @@ export class Unit {
   cmdAttack(t) {
     if (!this.def.weapon) { this.cmdMove(t.x, t.z); return; }
     this.order = { type: 'attack', target: t };
+    this.target = t; this.path = null; this.dest = null; this.repathT = 0;
+  }
+  cmdRepair(t) {
+    if (!canRepair(this, t)) { this.cmdMove(t.x, t.z); return; }
+    this.order = { type: 'repair', target: t };
     this.target = t; this.path = null; this.dest = null; this.repathT = 0;
   }
   cmdStop() {
@@ -280,6 +285,76 @@ export class Unit {
     }
   }
 
+  // -------------------------------------------------------- médico / reparador
+  // Aliado compatible más dañado (en proporción) dentro del radio.
+  findPatient(radius) {
+    let best = null, bestF = 0.999;
+    const q = this.game.queryUnits(this.x, this.z, radius + 2);
+    for (let i = 0; i < q.length; i++) {
+      const u = q[i];
+      if (!canRepair(this, u) || Math.hypot(u.x - this.x, u.z - this.z) > radius) continue;
+      const f = u.hp / u.maxHp;
+      if (f < bestF) { bestF = f; best = u; }
+    }
+    return best;
+  }
+
+  // Cura si está a su alcance; si no, se acerca. Devuelve false cuando el paciente ya no lo necesita.
+  tend(dt) {
+    const t = this.target, r = this.def.repair, g = this.game;
+    if (!t || !canRepair(this, t) || t.hp >= t.maxHp) { this.target = null; return false; }
+    const d = Math.hypot(t.x - this.x, t.z - this.z) - t.radius - this.radius;
+    if (d <= r.range) {
+      this.path = null; this.dest = null;
+      this.faceTarget(t, dt);
+      t.hp = Math.min(t.maxHp, t.hp + r.rate * dt);
+      if (this.cooldown <= 0) { this.cooldown = 0.3; g.fx.repairBeam(this, t); }
+      this.healing = true;
+    } else {
+      this.repathT -= dt;
+      if (!this.path || this.repathT <= 0) { this.repathT = 0.8; this.pathTo(t.x, t.z); }
+      this.followPath(dt);
+    }
+    return true;
+  }
+
+  updateSupport(dt) {
+    const o = this.order, sight = this.def.sight;
+    switch (o.type) {
+      case 'idle': {
+        this.scanT -= dt;
+        if (!this.target && this.scanT <= 0) {
+          this.scanT = 0.4 + Math.random() * 0.2;
+          this.target = this.findPatient(sight);
+        }
+        // No se aleja demasiado de su posición de guardia.
+        if (this.target && Math.hypot(this.target.x - this.guard.x, this.target.z - this.guard.z) > 22) this.target = null;
+        if (this.tend(dt)) break;
+        if (!this.path && Math.hypot(this.x - this.guard.x, this.z - this.guard.z) > 6) this.pathTo(this.guard.x, this.guard.z);
+        if (this.path) this.followPath(dt);
+        break;
+      }
+      case 'move': {
+        if (this.followPath(dt)) this.becomeIdle();
+        break;
+      }
+      case 'attackmove': {
+        // Avanza con el grupo y se detiene a atender a los heridos que encuentra.
+        this.scanT -= dt;
+        if (!this.target && this.scanT <= 0) { this.scanT = 0.4 + Math.random() * 0.2; this.target = this.findPatient(sight); }
+        if (this.tend(dt)) break;
+        if (!this.path && !this.pathTo(o.x, o.z)) { this.becomeIdle(); break; }
+        if (this.followPath(dt)) this.becomeIdle();
+        break;
+      }
+      case 'repair': {
+        this.target = o.target;
+        if (!this.tend(dt)) this.becomeIdle();
+        break;
+      }
+    }
+  }
+
   // ------------------------------------------------------------ cosechadora
   updateHarvester(dt) {
     const g = this.game, d = this.def, o = this.order;
@@ -358,8 +433,10 @@ export class Unit {
   // ----------------------------------------------------------------- ciclo
   update(dt) {
     this.cooldown -= dt;
-    this.moving = false; this.aimed = false; this.gathering = false;
-    if (this.def.harvester) this.updateHarvester(dt); else this.updateCombat(dt);
+    this.moving = false; this.aimed = false; this.gathering = false; this.healing = false;
+    if (this.def.harvester) this.updateHarvester(dt);
+    else if (this.def.repair) this.updateSupport(dt);
+    else this.updateCombat(dt);
     this.separate(dt);
     if (!this.aimed) {
       if (this.def.turret) {

@@ -206,6 +206,27 @@ export class FX {
     b.life = b.max = 0.16; b.mesh.visible = true;
   }
 
+  // Haz de curación (infantería) o arco de soldadura (vehículos) desde el emisor del sanador.
+  repairBeam(src, t) {
+    let x0 = src.x, y0 = src.def.height * 0.6, z0 = src.z;
+    const muzzle = src.parts.muzzle;
+    if (muzzle) {
+      src.mesh.position.set(src.x, 0, src.z);
+      src.mesh.rotation.y = src.heading;
+      muzzle.updateWorldMatrix(true, false);
+      const e = muzzle.matrixWorld.elements;
+      x0 = e[12]; y0 = e[13]; z0 = e[14];
+    }
+    const x1 = t.x + (Math.random() - 0.5) * t.radius, y1 = this.hitY(t) + (Math.random() - 0.3) * 0.5, z1 = t.z + (Math.random() - 0.5) * t.radius;
+    if (!this.game.isVisibleEntity(src) && !this.game.isVisibleEntity(t)) return;
+    const weld = src.def.repair.targets === 'factory';
+    this.beam(x0, y0, z0, x1, y1, z1, weld ? 0xffc860 : 0x60ffb0, weld ? 0.7 : 0.9);
+    for (let i = 0; i < 3; i++) {
+      if (weld) this.spawn(x1, y1, z1, (Math.random() - 0.5) * 4, Math.random() * 3, (Math.random() - 0.5) * 4, 0.3, 0.18, 0.04, SPARK0, SPARK1, 9, 1);
+      else this.spawn(x1 + (Math.random() - 0.5) * 0.6, y1, z1 + (Math.random() - 0.5) * 0.6, 0, 1.2 + Math.random(), 0, 0.6, 0.22, 0.05, GREEN0, GREEN1, 0, 0.5);
+    }
+  }
+
   // ----------------------------------------------------------- proyectiles
   acquireProj(style) {
     const key = style.geo + style.color;

@@ -83,7 +83,7 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 | Acción | Control |
 |---|---|
 | Seleccionar | clic · arrastrar caja · doble clic (mismo tipo) · Ctrl+A (todas) |
-| Mover / atacar / cosechar | clic derecho (en cuartel/fábrica: punto de reunión) |
+| Mover / atacar / cosechar / curar | clic derecho (sobre un aliado herido: curar o reparar; en cuartel/fábrica: punto de reunión) |
 | Atacar-mover · Detener | `A` + clic · `S` |
 | Cámara | flechas o bordes · rueda / `Q` `E` zoom · botón central arrastra · `H` base · `Espacio` última alerta |
 | Grupos | `Ctrl+1-9` crear · `1-9` seleccionar (doble = centrar) |
@@ -92,6 +92,7 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 
 ## Mecánicas
 - **Experiencia**: las unidades de combate ascienden a veteranas con 3 bajas (+10 % daño) y a élite con 8 (+20 % daño y +10 % vida máxima, conservando el porcentaje de salud). Solo cuenta el golpe final contra unidades enemigas; edificios y defensas estáticas no generan ascensos. Los distintivos y la ficha muestran rango y progreso. Las bonificaciones son totales y no se acumulan más allá de élite.
+- **Médicos y reparación**: el médico (humanos) y el nanodron (máquinas) salen del cuartel y curan a la infantería aliada; el vehículo de reparación y el soldador salen de la fábrica y reparan vehículos aliados, incluidas las cosechadoras. Están desarmados. En reposo atienden solos a los heridos cercanos sin alejarse de su posición; con atacar-mover acompañan al grupo y se detienen a curar por el camino. La curación nunca supera la vida máxima (incluida la de élite). La IA los produce en proporción de uno por cada seis unidades del mismo tipo.
 - **Energía**: cada edificio consume; con déficit la producción va al 40 % y las torretas disparan a la mitad.
 - **Economía**: las cosechadoras llevan el mineral a la refinería; los campos se regeneran lentamente.
 - **Contadores de daño**: fusil fuerte contra infantería, cohetes/láser contra blindados y edificios, artillería con daño en área.
@@ -109,6 +110,11 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 ausencia de bonificaciones compartidas (Node.js 22.15+).
 [Vista y pruebas de los rangos](http://localhost:8765/tests/experience.html) añade
 la comprobación de fichas y distintivos con los modelos del juego.
+
+## Pruebas de curación
+
+`npm run test:repair` comprueba qué unidad puede curar a cuál, la curación automática
+en reposo, las órdenes explícitas a distancia y el límite de vida máxima.
 
 ## Pruebas de navegación
 
