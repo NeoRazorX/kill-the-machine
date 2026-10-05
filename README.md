@@ -91,6 +91,7 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 | Vender edificio | `Supr` o botón del panel · `P` pausa · `M` sonido |
 
 ## Mecánicas
+- **Experiencia**: las unidades de combate ascienden a veteranas con 3 bajas (+10 % daño) y a élite con 8 (+20 % daño y +10 % vida máxima, conservando el porcentaje de salud). Solo cuenta el golpe final contra unidades enemigas; edificios y defensas estáticas no generan ascensos. Los distintivos y la ficha muestran rango y progreso. Las bonificaciones son totales y no se acumulan más allá de élite.
 - **Energía**: cada edificio consume; con déficit la producción va al 40 % y las torretas disparan a la mitad.
 - **Economía**: las cosechadoras llevan el mineral a la refinería; los campos se regeneran lentamente.
 - **Contadores de daño**: fusil fuerte contra infantería, cohetes/láser contra blindados y edificios, artillería con daño en área.
@@ -101,3 +102,10 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 `src/config.js` definiciones · `map.js` terreno · `pathfinding.js` A* · `units.js` / `buildings.js` entidades ·
 `game.js` simulación · `ai.js` IA · `fx.js` efectos y proyectiles · `models.js` modelos procedurales ·
 `input.js` cámara y órdenes · `ui.js` interfaz y minimapa · `audio.js` sonido sintetizado.
+
+## Pruebas de experiencia
+
+`npm run test:experience` comprueba ascensos, daño, salud, atribución de bajas y
+ausencia de bonificaciones compartidas (Node.js 22.15+).
+[Vista y pruebas de los rangos](http://localhost:8765/tests/experience.html) añade
+la comprobación de fichas y distintivos con los modelos del juego.

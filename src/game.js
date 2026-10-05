@@ -443,7 +443,7 @@ export class Game {
   }
 
   // ----------------------------------------------------------------- combate
-  damage(target, amount, srcTeam, srcPos) {
+  damage(target, amount, srcTeam, srcPos, source = null) {
     if (target.dead || amount <= 0) return;
     target.hp -= amount; target.lastHit = this.time;
     const tt = this.teams[target.team];
@@ -453,16 +453,17 @@ export class Game {
       this.audio.play('alert'); this.audio.say('Estamos bajo ataque', 5000);
       this.emit('alert', { x: target.x, z: target.z });
     }
-    if (target.hp <= 0) this.kill(target, srcTeam);
+    if (target.hp <= 0) this.kill(target, srcTeam, source);
   }
 
-  kill(e, byTeam) {
+  kill(e, byTeam, source = null) {
     if (e.dead) return;
     e.hp = 0;
     this.teams[e.team].stats.lost++;
     if (byTeam && this.teams[byTeam]) this.teams[byTeam].stats.killed++;
     if (e.kind === 'unit') {
       e.dead = true;
+      if (source?.team === byTeam) source.recordKill?.(e);
       this.scene.remove(e.mesh);
       const big = e.radius > 1.1;
       this.fx.explosion(e.x, 0.6, e.z, big ? 2.4 : 1.2);
@@ -490,17 +491,17 @@ export class Game {
         if (u.team !== enemy || u.dead) continue;
         const d = Math.max(0, Math.hypot(u.x - p.x, u.z - p.z) - u.radius);
         if (d > R) continue;
-        this.damage(u, p.dmg * multFor(u) * (1 - 0.6 * d / R), p.team, src);
+        this.damage(u, p.dmg * multFor(u) * (1 - 0.6 * d / R), p.team, src, p.source);
       }
       for (const b of this.buildings.slice()) {
         if (b.team !== enemy || b.dead || b.selling) continue;
         const d = rectDist(p.x, p.z, b.rect);
         if (d > R) continue;
-        this.damage(b, p.dmg * multFor(b) * (1 - 0.6 * d / R), p.team, src);
+        this.damage(b, p.dmg * multFor(b) * (1 - 0.6 * d / R), p.team, src, p.source);
       }
     } else {
       this.fx.hitSpark(p.x, p.y, p.z, p.type === 'laserbolt' || p.type === 'beam');
-      if (t && !t.dead) this.damage(t, p.dmg * multFor(t), p.team, src);
+      if (t && !t.dead) this.damage(t, p.dmg * multFor(t), p.team, src, p.source);
     }
   }
 

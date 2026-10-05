@@ -245,7 +245,7 @@ export class FX {
 
     const p = {
       type: w.proj, x: mx, y: my, z: mz, tx, ty, tz, target, weapon: w, team: att.team, srcDef: att.def,
-      dmg: w.damage, splash: w.splash || 0, life: 0,
+      source: att, dmg: w.damage * (att.damageMultiplier ?? 1), splash: w.splash || 0, life: 0,
     };
     if (w.proj === 'beam') {
       this.beam(mx, my, mz, tx, ty, tz, 0xff3a2a, 1.4);

@@ -1,6 +1,7 @@
 import { SIZE } from './config.js';
 import { findPath } from './pathfinding.js';
 import { buildUnitModel } from './models.js';
+import { RANKS, isCombatUnit } from './experience.js';
 
 let NEXT_ID = 1;
 export const nextId = () => NEXT_ID++;
@@ -21,6 +22,7 @@ export class Unit {
     this.heading = Math.atan2(SIZE / 2 - x, SIZE / 2 - z);
     this.aim = this.heading;
     this.hp = this.maxHp = def.hp;
+    this.kills = 0; this.rank = 0; this.damageMultiplier = 1;
     this.radius = def.radius; this.cls = def.cls;
     this.order = { type: def.harvester ? 'harvest' : 'idle' };
     this.path = null; this.pathI = 0; this.dest = null; this.navVer = 0;
@@ -37,6 +39,22 @@ export class Unit {
     this.mesh = m.group; this.parts = m.parts;
     game.scene.add(this.mesh);
     this.syncMesh(0);
+  }
+
+  recordKill(victim) {
+    if (this.dead || !isCombatUnit(this) || victim.kind !== 'unit' || victim.team === this.team) return;
+    this.kills++;
+    const nextRank = this.kills >= RANKS[2].kills ? 2 : this.kills >= RANKS[1].kills ? 1 : 0;
+    if (nextRank === this.rank) return;
+    const healthFraction = clamp(this.hp / this.maxHp, 0, 1);
+    this.rank = nextRank;
+    const bonus = RANKS[this.rank];
+    this.damageMultiplier = bonus.damage;
+    this.maxHp = this.def.hp * bonus.health;
+    this.hp = this.maxHp * healthFraction;
+    if (this.team === this.game.player && !this.game.spectate) {
+      this.game.emit('toast', { text: `${this.def.name}: rango ${bonus.name}`, kind: 'info' });
+    }
   }
 
   // ------------------------------------------------------------- órdenes

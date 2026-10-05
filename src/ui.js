@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { DEFS, ROLE, TEAMS, N, SIZE, CELL, STRUCT_ROLES, UNIT_ROLES, ROLE_NAMES, PLAYER } from './config.js';
 import { buildUnitModel, buildBuildingModel } from './models.js';
+import { isCombatUnit, experienceText } from './experience.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -241,6 +242,7 @@ export class UI {
       html += '</div>';
       const names = [...groups.values()].map((l) => l[0].def.name);
       html += `<div class="sp-sub">${sel.length === 1 ? names[0] : sel.length + ' unidades'}${sel[0].team !== g.player ? ' · enemigo' : ''}</div><div class="hpbar"><i></i></div>`;
+      if (sel.some(isCombatUnit)) html += '<div class="sp-experience"></div>';
       panel.innerHTML = html;
       panel.querySelectorAll('.chip').forEach((c) => {
         c.onclick = () => { const list = groups.get(c.dataset.id); this.input.setSelection(list); };
@@ -254,6 +256,12 @@ export class UI {
     if (!bar || !sel.length) return;
     let hp = 0, max = 0;
     for (const e of sel) { hp += e.hp; max += e.maxHp; }
+    const experience = document.querySelector('#selpanel .sp-experience');
+    if (experience) {
+      const combat = sel.filter(isCombatUnit);
+      experience.textContent = combat.length === 1 && sel.length === 1 ? experienceText(combat[0]) :
+        `${combat.reduce((sum, u) => sum + u.kills, 0)} bajas · ${combat.filter(u => u.rank === 1).length} veteranas · ${combat.filter(u => u.rank === 2).length} élite`;
+    }
     const f = hp / max;
     bar.style.width = (f * 100) + '%';
     bar.style.background = f > 0.6 ? '#4cd964' : f > 0.3 ? '#ffcc00' : '#ff453a';
@@ -394,6 +402,22 @@ export class UI {
     }
   }
 
+  drawRank(unit) {
+    if (!unit.rank || unit.dead || !unit.mesh.visible || !this.game.isVisibleEntity(unit)) return;
+    const p = this.input.project(unit.x, unit.def.height + .7, unit.z);
+    if (p.z < -1 || p.z > 1) return;
+    const c = this.ctx;
+    c.save();
+    c.strokeStyle = unit.rank === 2 ? '#ffd36b' : '#c6e1ef';
+    c.lineWidth = 2;
+    c.shadowColor = '#000'; c.shadowBlur = 3;
+    for (let i = 0; i < unit.rank; i++) {
+      const y = p.y - 8 - i * 5;
+      c.beginPath(); c.moveTo(p.x - 5, y); c.lineTo(p.x, y - 4); c.lineTo(p.x + 5, y); c.stroke();
+    }
+    c.restore();
+  }
+
   drawOverlay() {
     const c = this.ctx, inp = this.input, g = this.game;
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -405,6 +429,7 @@ export class UI {
       if (drawn.has(e) || e.dead) continue;
       if ((e.hp < e.maxHp && g.time - e.lastHit < 6) || (e.kind === 'building' && e.team === g.player && e.hp < e.maxHp && inp.keys.has('AltLeft'))) this.drawEntity(e, 'bar');
     }
+    for (const unit of g.units) this.drawRank(unit);
     // puntos de reunión
     for (const e of inp.sel) {
       if (e.kind === 'building' && e.rally && e.team === g.player) {

@@ -4,6 +4,7 @@
   "description": "RTS estilo Command & Conquer en Three.js: humanos contra máquinas",
   "private": true,
   "scripts": {
-    "start": "python3 tools/serve.py"
+    "start": "python3 tools/serve.py",
+    "test:experience": "node tests/run-experience.mjs"
   }
 }
