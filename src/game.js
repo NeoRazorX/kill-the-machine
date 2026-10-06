@@ -6,6 +6,7 @@ import { Building } from './buildings.js';
 import { FX } from './fx.js';
 import { GameAudio } from './audio.js';
 import { AI } from './ai.js';
+import { CashCrates, CASH_CRATE_RADIUS } from './cash-crates.js';
 import { nearestFreeCell, canOccupy } from './pathfinding.js';
 
 const HASH = 8, HN = SIZE / HASH;
@@ -40,6 +41,7 @@ export class Game {
     this.lastAlert = -99; this.oreT = 0;
     this.fog = new Uint8Array(N * N); this.fogT = 0;
     this.initFog();
+    this.cashCrates = new CashCrates(this);
   }
 
   emit(type, data) { if (this.onEvent) this.onEvent(type, data); }
@@ -54,6 +56,7 @@ export class Game {
     if (spectate) this.ais.push(new AI(this, 'human', DIFFICULTY.normal));
     this.recomputePower();
     this.updateFog(true);
+    this.cashCrates.update();
   }
 
   setupBase(team) {
@@ -370,6 +373,9 @@ export class Game {
     const g = this.map.grid;
     for (let z = cz; z < cz + def.h; z++) for (let x = cx; x < cx + def.w; x++) if (g[z * N + x] !== 0) return false;
     const r = { x0: cx * CELL, z0: cz * CELL, x1: (cx + def.w) * CELL, z1: (cz + def.h) * CELL };
+    for (const crate of this.cashCrates?.items ?? []) {
+      if (!crate.collected && rectDist(crate.x, crate.z, r) < CASH_CRATE_RADIUS) return false;
+    }
     for (const f of this.map.fields) if (rectDist(f.x, f.z, r) < f.r * 0.85) return false;
     if (margin) {
       for (let z = cz - 1; z <= cz + def.h; z++) for (let x = cx - 1; x <= cx + def.w; x++) {
@@ -530,6 +536,7 @@ export class Game {
 
     this.fogT -= dt;
     if (this.fogT <= 0) { this.fogT = 0.18; this.updateFog(); }
+    this.cashCrates.update();
 
     this.oreT += dt;
     if (this.oreT >= 1) {

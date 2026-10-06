@@ -944,6 +944,23 @@ def quarry():
     save('env_ruin')
 
 
+def cash_crate():
+    reset()
+    objects = [box('Skid',(1.65,.16,1.65),(0,.08,0),DARK),
+               armor('Armored cash case',1.55,1.55,.16,1.2,.12,(0,0),'#a98135'),
+               box('Lid',(1.61,.14,1.61),(0,1.22,0),YELLOW,.07),
+               box('Credit seal',(.65,.025,.65),(0,1.305,0),'#5dd9a0',.02)]
+    for s in (-1,1):
+        objects += [box('Case strap',(.14,1.08,1.58),(s*.55,.72,0),STEEL,.015),
+                    box('Lid strap',(.14,.025,1.58),(s*.55,1.305,0),DARK,.005),
+                    box('Front cash marking',(.82,.3,.035),(0,.73,s*.755),'#5dd9a0',.01),
+                    box('Latch',(.18,.3,.08),(s*.55,1.04,.79),YELLOW,.015)]
+    for x in (-.17,.17):
+        objects.append(box('Credit bars',(.09,.025,.38),(x,1.325,0),YELLOW,.005))
+    merge('Cash crate',objects)
+    save('prop_cash_crate')
+
+
 BUILDERS = {
     'h_tank': tank, 'h_factory': factory,
     'h_rifle': lambda: infantry(), 'h_rocket': lambda: infantry(heavy=True),
@@ -958,6 +975,7 @@ BUILDERS = {
     'h_refinery': lambda: refinery(), 'm_refinery': lambda: refinery(True),
     'h_barracks': lambda: barracks(), 'm_barracks': lambda: barracks(True),
     'm_factory': machine_factory, 'environment': environment, 'quarry': quarry,
+    'prop_cash_crate': cash_crate,
 }
 if __name__ == '__main__':
     requested = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else list(BUILDERS)

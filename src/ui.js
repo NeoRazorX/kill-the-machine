@@ -317,6 +317,13 @@ export class UI {
     }
     c.imageSmoothingEnabled = true;
     if (!g.spectate) c.drawImage(g.fogCanvas, 0, 0, W, W);
+    for (const crate of g.cashCrates.items) {
+      if (crate.collected || !(crate.seen || g.spectate)) continue;
+      const x = crate.x * k, z = crate.z * k;
+      c.fillStyle = g.visibleAt(crate.x, crate.z) ? '#ffd36b' : '#a88c46';
+      c.beginPath(); c.moveTo(x, z - 3); c.lineTo(x + 3, z); c.lineTo(x, z + 3); c.lineTo(x - 3, z); c.closePath(); c.fill();
+      c.strokeStyle = '#332a13'; c.lineWidth = 1; c.stroke();
+    }
     for (const b of g.buildings) {
       if (b.dead || !(b.team === g.player || b.seen || g.spectate)) continue;
       c.fillStyle = TEAMS[b.team].css;
@@ -430,6 +437,17 @@ export class UI {
       if ((e.hp < e.maxHp && g.time - e.lastHit < 6) || (e.kind === 'building' && e.team === g.player && e.hp < e.maxHp && inp.keys.has('AltLeft'))) this.drawEntity(e, 'bar');
     }
     for (const unit of g.units) this.drawRank(unit);
+    c.save();
+    c.font = 'bold 12px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'bottom';
+    for (const crate of g.cashCrates.items) {
+      if (crate.collected || !g.visibleAt(crate.x, crate.z)) continue;
+      const p = inp.project(crate.x, 1.8, crate.z);
+      if (p.z < -1 || p.z > 1) continue;
+      const text = `Caja · +${crate.amount} $`, width = c.measureText(text).width;
+      c.fillStyle = 'rgba(0,0,0,.75)'; c.fillRect(p.x - width / 2 - 5, p.y - 17, width + 10, 20);
+      c.fillStyle = '#ffd36b'; c.fillText(text, p.x, p.y);
+    }
+    c.restore();
     // puntos de reunión
     for (const e of inp.sel) {
       if (e.kind === 'building' && e.rally && e.team === g.player) {

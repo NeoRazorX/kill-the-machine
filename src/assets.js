@@ -3,7 +3,7 @@ import { GLTFLoader } from '../lib/addons/loaders/GLTFLoader.js';
 import { DEFS } from './config.js';
 
 export const ENVIRONMENT_MODELS = ['env_tree', 'env_rock', 'env_ore', 'env_cliff', 'env_ruin'];
-export const MODEL_IDS = [...Object.keys(DEFS), ...ENVIRONMENT_MODELS];
+export const MODEL_IDS = [...Object.keys(DEFS), ...ENVIRONMENT_MODELS, 'prop_cash_crate'];
 const templates = new Map();
 const instanceAssets = new Map();
 const animatedNodes = ['turret', 'barrel', 'muzzle', 'body', 'fill', 'bob', 'ring', 'drill', 'dish', 'crystal'];

@@ -25,6 +25,10 @@ try {
   assert(rejected && unavailable && assetStatus.failed.includes('m_siege'), 'missing GLB rejects startup atomically; no fallback');
   await preloadModels();
   assert(assetStatus.loaded.length === MODEL_IDS.length && !assetStatus.failed.length, 'retry loads the complete model catalog');
+  const crateModel = cloneModel('prop_cash_crate');
+  const crateBounds = new THREE.Box3().setFromObject(crateModel.group);
+  assert(crateModel.group.userData.modelSource === 'glb' && crateBounds.min.y >= -.01 && crateBounds.max.y < 1.5,
+    'cash crate: authored model stays on the ground at pickup scale');
   const game = {
     fx:{spawn(){},smoke(){}},scene:new THREE.Scene(),time:1,player:'human',spectate:false,
     impact(){},isVisibleEntity:()=>true,lowPower:()=>false,findTarget:()=>null,

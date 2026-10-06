@@ -11,6 +11,13 @@ Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
 
 Parámetros opcionales: `?autostart=easy|normal|hard`, `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada).
 
+Cada partida reparte 12 cajas de dinero en posiciones aleatorias accesibles, fuera
+de las bases y los yacimientos. Explora para descubrirlas: aparecen con una marca
+dorada en el minimapa. Acerca cualquier unidad (o haz clic derecho sobre la caja)
+para recibir entre 300 y 700 créditos. Cada caja se recoge una sola vez y también
+pueden recogerlas las máquinas. La distribución cambia al volver a jugar.
+Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
+
 ## Cantera del Umbral
 
 El mapa combina una distribución diseñada con decoración procedural reproducible.

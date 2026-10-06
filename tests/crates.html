@@ -1,0 +1,58 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Exploración y cajas de dinero</title>
+<style>body{background:#11171c;color:#e5efed;font:13px monospace;margin:12px}iframe{width:100%;height:620px;border:1px solid #334047}pre{white-space:pre-wrap}</style>
+<pre id="results">RUNNING</pre><iframe title="Prueba de exploración"></iframe>
+<script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
+<script type="module">
+import { CASH_CRATE_COUNT } from '../src/cash-crates.js';
+const frame = document.querySelector('iframe'), output = document.querySelector('#results'), lines = [];
+const check = (ok, text) => { if (!ok) throw new Error(text); lines.push('PASS ' + text); output.textContent = lines.join('\n'); };
+const until = async predicate => {
+  const deadline = performance.now() + 30000;
+  while (!predicate()) { if (performance.now() > deadline) throw new Error('Startup timeout'); await new Promise(r => setTimeout(r, 50)); }
+};
+try {
+  frame.src = new URL('../?autostart=easy', location.href).href;
+  await until(() => frame.contentWindow.__input);
+  const win = frame.contentWindow, game = win.__game, input = win.__input;
+  game.paused = true; game.ais = [];
+  check(game.cashCrates.items.length === CASH_CRATE_COUNT, 'real game creates the full reward distribution');
+  check(game.cashCrates.items.every(c => !c.seen && !c.mesh.visible), 'initial fog hides every reward');
+  check(game.cashCrates.items.every(c => c.mesh.userData.modelSource === 'glb'), 'all crates use the authored model');
+  const scout = game.units.find(u => u.def.id === 'h_rifle');
+  let crate, approach;
+  for (const c of game.cashCrates.items) {
+    for (const [dx, dz] of [[0,6],[0,-6],[6,0],[-6,0]]) {
+      if (game.canStand(c.x + dx, c.z + dz, scout.radius)) { crate = c; approach = { x: c.x + dx, z: c.z + dz }; break; }
+    }
+    if (crate) break;
+  }
+  check(!!crate, 'scout has a safe approach for the collection test');
+  scout.x = approach.x; scout.z = approach.z; scout.becomeIdle();
+  game.rebuildHash(); game.updateFog(true); game.cashCrates.update();
+  input.centerOn(crate.x, crate.z); input.dist = 30; input.setSelection([scout], true);
+  win.__step(1, 0);
+  check(crate.seen && crate.mesh.visible && game.cashCrates.at(crate.x, crate.z) === crate, 'scout reveals a visible, targetable cash crate');
+  if (new URLSearchParams(location.search).has('preview')) {
+    output.textContent = lines.join('\n') + '\nPREVIEW: caja descubierta; partida pausada';
+  } else {
+    let reward = 0;
+    const claim = game.cashCrates.claim.bind(game.cashCrates);
+    game.cashCrates.claim = (c, unit) => {
+      const before = game.teams[unit.team].credits;
+      claim(c, unit);
+      if (c === crate) reward += game.teams[unit.team].credits - before;
+    };
+    input.orderMove([scout], crate.x, crate.z);
+    game.paused = false;
+    for (let i = 0; i < 400 && !crate.collected; i++) win.__step(1, .05);
+    game.paused = true;
+    check(crate.collected && reward === crate.amount, 'scout moves to the crate and receives exactly its reward');
+    check(!crate.mesh.visible && !game.scene.children.includes(crate.mesh), 'pickup removes the model from the world');
+    check(frame.contentDocument.querySelector('#toasts').textContent.includes(`+${crate.amount}`), 'live UI shows the credit reward notification');
+    game.cashCrates.update();
+    check(reward === crate.amount && !game.cashCrates.at(crate.x, crate.z), 'subsequent updates cannot collect the same crate twice');
+    win.__step(1, 0);
+    output.textContent = lines.join('\n') + '\nALL PASSED';
+  }
+} catch (error) { output.textContent = lines.join('\n') + '\nFAIL ' + error.stack; }
+</script></html>

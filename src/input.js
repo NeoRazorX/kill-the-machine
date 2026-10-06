@@ -173,6 +173,15 @@ export class Input {
 
   orderMove(units, x, z, attackMove = false) {
     const pts = this.formation(units, x, z);
+    const crate = !attackMove && this.game.cashCrates?.at(x, z);
+    if (crate && units.length) {
+      let nearest = 0;
+      for (let i = 1; i < units.length; i++) {
+        if (Math.hypot(units[i].x - crate.x, units[i].z - crate.z) < Math.hypot(units[nearest].x - crate.x, units[nearest].z - crate.z)) nearest = i;
+      }
+      // Keep one unit on the crate even when the formation leaves its center empty.
+      pts[nearest] = { x: crate.x, z: crate.z };
+    }
     units.forEach((u, i) => u.cmdMove(pts[i].x, pts[i].z, attackMove));
   }
 
