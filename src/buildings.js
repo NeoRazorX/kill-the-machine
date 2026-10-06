@@ -22,7 +22,8 @@ export class Building {
 
     const front = buildingFront(def, team);
     this.front = front;
-    this.dock = { x: this.x, z: this.z + front * (def.h * CELL / 2 + 2.6) };
+    this.dock = { x: this.x + front * (def.dock?.x ?? 0),
+      z: this.z + front * (def.h * CELL / 2 + (def.dock?.clearance ?? 2.6)) };
     this.spawnPt = { x: this.x + (def.w > 2 ? CELL : 0) * 0.5, z: this.z + front * (def.h * CELL / 2 + 1.6) };
 
     const m = buildBuildingModel(def);

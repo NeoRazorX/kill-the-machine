@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { preloadModels, assetStatus, MODEL_IDS, getInstanceAsset, cloneModel } from '../src/assets.js';
 import { buildUnitModel, buildBuildingModel } from '../src/models.js';
-import { DEFS } from '../src/config.js';
+import { CELL, DEFS } from '../src/config.js';
 import { Unit } from '../src/units.js';
 import { Building } from '../src/buildings.js';
 import { Input } from '../src/input.js';
@@ -66,7 +66,7 @@ try {
         let delivered = 0;
         const oldAddCredits = game.addCredits;
         game.addCredits = (team, amount) => { delivered += amount; };
-        instance.refinery = { dead: false };
+        instance.refinery = { dead: false, z: instance.z + 10, dock: { x: instance.x, z: instance.z } };
         instance.hstate = 'unload';
         instance.order = { type: 'harvest' };
         instance.updateHarvester(def.capacity / def.unloadRate / 2);
@@ -88,7 +88,26 @@ try {
       instance.update(.8);
       assert(instance.mesh.scale.y>.02&&instance.mesh.scale.y<1,`${def.id}: construction`);
       instance.update(.8);instance.update(.05);
-      if (def.produces) {
+      if (def.id === 'h_hq') {
+        const dish = instance.parts.dish, yaw = dish.rotation.y;
+        instance.update(.1);
+        assert(!close(dish.rotation.y, yaw), 'h_hq: radar rotates during gameplay');
+        let contained = true;
+        for (let i = 0; i < 16; i++) {
+          dish.rotation.y = i * Math.PI / 8;
+          const box = new THREE.Box3().setFromObject(instance.mesh), r = instance.rect;
+          contained &&= box.min.x >= r.x0 && box.max.x <= r.x1 && box.min.z >= r.z0 && box.max.z <= r.z1;
+        }
+        dish.rotation.y = yaw;
+        assert(contained, 'h_hq: rotating radar stays inside the building footprint');
+      }
+      if (def.role === 'refinery') {
+        const dock = instance.mesh.localToWorld(new THREE.Vector3(def.dock?.x ?? 0, 0,
+          def.h * CELL / 2 + (def.dock?.clearance ?? 2.6)));
+        assert(close(dock.x, instance.dock.x) && close(dock.z, instance.dock.z),
+          `${def.id}: unloading target matches the model's approach lane`);
+      }
+      if (def.produces || def.role === 'refinery') {
         const front = new THREE.Vector3(0, 0, 1).applyQuaternion(instance.mesh.quaternion);
         assert(front.z > .999 && instance.spawnPt.z > instance.rect.z1 && instance.front === 1,
           `${def.id}: doors face the gameplay camera and units exit on the door side`);

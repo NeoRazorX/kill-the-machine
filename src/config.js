@@ -14,9 +14,9 @@ export const TEAMS = {
   machine: { id: 'machine', name: 'Máquinas', color: 0xff3b30, css: '#ff3b30', front: 1,  startCell: [103, 27] },
 };
 
-// The fixed gameplay camera looks from +Z. Show doors and the power plant's service hall.
+// The fixed gameplay camera looks from +Z. Show entrances and service equipment.
 export const buildingFront = (def, team = def.team) =>
-  def.produces || def.role === 'power' ? 1 : TEAMS[team].front;
+  def.produces || ['power', 'hq', 'refinery'].includes(def.role) ? 1 : TEAMS[team].front;
 
 export const DIFFICULTY = {
   easy:   { label: 'Fácil',   income: 0.7, think: 1.3, firstWave: 360, waveGap: 150, minArmy: 6 },
@@ -32,13 +32,14 @@ const def = (d) => { DEFS[d.id] = d; return d; };
 const B = (o) => def({ kind: 'building', buildable: true, ...o });
 
 B({ id: 'h_hq', team: 'human', role: 'hq', name: 'Cuartel General', buildable: false, cost: 0, time: 0,
-    w: 3, h: 3, hp: 2200, power: 30, sight: 30, height: 5,
+    w: 3, h: 3, hp: 2200, power: 30, sight: 30, height: 5.5,
     desc: 'Centro de mando. Si caen todos tus edificios, pierdes.' });
 B({ id: 'h_power', team: 'human', role: 'power', name: 'Planta de Energía', cost: 300, time: 10,
     w: 3, h: 3, hp: 700, power: 100, sight: 16, height: 5,
     desc: 'Genera +100 de energía. Sin energía, la producción se ralentiza.' });
 B({ id: 'h_refinery', team: 'human', role: 'refinery', name: 'Refinería', cost: 1000, time: 20, requires: ['power'],
-    w: 3, h: 3, hp: 1100, power: -30, sight: 18, height: 4.5,
+    w: 4, h: 3, hp: 1100, power: -30, sight: 18, height: 4.5,
+    dock: { x: -.6, clearance: 1.9 },
     desc: 'Procesa mineral. Incluye una cosechadora gratis.' });
 B({ id: 'h_barracks', team: 'human', role: 'barracks', name: 'Cuartel', cost: 400, time: 12, requires: ['power'],
     w: 3, h: 2, hp: 900, power: -20, sight: 18, height: 3.2, produces: 'barracks',

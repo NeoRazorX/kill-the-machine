@@ -4,7 +4,7 @@ registerHooks({ resolve });
 const { findPath, clearLine, canOccupy } = await import('../src/pathfinding.js');
 const { Unit } = await import('../src/units.js');
 const { Game } = await import('../src/game.js');
-const { N, CELL, DEFS } = await import('../src/config.js');
+const { N, CELL, DEFS, buildingFront } = await import('../src/config.js');
 const { checkMap } = await import('./map.js');
 const results = [];
 const assert = (ok, text) => { if (!ok) throw new Error(text); results.push(`PASS ${text}`); };
@@ -93,6 +93,35 @@ for (let i = 0; i < 700; i++) {
   if (done) break;
 }
 assert(Math.hypot(u.x - 90, u.z - 30) < .6, 'building placement triggers a radius-safe replacement route');
+// Harvesters must reach the unloading apron instead of paying out at a nearby wall.
+for (const id of ['h_refinery', 'm_refinery']) {
+  const def = DEFS[id], front = buildingFront(def);
+  grid = blank(); rect(grid, 20, 20, def.w, def.h);
+  const refinery = { dead: false, x: (20 + def.w / 2) * CELL, z: (20 + def.h / 2) * CELL };
+  refinery.dock = { x: refinery.x + front * (def.dock?.x ?? 0),
+    z: refinery.z + front * (def.h * CELL / 2 + (def.dock?.clearance ?? 2.6)) };
+  const harv = tank(grid, 40 - 2, refinery.z);
+  harv.def = DEFS[def.team === 'human' ? 'h_harv' : 'm_harv']; harv.radius = harv.def.radius;
+  harv.order = { type: 'harvest' }; harv.hstate = 'return'; harv.refinery = refinery; harv.load = harv.def.capacity;
+  let delivered = 0;
+  harv.game.addCredits = (team, amount) => { delivered += amount; };
+  harv.game.distTo = () => 2;
+  for (let i = 0; i < 1200 && harv.hstate !== 'unload'; i++) {
+    harv.updateHarvester(.05);
+    if (!canOccupy(grid, harv.x, harv.z, harv.radius)) throw new Error(`${id}: harvester clipped refinery`);
+  }
+  assert(harv.hstate === 'unload' && Math.hypot(harv.x - refinery.dock.x, harv.z - refinery.dock.z) <= .8,
+    `${id}: harvester drives around the building and reaches the unloading side`);
+  assert(delivered === 0 && harv.load === harv.def.capacity, `${id}: no credits delivered beside another wall`);
+  for (let i = 0; i < 100 && harv.load > 0; i++) harv.updateHarvester(.05);
+  assert(harv.load === 0 && Math.abs(delivered - harv.def.capacity) < .001,
+    `${id}: full cargo is delivered at the dock`);
+  harv.x = refinery.x; harv.z = 40 - 2; harv.load = 100;
+  harv.refinery = refinery; harv.hstate = 'toRefinery'; harv.path = null;
+  harv.updateHarvester(.05);
+  assert(harv.hstate === 'noref' && harv.load === 100,
+    `${id}: failed approach retries instead of unloading remotely`);
+}
 // Real map routes for the largest ground unit, including actual steering around corners.
 const { GameMap } = await import('../src/map.js');
 for (const seed of [20260, 20261, 20262, 20263]) {

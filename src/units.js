@@ -415,12 +415,19 @@ export class Unit {
         const r = this.refinery;
         if (!r || r.dead) { this.refinery = null; this.hstate = 'return'; break; }
         const arrived = this.followPath(dt);
-        if (arrived || g.distTo(this, r) <= 3.4) { this.path = null; this.hstate = 'unload'; }
+        if (Math.hypot(this.x - r.dock.x, this.z - r.dock.z) <= .8) {
+          this.path = null; this.hstate = 'unload';
+        } else if (arrived) {
+          // A blocked or shortened route must not unload against another wall.
+          this.waitT = 1; this.hstate = 'noref';
+        }
         break;
       }
       case 'unload': {
         const r = this.refinery;
         if (!r || r.dead) { this.refinery = null; this.hstate = 'return'; break; }
+        const want = Math.atan2(r.dock.x - this.x, r.z - this.z);
+        this.heading += clamp(angleDiff(want, this.heading), -d.turn * dt, d.turn * dt);
         const amt = Math.min(this.load, d.unloadRate * dt);
         this.load -= amt;
         g.addCredits(this.team, amt, this);

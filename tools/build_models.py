@@ -545,34 +545,97 @@ def turret_building(machine=False):
 def human_hq():
     reset()
     objects = platform()
-    objects += [armor('Command bunker',5.15,3.65,.3,2.24,.4,(0,.48),OLIVE),
-                box('Roof',(4.8,.22,3.2),(0,2.35,.48),DARK,.07),
-                armor('Control tower',1.6,1.75,.35,3.65,.22,(-1.56,-1.78),LIGHT),
-                box('Tower glass',(1.39,.47,1.5),(-1.56,3.73,-1.78),GLASS,.08),
-                box('Tower roof',(1.68,.16,1.8),(-1.56,4.05,-1.78),DARK),
-                box('Door',(1.15,1.42,.06),(0,1.03,2.32),DARK),
-                box('Door trim',(1.42,.12,.09),(0,1.79,2.35),BLUE)]
+    objects += [armor('Armored command foundation',5.35,4.95,.29,1.7,.46,(0,-.12),OLIVE),
+                armor('Raised operations block',3.35,3.4,1.6,3.4,.25,(0,-.55),LIGHT),
+                armor('Command bridge glazing',3.18,3.14,3.38,3.97,.08,(0,-.55),GLASS),
+                armor('Overhanging armored visor',3.62,3.58,3.98,4.19,.14,(0,-.55),DARK),
+                box('Bridge identification',(2.45,.13,.07),(0,3.22,1.07),BLUE,.01),
+                box('Entrance recess',(1.65,1.47,.1),(0,1.03,2.24),DARK),
+                box('Left blast door',(.67,1.2,.06),(-.35,.94,2.31),STEEL,.01),
+                box('Right blast door',(.67,1.2,.06),(.35,.94,2.31),STEEL,.01),
+                box('Door seam',(.045,1.2,.025),(0,.94,2.35),DARK,0),
+                box('Entry lintel',(2.02,.21,.3),(0,1.83,2.25),BLUE),
+                armor('Entrance canopy',2.3,1.0,1.98,2.15,.12,(0,2.27),DARK),
+                box('Upper entrance step',(1.96,.13,.43),(0,.34,2.46),STEEL),
+                box('Lower entrance step',(2.13,.1,.3),(0,.29,2.73),LIGHT),
+                box('Threshold guide',(1.7,.012,.055),(0,.412,2.58),YELLOW,0)]
     for s in (-1,1):
-        objects += [box('Window',(.85,.35,.055),(s*1.66,1.67,2.18),GLASS),
-                    box('Window hood',(1,.12,.23),(s*1.66,1.92,2.22),LIGHT)]
-    objects += [cyl('Antenna',.035,1.6,(2.35,3.2,-.8),STEEL,vertices=6),
-                beam('Antenna cross',(2.0,3.7,-.8),(2.7,3.7,-.8),.035,STEEL)]
+        x = s*1.98
+        objects += [armor('Armored service wing',1.4,3.4,.3,2.3,.2,(x,.25),OLIVE),
+                    armor('Wing roof plate',1.42,3.44,2.31,2.46,.12,(x,.25),DARK),
+                    armor('Communications mounting block',1.12,1.06,1.6,2.5,.12,(x,-1.68),LIGHT),
+                    box('Wing observation slit',(.83,.25,.05),(x,1.72,1.93),GLASS,.01),
+                    box('Window brow',(1.02,.12,.23),(x,1.94,1.96),LIGHT),
+                    armor('Entry buttress',.36,.78,.3,1.9,.09,(s*1.12,2.09),LIGHT),
+                    box('Buttress signal',(.12,.48,.04),(s*1.12,1.43,2.49),BLUE,.01),
+                    box('Roof equipment plinth',(.87,.08,1.08),(x,2.5,.25),STEEL,.015),
+                    cyl('Roof fan well',.34,.045,(x,2.56,.25),DARK,vertices=12),
+                    torus('Fan rim',.34,.025,(x,2.6,.25),STEEL),
+                    cyl('Fan hub',.08,.055,(x,2.61,.25),LIGHT,vertices=8)]
+        objects.append(armor('Upper roof armor panel',.7,2.65,4.2,4.27,.08,(s*1.14,-.55),OLIVE))
+        for dx in (-.17,0,.17):
+            objects.append(box('Fan grille',(.025,.025,.57),(x+dx,2.63,.25),STEEL,0))
+        for z in (-.75,.25,1.25):
+            objects += [box('Wing armor joint',(.04,1.3,.065),(s*2.61,1.07,z),DARK,0),
+                        box('Roof panel seam',(1.09,.02,.025),(x,2.47,z),STEEL,0)]
+        for z in (-1.62,-.65,.32):
+            objects.append(box('Bridge window mullion',(.07,.59,.08),(s*1.57,3.67,z),DARK,.005))
+    for x in (-1.12,-.38,.38,1.12):
+        objects.append(box('Front window mullion',(.065,.59,.08),(x,3.67,1.005),DARK,.005))
+    objects += [armor('Bridge roof hatch',1.42,1.2,4.2,4.32,.1,(0,-.5),OLIVE),
+                box('Command plaque',(1.15,.55,.07),(0,2.78,1.08),DARK,.025),
+                box('Rear equipment rack',(1.9,1.03,.45),(0,.83,-2.49),STEEL),
+                cyl('Communications mast',.065,2.9,(-2.1,3.87,-1.82),STEEL,vertices=8),
+                cyl('Mast foot',.24,.32,(-2.1,2.58,-1.82),DARK),
+                box('Radio panel',(.31,.69,.16),(-2.1,4.56,-1.82),LIGHT),
+                box('Radio identification',(.32,.1,.17),(-2.1,4.57,-1.82),BLUE,.005),
+                beam('Antenna crossbar',(-2.52,5.12,-1.82),(-1.68,5.12,-1.82),.045,STEEL),
+                box('Mast beacon',(.12,.1,.12),(-2.1,5.36,-1.82),GLASS,.015)]
+    for z in (-.8,-.42):
+        objects += [beam('Command chevron',(-.4,4.345,z-.12),(0,4.345,z+.12),.095,BLUE),
+                    beam('Command chevron',(0,4.345,z+.12),(.4,4.345,z-.12),.095,BLUE)]
+    for x in (-.27,0,.27):
+        objects.append(box('Command rank',(.12,.3,.025),(x,2.78,1.13),BLUE,.005))
+    for x in (-.73,-.36,0,.36,.73):
+        objects.append(box('Rear rack louvre',(.16,.68,.035),(x,.88,-2.73),DARK,.005))
     merge('Headquarters',objects)
-    dish = empty('dish',(1.35,2.5,-.78))
-    objects = [cyl('Dish stand',.09,.6,(1.35,2.8,-.78),STEEL,vertices=8)]
-    # Concave radar bowl with a closed back and raised receiver.
-    center = Vector((1.35,3.32,-.78))
-    verts = [tuple(center+Vector((0,-.18,0)))]
-    verts += [tuple(center+Vector((math.sin(i*math.tau/12)*.77,.15,math.cos(i*math.tau/12)*.77))) for i in range(12)]
-    verts += [tuple(center+Vector((0,-.26,0)))]
+    # The entire tilted radar assembly rotates around the existing runtime pivot.
+    dish = empty('dish',(1.86,2.5,-1.68))
+    objects = [cyl('Radar pedestal',.31,.22,(1.86,2.61,-1.68),STEEL),
+               cyl('Radar spindle',.13,1.6,(1.86,3.5,-1.68),DARK),
+               beam('Radar fork',(1.53,3.9,-1.68),(1.53,4.6,-1.68),.1,STEEL),
+               beam('Radar fork',(2.19,3.9,-1.68),(2.19,4.6,-1.68),.1,STEEL)]
+    center = Vector((1.86,4.65,-1.68))
+    normal = Vector((0,math.cos(math.pi/6),math.sin(math.pi/6)))
+    radial = Vector((0,-normal.z,normal.y))
+    segments = 16
+    rings = [(.4,-.08),(.78,.19)]
+    verts = [tuple(center-normal*.16)]
+    verts += [tuple(center + Vector((math.cos(i*math.tau/segments)*r,0,0)) +
+                   radial*(math.sin(i*math.tau/segments)*r) + normal*y)
+             for r,y in rings for i in range(segments)]
+    verts += [tuple(Vector(v)-normal*.07) for v in verts]
     faces = []
-    for i in range(12):
-        j=(i+1)%12
-        faces += [(0,1+j,1+i),(13,1+i,1+j)]
-    mesh=bpy.data.meshes.new('Radar bowl'); mesh.from_pydata([xyz(v) for v in verts],[],faces); mesh.update()
-    obj=bpy.data.objects.new('Radar bowl',mesh);bpy.context.collection.objects.link(obj)
-    objects += [finish(obj,'#b7c7c7'), beam('Receiver',(1.35,3.15,-.78),(1.35,3.78,-.78),.045,DARK),
-                box('Receiver tip',(.15,.13,.15),(1.35,3.78,-.78),BLUE)]
+    layer = 1+len(rings)*segments
+    for i in range(segments):
+        n=(i+1)%segments
+        front = [(0,1+n,1+i),
+                 (1+i,1+n,1+segments+n,1+segments+i)]
+        for face in front:
+            faces += [face,tuple(v+layer for v in reversed(face))]
+        a=1+segments+i;b=1+segments+n
+        faces.append((a,a+layer,b+layer,b))
+    mesh=bpy.data.meshes.new('Parabolic radar bowl')
+    mesh.from_pydata([xyz(v) for v in verts],[],faces);mesh.update()
+    obj=bpy.data.objects.new('Parabolic radar bowl',mesh);bpy.context.collection.objects.link(obj)
+    objects.append(finish(obj,'#b7c7c7'))
+    receiver = center + normal*.85
+    for i in (0,5,11):
+        a=i*math.tau/segments
+        rim=center+Vector((math.cos(a)*.78,0,0))+radial*(math.sin(a)*.78)+normal*.19
+        objects.append(beam('Receiver brace',rim,receiver,.035,DARK))
+    objects += [beam('Receiver stalk',center-normal*.16,receiver,.05,STEEL),
+                box('Receiver head',(.17,.16,.17),receiver,BLUE,.02)]
     merge('Radar',objects,dish)
     save('h_hq')
 
@@ -680,33 +743,81 @@ def power(machine=False):
     save('m_power' if machine else 'h_power')
 
 
-def refinery(machine=False):
+def human_refinery():
     reset()
-    hull, edge, base, accent = (MACHINE,MPLATE,BLACK,RED) if machine else (OLIVE,LIGHT,DARK,BLUE)
-    objects = platform(machine=machine)
+    objects = platform(7.8,5.8)
+    objects += [armor('Ore processing hall',4.4,2.9,.29,2.64,.3,(-1.1,-1.05),OLIVE),
+                armor('Processing roof',4.5,3.0,2.64,2.84,.15,(-1.1,-1.05),DARK),
+                box('Receiving platform',(5.05,.16,2.65),(-.6,.37,1.48),STEEL),
+                box('Unloading lane',(3.65,.025,2.12),(-.6,.463,1.48),DARK,.01),
+                box('Ore intake recess',(3.2,1.7,.1),(-.6,1.2,.43),DARK),
+                box('Intake conveyor',(2.62,.35,.26),(-.6,.7,.53),STEEL),
+                box('Intake lintel',(4.95,.22,.38),(-.6,2.31,.72),BLUE),
+                cyl('Storage silo',.91,2.9,(2.65,1.79,-1.3),STEEL,vertices=16),
+                cone('Silo cap',.94,.12,.61,(2.65,3.55,-1.3),LIGHT,16),
+                torus('Silo band',.93,.045,(2.65,2.8,-1.3),BLUE),
+                cyl('Settling tank',.65,1.8,(2.8,1.23,1.0),LIGHT,vertices=12),
+                torus('Tank collar',.66,.045,(2.8,1.95,1.0),STEEL),
+                cyl('Transfer pipe',.14,1.8,(1.75,1.9,-1.3),STEEL,'x'),
+                cyl('Tank riser',.11,1.15,(2.8,1.6,.25),STEEL),
+                box('Roof extraction unit',(1.65,.37,1.32),(-1.4,3.02,-1.05),LIGHT)]
+    for x in (-2.95,1.75):
+        objects += [box('Loading gantry pillar',(.23,1.92,.34),(x,1.38,.72),LIGHT),
+                    box('Platform guide rail',(.11,.16,1.7),(x,.59,1.87),LIGHT),
+                    box('Lane guide',(.1,.015,1.65),(x+(.27 if x<0 else -.27),.484,1.85),YELLOW,0)]
+        for y in (.65,1.05,1.45,1.85):
+            objects.append(box('Gantry safety marking',(.24,.15,.03),(x,y,.9),YELLOW,.005))
+    for x in (-1.65,-1.3,-.95,-.6,-.25,.1,.45):
+        objects += [box('Intake grille',(.13,.62,.045),(x,1.3,.5),STEEL,.01),
+                    box('Apron hazard stripe',(.19,.02,.26),(x,.472,2.62),YELLOW,.005)]
+    for x in (-1.95,-1.55,-1.15,-.75):
+        objects.append(box('Extraction louvre',(.18,.025,.96),(x,3.22,-1.05),DARK,.005))
+    for x in (-2.85,-2.12):
+        objects += [cyl('Exhaust stack',.21,1.05,(x,3.34,-2.06),STEEL,vertices=10),
+                    torus('Exhaust rim',.23,.045,(x,3.87,-2.06),DARK)]
+    for z in (-1.8,-1.1,-.4):
+        objects += [box('Hall wall brace',(.14,1.95,.16),(-3.28,1.31,z),LIGHT),
+                    box('Roof panel seam',(3.8,.025,.03),(-1.1,2.85,z),STEEL,0)]
+    objects += [box('Control window',(.8,.36,.035),(-2.6,1.92,.41),GLASS,.01),
+                box('Control window hood',(.96,.1,.2),(-2.6,2.17,.45),LIGHT),
+                box('Pump footing',(.92,.16,.66),(2.8,.37,2.2),DARK),
+                cyl('Pump motor',.22,.6,(2.8,.67,2.2),STEEL,'x')]
+    # Flush approach ramp stays inside the extra construction footprint.
+    verts = [(x,y,z) for x in (-3.125,1.925)
+             for y,z in ((.28,2.52),(.45,2.52),(.28,2.98))]
+    mesh=bpy.data.meshes.new('Unloading ramp')
+    mesh.from_pydata([xyz(v) for v in verts],[],
+                    [(0,2,1),(3,4,5),(1,2,5,4),(0,1,4,3),(0,3,5,2)])
+    mesh.update()
+    ramp=bpy.data.objects.new('Unloading ramp',mesh);bpy.context.collection.objects.link(ramp)
+    objects.append(finish(ramp,STEEL))
+    merge('Refinery',objects)
+    save('h_refinery')
+
+
+def refinery(machine=False):
+    if not machine:
+        return human_refinery()
+    reset()
+    hull, edge, base, accent = MACHINE,MPLATE,BLACK,RED
+    objects = platform(machine=True)
     objects += [armor('Processing hall',3.2,3.35,.3,2.57,.3,(-1.05,-.73),hull),
                 box('Roof vent',(1.8,.24,1.5),(-1.05,2.64,-.73),base,.05),
                 box('Dock',(3.9,.13,1.65),(0,.37,1.94),base),
-                box('Intake',(2.1,1.42,.1),(-.65,1.15,1.03),ORANGE if machine else DARK)]
+                box('Intake',(2.1,1.42,.1),(-.65,1.15,1.03),ORANGE)]
     for i in range(6):
-        objects.append(box('Loading stripe',(.29,.025,1.58),(-1.6+i*.64,.45,1.94),accent if machine else YELLOW,.005))
-    if machine:
-        objects += [cone('Smelter hopper',.43,1.03,1.28,(1.79,2.31,-1.09),MPLATE,8),
+        objects.append(box('Loading stripe',(.29,.025,1.58),(-1.6+i*.64,.45,1.94),accent,.005))
+    objects += [cone('Smelter hopper',.43,1.03,1.28,(1.79,2.31,-1.09),MPLATE,8),
                     cyl('Furnace neck',.43,1.3,(1.79,1.02,-1.09),BLACK),
                     torus('Furnace rim',1.06,.08,(1.79,2.97,-1.09),ORANGE),
                     cyl('Slag tank',.63,1.6,(1.88,1.18,.72),BLACK),
                     torus('Slag band',.65,.055,(1.88,1.78,.72),RED)]
-    else:
-        objects += [cyl('Storage silo',.91,2.9,(1.86,1.79,-1.15),STEEL,vertices=12),
-                    cone('Silo cap',.94,.12,.61,(1.86,3.55,-1.15),LIGHT,12),
-                    torus('Silo band',.93,.045,(1.86,2.8,-1.15),BLUE),
-                    cyl('Tank',.65,1.8,(1.89,1.23,.85),LIGHT)]
     for x in (-2.13,-1.35):
         objects += [cyl('Exhaust',.21,1.28,(x,3.29,-1.91),base,vertices=8),
-                    torus('Exhaust lip',.23,.05,(x,3.92,-1.91),ORANGE if machine else STEEL)]
+                    torus('Exhaust lip',.23,.05,(x,3.92,-1.91),ORANGE)]
     objects.append(beam('Transfer pipe',(.22,1.85,-.56),(1.68,1.85,-.56),.21,STEEL))
     merge('Refinery',objects)
-    save('m_refinery' if machine else 'h_refinery')
+    save('m_refinery')
 
 
 def barracks(machine=False):
