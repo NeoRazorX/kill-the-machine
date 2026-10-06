@@ -4,6 +4,7 @@ import { buildUnitModel, buildBuildingModel } from '../src/models.js';
 import { DEFS } from '../src/config.js';
 import { Unit } from '../src/units.js';
 import { Building } from '../src/buildings.js';
+import { Input } from '../src/input.js';
 import { FX } from '../src/fx.js';
 import { GameMap, MapVisuals } from '../src/map.js';
 import { checkMap } from './map.js';
@@ -87,6 +88,16 @@ try {
       instance.update(.8);
       assert(instance.mesh.scale.y>.02&&instance.mesh.scale.y<1,`${def.id}: construction`);
       instance.update(.8);instance.update(.05);
+      if (def.produces) {
+        const front = new THREE.Vector3(0, 0, 1).applyQuaternion(instance.mesh.quaternion);
+        assert(front.z > .999 && instance.spawnPt.z > instance.rect.z1 && instance.front === 1,
+          `${def.id}: doors face the gameplay camera and units exit on the door side`);
+        const placement = Object.assign(Object.create(Input.prototype), { game });
+        placement.beginPlacement(def);
+        assert(placement.ghost.children[0].quaternion.equals(instance.mesh.quaternion),
+          `${def.id}: placement preview matches the built orientation`);
+        placement.cancelPlacement();
+      }
       const ghost = cloneModel(def.id);
       const originalMaterials=[];instance.mesh.traverse(o=>{if(o.isMesh)originalMaterials.push(o.material);});
       ghost.group.traverse(o=>{if(o.isMesh)o.material=new THREE.MeshBasicMaterial();});

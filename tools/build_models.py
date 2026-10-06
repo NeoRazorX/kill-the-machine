@@ -577,9 +577,90 @@ def human_hq():
     save('h_hq')
 
 
+def cooling_tower(x, z):
+    # A hollow, curved shell: wide intake, narrow throat, flared exhaust.
+    profile = [(.52,1.08),(1.05,1.01),(1.7,.86),(2.5,.72),
+               (3.15,.71),(3.85,.81),(4.62,1.0),
+               (4.62,.87),(4.15,.76),(3.85,.68)]
+    segments = 20
+    verts = [(x + math.cos(i*math.tau/segments)*r, y,
+              z + math.sin(i*math.tau/segments)*r)
+             for y,r in profile for i in range(segments)]
+    faces = []
+    for j in range(len(profile)-1):
+        for i in range(segments):
+            n = (i+1)%segments
+            faces.append((j*segments+i,(j+1)*segments+i,(j+1)*segments+n,j*segments+n))
+    mesh = bpy.data.meshes.new('Cooling shell')
+    mesh.from_pydata([xyz(v) for v in verts],[],faces)
+    mesh.update()
+    obj = bpy.data.objects.new('Curved concrete cooling tower',mesh)
+    bpy.context.collection.objects.link(obj)
+    objects = [finish(obj,'#969d88'),
+               cyl('Intake shadow',.97,.56,(x,.59,z),DARK,vertices=20),
+               cyl('Exhaust depth',.68,.025,(x,3.85,z),DARK,vertices=20),
+               torus('Exhaust rim',.94,.065,(x,4.62,z),LIGHT),
+               torus('Identification band',.985,.045,(x,4.48,z),BLUE),
+               cyl('Tower footing',1.15,.14,(x,.35,z),STEEL,vertices=20)]
+    for i in range(12):
+        a = i*math.tau/12
+        objects.append(beam('Intake support',
+            (x+math.cos(a)*1.05,.4,z+math.sin(a)*1.05),
+            (x+math.cos(a)*1.03,.95,z+math.sin(a)*1.03),.095,STEEL))
+    # Light panel joints make the shell legible at gameplay scale.
+    for y,r in ((1.05,1.01),(1.7,.86),(2.5,.72),(3.15,.71),(3.85,.81)):
+        objects.append(torus('Concrete seam',r,.018,(x,y,z),'#737c6c'))
+    return objects
+
+
+def human_power_geometry():
+    objects = []
+    for x in (-1.35,1.35):
+        objects += cooling_tower(x,-.82)
+        objects += [cyl('Water riser',.15,1.3,(x,.99,.48),STEEL),
+                    torus('Pipe flange',.19,.045,(x,1.54,.48),LIGHT),
+                    cyl('Turbine feed',.15,.75,(x,1.6,.84),STEEL,'z')]
+    objects += [armor('Turbine hall',3.12,1.72,.29,1.82,.2,(.1,1.64),OLIVE),
+                box('Service roof',(3.28,.16,1.82),(.1,1.9,1.64),DARK,.045),
+                box('Control cabin',(1.0,1.8,1.75),(-2.08,1.19,1.64),LIGHT,.06),
+                box('Cabin roof',(1.12,.15,1.89),(-2.08,2.16,1.64),DARK),
+                box('Control glazing',(.76,.36,.045),(-2.08,1.7,2.53),GLASS,.012),
+                box('Service door',(.47,.92,.05),(-2.08,.82,2.54),DARK),
+                box('Door header',(.65,.1,.08),(-2.08,1.32,2.56),BLUE),
+                box('Door step',(.9,.1,.28),(-2.08,.34,2.65),STEEL),
+                box('Switchgear',(.67,1.16,1.35),(2.25,.88,1.72),LIGHT,.05)]
+    for z in (1.28,1.68,2.08):
+        objects += [box('Electrical cabinet seam',(.025,.9,.28),(2.596,.95,z),DARK,.005),
+                    cyl('Insulator base',.12,.12,(2.25,1.52,z),STEEL,vertices=8),
+                    cyl('Ceramic insulator',.075,.3,(2.25,1.71,z),GLASS,vertices=8),
+                    torus('Insulator skirt',.11,.035,(2.25,1.72,z),LIGHT)]
+    for x in (-.68,.88):
+        objects += [box('Fan mount',(1.15,.13,1.24),(x,2.03,1.64),STEEL),
+                    cyl('Fan recess',.48,.07,(x,2.13,1.64),DARK,vertices=16),
+                    torus('Fan guard',.48,.035,(x,2.18,1.64),LIGHT),
+                    cyl('Fan hub',.11,.08,(x,2.19,1.64),STEEL)]
+        for angle in (0,math.pi/3,2*math.pi/3):
+            objects.append(beam('Fan grille',
+                (x-math.cos(angle)*.44,2.2,1.64-math.sin(angle)*.44),
+                (x+math.cos(angle)*.44,2.2,1.64+math.sin(angle)*.44),.035,STEEL))
+    for x in (-1.05,-.65,-.25,.15,.55,.95,1.35):
+        objects.append(box('Turbine louvre',(.22,.52,.065),(x,1.13,2.51),DARK,.012))
+    objects += [box('Blue fascia',(2.95,.14,.07),(.1,1.67,2.51),BLUE),
+                cyl('Return manifold',.17,4.5,(0,.67,-2.28),STEEL,'x'),
+                box('Pump skid',(1.25,.14,.65),(0,.37,-2.25),DARK)]
+    for x in (-1.35,1.35):
+        objects += [cyl('Return elbow',.17,.65,(x,.67,-1.95),STEEL,'z'),
+                    cyl('Manifold flange',.23,.1,(x,.67,-2.28),LIGHT,'x'),
+                    torus('Valve wheel',.24,.035,(x,.94,-2.28),BLUE)]
+    for x in (-2.66,2.66):
+        for z in (-2.56,2.56):
+            objects.append(box('Foundation safety marker',(.18,.025,.45),(x,.293,z),YELLOW,.005))
+    return objects
+
+
 def power(machine=False):
     reset()
-    objects = platform(3.75,3.75,machine)
+    objects = platform(3.75,3.75,True) if machine else platform()
     if machine:
         objects += [cone('Reactor plinth',1.53,1.2,.62,(0,.6,0),MACHINE,8),
                     cyl('Core',.59,2.3,(0,1.93,0),RED,vertices=8),
@@ -594,17 +675,7 @@ def power(machine=False):
                 objects.append(box('Field emitter',(.25,.16,.22),(math.sin(a),y,math.cos(a)),RED))
             merge('Field ring',objects,ring)
     else:
-        for s in (-1,1):
-            x=s*.86
-            objects += [cone('Cooling tower',.77,.58,2.4,(x,1.52,-.34),OLIVE,12),
-                        cyl('Upper collar',.63,.14,(x,2.77,-.34),LIGHT),
-                        cyl('Vent',.49,.035,(x,2.86,-.34),DARK),
-                        torus('Blue collar',.63,.035,(x,2.6,-.34),BLUE)]
-            for z in (-.43,-.22):
-                objects.append(beam('Cooling grille',(x-.38,2.89,z),(x+.38,2.89,z),.05,STEEL))
-        objects += [box('Turbine housing',(2.9,.95,.77),(0,.76,1.15),DARK,.06),
-                    box('Control panel',(.73,.33,.055),(0,1,1.56),GLASS),
-                    cyl('Cross pipe',.16,1.72,(0,1.2,-.34),STEEL,'x')]
+        objects += human_power_geometry()
         merge('Power plant',objects)
     save('m_power' if machine else 'h_power')
 

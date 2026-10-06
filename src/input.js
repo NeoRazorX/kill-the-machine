@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SIZE, CELL, N, PLAYER, other, canRepair } from './config.js';
+import { SIZE, CELL, N, PLAYER, other, canRepair, buildingFront } from './config.js';
 import { buildBuildingModel } from './models.js';
 import { nearestFreeCell } from './pathfinding.js';
 
@@ -238,7 +238,7 @@ export class Input {
     const model = buildBuildingModel(def).group;
     const ghostMat = new THREE.MeshBasicMaterial({ color: 0x66ff88, transparent: true, opacity: 0.45, depthWrite: false });
     model.traverse((o) => { if (o.isMesh) { o.material = ghostMat; o.castShadow = false; o.receiveShadow = false; } });
-    model.rotation.y = def.team === 'human' ? Math.PI : 0;
+    model.rotation.y = buildingFront(def, this.player) < 0 ? Math.PI : 0;
     grp.add(model);
     this.ghostMat = ghostMat;
     this.ghostTiles = [];

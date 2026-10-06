@@ -1,4 +1,4 @@
-import { CELL, TEAMS } from './config.js';
+import { CELL, buildingFront } from './config.js';
 import { buildBuildingModel } from './models.js';
 import { nextId, angleDiff } from './units.js';
 
@@ -20,7 +20,7 @@ export class Building {
     this.cooldown = 0; this.target = null; this.scanT = Math.random() * 0.4; this.recoil = 0;
     this.fxT = Math.random(); this.seen = team === game.player || game.spectate;
 
-    const front = TEAMS[team].front;
+    const front = buildingFront(def, team);
     this.front = front;
     this.dock = { x: this.x, z: this.z + front * (def.h * CELL / 2 + 2.6) };
     this.spawnPt = { x: this.x + (def.w > 2 ? CELL : 0) * 0.5, z: this.z + front * (def.h * CELL / 2 + 1.6) };
