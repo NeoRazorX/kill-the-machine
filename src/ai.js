@@ -43,11 +43,19 @@ export class AI {
     }
     const has = (r) => g.hasRole(team, r);
     const n = (r) => g.teamBuildings(team, r).length;
+    // Asegurar ingresos antes de ampliar el ejército, también tras perder la economía.
+    for (const role of ['power', 'refinery']) {
+      if (has(role)) continue;
+      const def = ROLE[team][role];
+      if (!n(role) && T.credits >= def.cost * 0.35) g.startStruct(team, def.id);
+      // Esperar a que termine de desplegarse sin encargar otro edificio igual.
+      return;
+    }
     const pw = T.power;
     const want = [];
     if (pw.use + 25 > pw.prod) want.push('power');
     if (!has('barracks')) want.push('barracks');
-    if (!has('factory') && has('refinery')) want.push('factory');
+    if (!has('factory')) want.push('factory');
     if (n('refinery') < 2 && T.credits > 1300 && n('factory') >= 1) want.push('refinery');
     if (n('turret') < Math.min(1 + this.waveNo, 6) && has('barracks')) want.push('turret');
     if (T.credits > 2500 && n('factory') < 2) want.push('factory');

@@ -106,6 +106,12 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 - **Niebla de guerra** con zonas inexploradas, exploradas y visibles (también en el minimapa).
 - **IA enemiga** con tres dificultades: construye, cosecha, defiende y lanza oleadas crecientes.
 
+La IA prioriza una planta de energía y una primera refinería si faltan, antes de
+ampliar la base. También reconstruye esa economía tras perderla y espera a que los
+edificios terminen de desplegarse para no duplicarlos. `npm run test:ai` comprueba
+el arranque desde solo el centro de mando, la recolección y el acceso a cuartel y
+fábrica para ambos bandos en las tres dificultades, además de la reconstrucción.
+
 ## Estructura
 `src/config.js` definiciones · `map.js` terreno · `pathfinding.js` A* · `units.js` / `buildings.js` entidades ·
 `game.js` simulación · `ai.js` IA · `fx.js` efectos y proyectiles · `models.js` modelos procedurales ·

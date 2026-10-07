@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "description": "RTS estilo Command & Conquer en Three.js: humanos contra máquinas",
   "private": true,
+  "type": "module",
   "scripts": {
     "start": "python3 tools/serve.py",
     "test:navigation": "node tests/navigation.mjs",
     "test:experience": "node tests/run-experience.mjs",
     "test:repair": "node tests/repair.mjs",
+    "test:ai": "node tests/ai.mjs",
     "test:crates": "node tests/crates.mjs"
   }
 }
