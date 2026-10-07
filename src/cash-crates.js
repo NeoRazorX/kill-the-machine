@@ -1,10 +1,11 @@
-import { CELL, SIZE, TEAMS } from './config.js';
+import { CELL, SIZE, TEAMS, DEFS } from './config.js';
 import { mulberry32 } from './map.js';
 import { canOccupy, clearLine, findPath } from './pathfinding.js';
 import { cloneModel } from './assets.js';
 
 export const CASH_CRATE_COUNT = 12;
 export const CASH_CRATE_RADIUS = 1.2;
+const MAX_UNIT_SIGHT = Math.max(...Object.values(DEFS).filter(d => d.kind === 'unit').map(d => d.sight));
 
 // Separate from the terrain seed: the familiar quarry has new rewards each match.
 export function generateCashCrates(map, seed) {
@@ -24,7 +25,7 @@ export function generateCashCrates(map, seed) {
     });
     if (!reachable) continue;
     items.push({ id: items.length, x, z, amount: 300 + Math.floor(random() * 5) * 100,
-      rotation: random() * Math.PI * 2, seen: false, collected: false });
+      rotation: random() * Math.PI * 2, seen: false, found: {}, collected: false });
   }
   return items;
 }
@@ -44,6 +45,25 @@ export class CashCrates {
 
   at(x, z) {
     return this.items.find(c => !c.collected && (c.seen || this.game.spectate) && Math.hypot(c.x - x, c.z - z) <= 2.3);
+  }
+
+  // Cajas pendientes que el bando ya ha visto con sus propias unidades o edificios.
+  discoveredBy(team) {
+    return this.items.filter(c => !c.collected && c.found[team]);
+  }
+
+  // Cada bando descubre por su cuenta, independientemente de la niebla del jugador.
+  discover() {
+    const g = this.game;
+    for (const crate of this.items) {
+      if (crate.collected) continue;
+      for (const b of g.buildings) {
+        if (!b.dead && !crate.found[b.team] && Math.hypot(b.x - crate.x, b.z - crate.z) <= b.def.sight) crate.found[b.team] = true;
+      }
+      for (const u of g.queryUnits(crate.x, crate.z, MAX_UNIT_SIGHT)) {
+        if (!u.dead && !crate.found[u.team] && Math.hypot(u.x - crate.x, u.z - crate.z) <= u.def.sight) crate.found[u.team] = true;
+      }
+    }
   }
 
   claim(crate, unit) {

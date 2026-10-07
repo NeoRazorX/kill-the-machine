@@ -56,6 +56,7 @@ export class Game {
     if (spectate) this.ais.push(new AI(this, 'human', DIFFICULTY.normal));
     this.recomputePower();
     this.updateFog(true);
+    this.cashCrates.discover();
     this.cashCrates.update();
   }
 
@@ -535,7 +536,7 @@ export class Game {
     for (const ai of this.ais) ai.update(dt);
 
     this.fogT -= dt;
-    if (this.fogT <= 0) { this.fogT = 0.18; this.updateFog(); }
+    if (this.fogT <= 0) { this.fogT = 0.18; this.updateFog(); this.cashCrates.discover(); }
     this.cashCrates.update();
 
     this.oreT += dt;

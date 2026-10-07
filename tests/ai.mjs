@@ -7,6 +7,7 @@ const { Game } = await import('../src/game.js');
 const { GameMap, mulberry32 } = await import('../src/map.js');
 const { AI } = await import('../src/ai.js');
 const { preloadModels } = await import('../src/assets.js');
+const { CashCrates } = await import('../src/cash-crates.js');
 const { CELL, SIZE, TEAMS, ROLE, DIFFICULTY, START_CREDITS, other } = await import('../src/config.js');
 
 // Load the game's real local models without requiring a browser or HTTP server.
@@ -21,7 +22,7 @@ try {
 const results = [];
 const assert = (ok, text) => { if (!ok) throw new Error(text); results.push(`PASS ${text}`); };
 const noop = () => {};
-function fixture(team, difficulty = 'normal') {
+function fixture(team, difficulty = 'normal', crateSeed = null) {
   const newTeam = () => ({
     credits: START_CREDITS, income: 1, structQueue: null, power: { prod: 0, use: 0 },
     stats: { killed: 0, lost: 0, built: 0, earned: 0 }, lastAttacked: null,
@@ -33,8 +34,10 @@ function fixture(team, difficulty = 'normal') {
     buckets: Array.from({ length: (SIZE / 8) ** 2 }, () => []), _q: [],
     fx: { update: noop, spawn: noop, marker: noop, repairBeam: noop },
     audio: { play: noop, say: noop }, visuals: { updateOre: noop },
-    cashCrates: { items: [], update: noop }, updateFog: noop, fogT: 0, oreT: 0,
+    cashCrates: { items: [], update: noop, discover: noop, discoveredBy: () => [] }, updateFog: noop, fogT: 0, oreT: 0,
   });
+  // Como en la partida real, las cajas se reparten antes de colocar las bases.
+  if (crateSeed !== null) game.cashCrates = new CashCrates(game, crateSeed);
   const ai = new AI(game, team, DIFFICULTY[difficulty]);
   game.ais = [ai];
   game.teams[team].income = DIFFICULTY[difficulty].income;
@@ -101,6 +104,35 @@ try {
     game.teams[team].credits++;
     ai.manageStructures();
     assert(game.teams[team].structQueue?.def.role === 'refinery', `${team}: resumes the economic opening when funds reach the usual threshold`);
+  }
+
+  for (const team of ['human', 'machine']) {
+    Math.random = mulberry32(7 + results.length);
+    const { game, ai } = fixture(team, 'normal', 77);
+    const [crate, ...rest] = game.cashCrates.items;
+    for (const c of rest) { c.collected = true; game.scene.remove(c.mesh); }
+    const hq = game.teamBuildings(team, 'hq')[0], R = ROLE[team];
+    const slow = game.spawnUnit(R.tank, team, hq.x + 8, hq.z + 8);
+    const fast = game.spawnUnit(R.inf1, team, hq.x - 8, hq.z + 8);
+    ai.manageScout();
+    assert(ai.scout === (fast.def.speed >= slow.def.speed ? fast : slow), `${team}: fastest idle combat unit becomes the scout`);
+    assert(!ai.armyIdle().includes(ai.scout), `${team}: waves and defense do not take the scout`);
+    assert(ai.scout.order.type === 'move' && (ai.scout.order.x !== crate.x || ai.scout.order.z !== crate.z), `${team}: undiscovered crates are explored for, not targeted`);
+
+    const spotter = game.spawnUnit(R.inf1, other(team), crate.x + 4, crate.z);
+    game.rebuildHash(); game.cashCrates.discover();
+    assert(crate.found[other(team)] && !crate.found[team], `${team}: crates seen only by the enemy stay unknown`);
+    ai.manageScout();
+    assert(ai.scout.order.x !== crate.x || ai.scout.order.z !== crate.z, `${team}: AI ignores crates its enemy discovered`);
+    spotter.dead = true;
+
+    const claims = [], claim = game.cashCrates.claim;
+    game.cashCrates.claim = function (c, unit) { claims.push(unit); return claim.call(this, c, unit); };
+    for (let i = 0; i < 6000 && !crate.collected; i++) game.update(0.1);
+    assert(crate.found[team], `${team}: scout explores the map until it discovers the crate`);
+    assert(crate.collected && claims.length === 1 && claims[0] === ai.scout, `${team}: scout collects the discovered crate`);
+    ai.manageScout();
+    assert(!ai.scout, `${team}: scout rejoins the army when no crates remain`);
   }
 } finally {
   Math.random = originalRandom;

@@ -1,4 +1,7 @@
-import { N, CELL, ROLE, other } from './config.js';
+import { N, CELL, ROLE, TEAMS, other } from './config.js';
+
+const SECTOR = 32; // lado en unidades de mundo de cada zona que explora el explorador
+const SECTORS = N * CELL / SECTOR;
 
 // IA de construcción, producción y ataque. Sirve para ambos bandos (modo espectador).
 export class AI {
@@ -7,6 +10,7 @@ export class AI {
     this.acc = Math.random() * 0.5; this.think = diff.think;
     this.waveTimer = diff.firstWave; this.waveNo = 0;
     this.group = []; this.placeFail = 0; this.lastDefend = -99;
+    this.scout = null; this.scoutGoal = null; this.explored = new Set();
   }
 
   update(dt) {
@@ -18,6 +22,7 @@ export class AI {
     this.manageUnits();
     this.manageWaves(d);
     this.manageDefense();
+    this.manageScout();
   }
 
   get hq() {
@@ -137,7 +142,7 @@ export class AI {
   }
 
   armyIdle() {
-    return this.g.units.filter((u) => u.team === this.team && !u.dead && !u.def.harvester && (u.def.weapon || u.def.repair) && !this.group.includes(u) && (u.order.type === 'idle' || (u.order.type === 'move' && !u.path)));
+    return this.g.units.filter((u) => u.team === this.team && !u.dead && !u.def.harvester && (u.def.weapon || u.def.repair) && u !== this.scout && !this.group.includes(u) && (u.order.type === 'idle' || (u.order.type === 'move' && !u.path)));
   }
 
   pickTarget(from) {
@@ -175,6 +180,54 @@ export class AI {
       this.group = army.slice(0, Math.ceil(min * 1.6)); this.waveNo++; this.waveTimer = this.diff.waveGap;
       for (const u of this.group) u.cmdMove(tgt.x, tgt.z, true);
     }
+  }
+
+  // ------------------------------------------------------------------ cajas
+  // Una unidad rápida recorre el mapa y recoge las cajas que su bando ha descubierto.
+  manageScout() {
+    const g = this.g, crates = g.cashCrates;
+    if (this.scout?.dead) this.scout = null;
+    if (!crates.items.some((c) => !c.collected) || this.explored.size >= SECTORS * SECTORS && !crates.discoveredBy(this.team).length) {
+      this.scout = null; return;
+    }
+    if (!this.scout) {
+      const army = this.armyIdle().filter((u) => u.def.weapon);
+      this.scout = army.sort((a, b) => b.def.speed - a.def.speed)[0] || null;
+      this.scoutGoal = null;
+      if (!this.scout) return;
+    }
+    const s = this.scout;
+    this.explored.add(this.sectorAt(s.x, s.z));
+    let best = null, bd = 1e9;
+    for (const c of crates.discoveredBy(this.team)) {
+      const d = Math.hypot(c.x - s.x, c.z - s.z);
+      if (d < bd) { bd = d; best = c; }
+    }
+    if (best) {
+      if (s.order.type !== 'move' || s.order.x !== best.x || s.order.z !== best.z) s.cmdMove(best.x, best.z);
+      this.scoutGoal = null;
+      return;
+    }
+    if (this.scoutGoal !== null && s.order.type === 'move' && s.path) return;
+    // Llegó, se atascó o el camino solo alcanzaba un punto cercano: la zona queda descartada.
+    if (this.scoutGoal !== null) this.explored.add(this.scoutGoal);
+    // Siguiente zona sin explorar más cercana, evitando la base enemiga.
+    const [ex, ez] = TEAMS[this.enemy].startCell.map((v) => v * CELL);
+    let goal = null; bd = 1e9;
+    for (let k = 0; k < SECTORS * SECTORS; k++) {
+      if (this.explored.has(k)) continue;
+      const x = (k % SECTORS + 0.5) * SECTOR, z = (Math.floor(k / SECTORS) + 0.5) * SECTOR;
+      if (Math.hypot(x - ex, z - ez) < 48) { this.explored.add(k); continue; }
+      const d = Math.hypot(x - s.x, z - s.z);
+      if (d < bd) { bd = d; goal = { k, x, z }; }
+    }
+    this.scoutGoal = goal?.k ?? null;
+    if (goal) s.cmdMove(goal.x, goal.z);
+  }
+
+  sectorAt(x, z) {
+    const c = (v) => Math.max(0, Math.min(SECTORS - 1, Math.floor(v / SECTOR)));
+    return c(z) * SECTORS + c(x);
   }
 
   manageDefense() {

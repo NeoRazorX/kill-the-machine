@@ -15,7 +15,9 @@ Cada partida reparte 12 cajas de dinero en posiciones aleatorias accesibles, fue
 de las bases y los yacimientos. Explora para descubrirlas: aparecen con una marca
 dorada en el minimapa. Acerca cualquier unidad (o haz clic derecho sobre la caja)
 para recibir entre 300 y 700 créditos. Cada caja se recoge una sola vez y también
-pueden recogerlas las máquinas. La distribución cambia al volver a jugar.
+pueden recogerlas las máquinas: la IA envía su unidad de combate más rápida a
+explorar el mapa y a por las cajas que ha descubierto con su propia visión, nunca
+las que solo ha visto el rival. La distribución cambia al volver a jugar.
 Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 
 ## Cantera del Umbral
