@@ -107,6 +107,16 @@ try {
   }
 
   for (const team of ['human', 'machine']) {
+    const { game, ai } = fixture(team, 'easy', 77);
+    const hq = game.teamBuildings(team, 'hq')[0];
+    game.spawnUnit(ROLE[team].inf1, team, hq.x + 8, hq.z + 8);
+    game.time = DIFFICULTY.easy.scoutDelay - 1; ai.manageScout();
+    assert(!ai.scout, `${team}/easy: no scout before the easy-mode delay`);
+    game.time = DIFFICULTY.easy.scoutDelay; ai.manageScout();
+    assert(ai.scout, `${team}/easy: scout leaves once the delay has passed`);
+  }
+
+  for (const team of ['human', 'machine']) {
     Math.random = mulberry32(7 + results.length);
     const { game, ai } = fixture(team, 'normal', 77);
     const [crate, ...rest] = game.cashCrates.items;

@@ -191,6 +191,8 @@ export class AI {
       this.scout = null; return;
     }
     if (!this.scout) {
+      // En fácil el explorador sale más tarde para dar ventaja al jugador.
+      if (g.time < this.diff.scoutDelay) return;
       const army = this.armyIdle().filter((u) => u.def.weapon);
       this.scout = army.sort((a, b) => b.def.speed - a.def.speed)[0] || null;
       this.scoutGoal = null;

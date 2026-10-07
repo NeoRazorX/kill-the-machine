@@ -17,7 +17,8 @@ dorada en el minimapa. Acerca cualquier unidad (o haz clic derecho sobre la caja
 para recibir entre 300 y 700 créditos. Cada caja se recoge una sola vez y también
 pueden recogerlas las máquinas: la IA envía su unidad de combate más rápida a
 explorar el mapa y a por las cajas que ha descubierto con su propia visión, nunca
-las que solo ha visto el rival. La distribución cambia al volver a jugar.
+las que solo ha visto el rival (en Fácil no sale hasta los 2 min 30 s).
+La distribución cambia al volver a jugar.
 Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 
 ## Cantera del Umbral

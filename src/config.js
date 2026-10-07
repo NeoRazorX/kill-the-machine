@@ -19,9 +19,9 @@ export const buildingFront = (def, team = def.team) =>
   def.produces || ['power', 'hq', 'refinery'].includes(def.role) ? 1 : TEAMS[team].front;
 
 export const DIFFICULTY = {
-  easy:   { label: 'Fácil',   income: 0.7, think: 1.3, firstWave: 360, waveGap: 150, minArmy: 6 },
-  normal: { label: 'Normal',  income: 0.9, think: 0.9, firstWave: 280, waveGap: 115, minArmy: 8 },
-  hard:   { label: 'Difícil', income: 1.2, think: 0.5, firstWave: 210, waveGap: 80,  minArmy: 10 },
+  easy:   { label: 'Fácil',   income: 0.7, think: 1.3, firstWave: 360, waveGap: 150, minArmy: 6, scoutDelay: 150 },
+  normal: { label: 'Normal',  income: 0.9, think: 0.9, firstWave: 280, waveGap: 115, minArmy: 8, scoutDelay: 0 },
+  hard:   { label: 'Difícil', income: 1.2, think: 0.5, firstWave: 210, waveGap: 80,  minArmy: 10, scoutDelay: 0 },
 };
 
 export const DEFS = {};
