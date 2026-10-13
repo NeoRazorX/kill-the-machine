@@ -1,5 +1,5 @@
 import { GameMap } from '../src/map.js';
-import { N, CELL, TEAMS } from '../src/config.js';
+import { N, CELL } from '../src/config.js';
 import { clearLine, findPath } from '../src/pathfinding.js';
 
 export function checkMap() {
@@ -7,13 +7,17 @@ export function checkMap() {
   for (let seed = 20260; seed < 20292; seed++) {
     const map = new GameMap(seed);
     assert(map.checkConnectivity(), `seed ${seed}: bases and resources connected`);
-    assert(map.landmarks.length === 10, `seed ${seed}: authored landmarks preserved`);
+    assert(map.landmarks.length === 36, `seed ${seed}: authored landmarks preserved`);
+    assert(map.spawns.length === 4, `seed ${seed}: four starting corners`);
+    // Each corner is the rotation of the previous one, so every pairing of starts is fair.
+    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+      assert(map.grid[z * N + x] === map.grid[x * N + N - 1 - z], `seed ${seed}: terrain has four-fold symmetry`);
+    }
     for (const route of map.routes) for (let i = 1; i < route.length; i++) {
       const [ax, az] = route[i - 1], [bx, bz] = route[i];
       assert(clearLine(map.grid, ax * CELL, az * CELL, bx * CELL, bz * CELL, 5), `seed ${seed}: formation corridor blocked`);
     }
-    for (const team of Object.values(TEAMS)) {
-      const [x, z] = team.startCell;
+    for (const [x, z] of map.spawns) {
       for (const field of map.fields) {
         const path = findPath(map.grid, x * CELL, z * CELL, field.x, field.z, 1.2);
         assert(path?.length && Math.hypot(path.at(-1).x - field.x, path.at(-1).z - field.z) < .01, `seed ${seed}: unreachable mineral`);
@@ -25,5 +29,5 @@ export function checkMap() {
   const a = new GameMap(20260), b = new GameMap(20260);
   assert(a.grid.every((value, i) => value === b.grid[i]), 'repeatable navigation');
   assert(JSON.stringify(a.trees) === JSON.stringify(b.trees), 'repeatable decoration');
-  return 'PASS: 32 seeds; formation clearance, resource paths, boundaries, landmarks and reproducibility.';
+  return 'PASS: 32 seeds; four-fold symmetry, formation clearance, resource paths from every start, boundaries, landmarks and reproducibility.';
 }

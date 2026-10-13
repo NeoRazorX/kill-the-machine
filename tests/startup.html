@@ -3,7 +3,7 @@
 <pre id="results">RUNNING</pre><iframe title="Partida de prueba"></iframe>
 <script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
 <script type="module">
-import { DEFS } from '../src/config.js';
+import { DEFS, N } from '../src/config.js';
 import { MODEL_IDS } from '../src/assets.js';
 const frame=document.querySelector('iframe'),out=document.getElementById('results'),lines=[];
 function check(ok,text){if(!ok)throw new Error(text);lines.push('PASS '+text);out.textContent=lines.join('\n');}
@@ -43,7 +43,7 @@ try {
   // Place all non-starting structures through the real placement rules.
   for(const def of Object.values(DEFS).filter(d=>d.kind==='building'&&['barracks','factory','turret','power'].includes(d.role))) {
     let spot;
-    for(let z=1;z<127&&!spot;z++)for(let x=1;x<127;x++)if(game.canPlace(def.team,def,x,z,true)){spot={x,z};break;}
+    for(let z=1;z<N-1&&!spot;z++)for(let x=1;x<N-1;x++)if(game.canPlace(def.team,def,x,z,true)){spot={x,z};break;}
     check(!!spot,def.id+': free placement found');
     game.placeBuilding(def.team,def.id,spot.x,spot.z,true);
   }

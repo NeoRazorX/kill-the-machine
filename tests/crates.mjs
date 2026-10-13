@@ -5,7 +5,7 @@ const { GameMap } = await import('../src/map.js');
 const { CashCrates, CASH_CRATE_COUNT, generateCashCrates } = await import('../src/cash-crates.js');
 const { Game } = await import('../src/game.js');
 const { Input } = await import('../src/input.js');
-const { N, CELL, TEAMS, DEFS } = await import('../src/config.js');
+const { N, CELL, DEFS } = await import('../src/config.js');
 const { canOccupy, findPath } = await import('../src/pathfinding.js');
 const results = [];
 const assert = (ok, text) => { if (!ok) throw new Error(text); results.push(`PASS ${text}`); };
@@ -18,8 +18,8 @@ for (let seed = 20260; seed < 20276; seed++) {
     if (!canOccupy(map.grid, crate.x, crate.z, 1.8)) throw new Error('Crate touches terrain');
     if (![300, 400, 500, 600, 700].includes(crate.amount)) throw new Error('Invalid reward');
     if (map.fields.some(f => Math.hypot(f.x - crate.x, f.z - crate.z) < f.r + 6)) throw new Error('Crate hidden in mineral');
-    for (const team of Object.values(TEAMS)) {
-      const [x, z] = team.startCell.map(v => v * CELL);
+    for (const start of map.spawns) {
+      const [x, z] = start.map(v => v * CELL);
       if (Math.hypot(x - crate.x, z - crate.z) < 48) throw new Error('Reward inside starting visibility');
       const end = findPath(map.grid, x, z, crate.x, crate.z, 1.6)?.at(-1);
       if (!end || Math.hypot(end.x - crate.x, end.z - crate.z) > .01) throw new Error('Unreachable reward');
@@ -88,7 +88,7 @@ assert(orders.some(p => p.x === 100 && p.z === 100), 'group movement sends a col
 orders.length = 0; input.orderMove(squad, 100, 100, true);
 assert(orders.every(p => p.attack) && !orders.some(p => p.x === 100 && p.z === 100), 'attack-move preserves the combat formation');
 
-f.game.buildings = [{ team: 'human', dead: false, selling: false, rect: { x0: 88, z0: 88, x1: 94, z1: 94 } }];
+f.game.buildings = [{ team: 'human', def: DEFS.h_power, dead: false, selling: false, rect: { x0: 88, z0: 88, x1: 94, z1: 94 } }];
 assert(!Game.prototype.canPlace.call(f.game, 'human', DEFS.h_power, 49, 49), 'construction cannot bury a reward');
 f.crate.collected = true;
 assert(Game.prototype.canPlace.call(f.game, 'human', DEFS.h_power, 49, 49), 'collecting a crate frees its ground for construction');

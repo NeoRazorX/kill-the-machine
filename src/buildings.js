@@ -1,4 +1,4 @@
-import { CELL, buildingFront } from './config.js';
+import { CELL, SIZE, buildingFront } from './config.js';
 import { buildBuildingModel } from './models.js';
 import { nextId, angleDiff } from './units.js';
 
@@ -20,7 +20,7 @@ export class Building {
     this.cooldown = 0; this.target = null; this.scanT = Math.random() * 0.4; this.recoil = 0;
     this.fxT = Math.random(); this.seen = team === game.player || game.spectate;
 
-    const front = buildingFront(def, team);
+    const front = buildingFront(def);
     this.front = front;
     this.dock = { x: this.x + front * (def.dock?.x ?? 0),
       z: this.z + front * (def.h * CELL / 2 + (def.dock?.clearance ?? 2.6)) };
@@ -30,7 +30,7 @@ export class Building {
     this.mesh = m.group; this.parts = m.parts;
     this.mesh.position.set(this.x, 0, this.z);
     this.mesh.rotation.y = front < 0 ? Math.PI : 0;
-    this.aim = Math.atan2(CELL * 64 - this.x, CELL * 64 - this.z);
+    this.aim = Math.atan2(SIZE / 2 - this.x, SIZE / 2 - this.z);
     if (!instant) this.mesh.scale.y = 0.02;
     game.scene.add(this.mesh);
     this.mesh.visible = this.seen;

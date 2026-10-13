@@ -74,11 +74,19 @@ diffEls.forEach((el) => {
   el.onclick = () => { difficulty = el.dataset.d; diffEls.forEach((e) => e.classList.toggle('active', e === el)); };
 });
 
+// ?spawn=h,m fixes the corners (0 bottom-left, then clockwise) instead of drawing them.
+function spawnSlots() {
+  const [human, machine] = (params.get('spawn') || '').split(',').map(Number);
+  const valid = (i) => Number.isInteger(i) && i >= 0 && i < game.map.spawns.length;
+  return valid(human) && valid(machine) && human !== machine ? { human, machine } : null;
+}
+
 function begin(spectate) {
   if (started) return;
-  game.start(difficulty, spectate);
+  game.start(difficulty, spectate, spawnSlots());
   input = new Input(game, camera, renderer, sun);
   ui = new UI(game, input, camera);
+  if (!spectate) game.emit('toast', { text: 'Se desconoce la posición enemiga: explora las otras esquinas', kind: 'warn' });
   window.__input = input; window.__ui = ui;
   const hq = game.teamBuildings(spectate ? 'human' : game.player, 'hq')[0];
   input.centerOn(hq.x, hq.z - (spectate ? 0 : 8));

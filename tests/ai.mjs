@@ -8,7 +8,7 @@ const { GameMap, mulberry32 } = await import('../src/map.js');
 const { AI } = await import('../src/ai.js');
 const { preloadModels } = await import('../src/assets.js');
 const { CashCrates } = await import('../src/cash-crates.js');
-const { CELL, SIZE, TEAMS, ROLE, DIFFICULTY, START_CREDITS, other } = await import('../src/config.js');
+const { CELL, SIZE, ROLE, DIFFICULTY, START_CREDITS, other } = await import('../src/config.js');
 
 // Load the game's real local models without requiring a browser or HTTP server.
 const originalFetch = globalThis.fetch;
@@ -22,7 +22,7 @@ try {
 const results = [];
 const assert = (ok, text) => { if (!ok) throw new Error(text); results.push(`PASS ${text}`); };
 const noop = () => {};
-function fixture(team, difficulty = 'normal', crateSeed = null) {
+function fixture(team, difficulty = 'normal', crateSeed = null, slots = { human: 0, machine: 2 }) {
   const newTeam = () => ({
     credits: START_CREDITS, income: 1, structQueue: null, power: { prod: 0, use: 0 },
     stats: { killed: 0, lost: 0, built: 0, earned: 0 }, lastAttacked: null,
@@ -32,17 +32,18 @@ function fixture(team, difficulty = 'normal', crateSeed = null) {
     map: new GameMap(20260), scene: new THREE.Scene(), units: [], buildings: [],
     teams: { human: newTeam(), machine: newTeam() },
     buckets: Array.from({ length: (SIZE / 8) ** 2 }, () => []), _q: [],
-    fx: { update: noop, spawn: noop, marker: noop, repairBeam: noop },
+    fx: { update: noop, spawn: noop, marker: noop, repairBeam: noop, fireWeapon: noop },
     audio: { play: noop, say: noop }, visuals: { updateOre: noop },
     cashCrates: { items: [], update: noop, discover: noop, discoveredBy: () => [] }, updateFog: noop, fogT: 0, oreT: 0,
   });
   // Como en la partida real, las cajas se reparten antes de colocar las bases.
   if (crateSeed !== null) game.cashCrates = new CashCrates(game, crateSeed);
+  game.assignStarts(slots);
   const ai = new AI(game, team, DIFFICULTY[difficulty]);
   game.ais = [ai];
   game.teams[team].income = DIFFICULTY[difficulty].income;
   for (const side of [team, other(team)]) {
-    const [cx, cz] = TEAMS[side].startCell;
+    const [cx, cz] = game.starts[side];
     game.placeBuilding(side, ROLE[side].hq.id, cx - 1, cz - 1, true);
   }
   return { game, ai };
@@ -143,6 +144,57 @@ try {
     assert(crate.collected && claims.length === 1 && claims[0] === ai.scout, `${team}: scout collects the discovered crate`);
     ai.manageScout();
     assert(!ai.scout, `${team}: scout rejoins the army when no crates remain`);
+  }
+  for (const team of ['human', 'machine']) {
+    const { game } = fixture(team);
+    const refinery = addStructure(game, team, 'refinery');
+    const factory = ROLE[team].factory;
+    const blocked = [];
+    for (let x = refinery.cx - factory.w + 1; x < refinery.cx + refinery.w; x++) {
+      for (let z = refinery.cz + refinery.h; z <= refinery.cz + refinery.h + 1; z++) blocked.push(game.canPlace(team, factory, x, z));
+    }
+    assert(blocked.every(ok => !ok), `${team}: no building can be placed over the refinery unloading apron`);
+  }
+
+  // The AI starts without knowing the enemy corner and has to look for it.
+  for (const team of ['human', 'machine']) {
+    Math.random = mulberry32(31 + results.length);
+    const slots = team === 'machine' ? { human: 0, machine: 2 } : { human: 2, machine: 0 };
+    const { game, ai } = fixture(team, 'normal', null, slots);
+    const hq = game.teamBuildings(team, 'hq')[0], enemyHq = game.teamBuildings(other(team), 'hq')[0];
+    ai.updateIntel();
+    assert(!ai.known.size && !ai.enemyBase && ai.corners.length === 3, `${team}: enemy corner unknown at the start`);
+    const first = ai.pickTarget(hq);
+    assert(Math.hypot(first.x - enemyHq.x, first.z - enemyHq.z) > 60 && ai.corners.includes(first),
+      `${team}: first attack explores the nearest corner instead of the hidden diagonal base`);
+    const st = ai.stage();
+    assert(Math.hypot(st.x - SIZE / 2, st.z - SIZE / 2) < Math.hypot(hq.x - SIZE / 2, hq.z - SIZE / 2), `${team}: rally point faces the map centre`);
+    const looker = game.spawnUnit(ROLE[team].inf1, team, first.x, first.z);
+    ai.updateIntel();
+    assert(ai.corners.length === 2 && !ai.corners.includes(first) && !ai.enemyBase, `${team}: an empty corner is crossed off once seen`);
+    const other1 = ai.corners.find(c => Math.hypot(c.x - enemyHq.x, c.z - enemyHq.z) > 60);
+    looker.x = other1.x; looker.z = other1.z;
+    ai.updateIntel();
+    assert(ai.corners.length === 1 && ai.enemyBase && !ai.known.size && Math.hypot(ai.enemyBase.x - enemyHq.x, ai.enemyBase.z - enemyHq.z) < 8,
+      `${team}: the last unexplored corner is deduced as the enemy base`);
+    looker.x = enemyHq.x + 10; looker.z = enemyHq.z;
+    ai.updateIntel();
+    assert(ai.known.has(enemyHq), `${team}: sighting the HQ makes it a known target`);
+    looker.x = hq.x + 8; looker.z = hq.z + 8;
+    const tgt = ai.pickTarget(hq);
+    assert(tgt.x === enemyHq.x && tgt.z === enemyHq.z, `${team}: waves target the base after it was discovered`);
+  }
+
+  for (const team of ['human', 'machine']) {
+    Math.random = mulberry32(57 + results.length);
+    const { game, ai } = fixture(team, 'normal');
+    const hq = game.teamBuildings(team, 'hq')[0], enemyHq = game.teamBuildings(other(team), 'hq')[0];
+    game.spawnUnit(ROLE[team].inf1, team, hq.x + 8, hq.z + 8);
+    ai.manageScout();
+    assert(ai.scout && ai.corners.includes(ai.scoutCorner) && ai.scout.order.x === ai.scoutCorner.x,
+      `${team}: the scout heads for an unexplored corner even without crates`);
+    for (let i = 0; i < 6000 && !ai.enemyBase; i++) game.update(0.1);
+    assert(ai.enemyBase && ai.known.has(enemyHq), `${team}: the scout finds the enemy base by exploring corners`);
   }
 } finally {
   Math.random = originalRandom;

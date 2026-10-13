@@ -1,4 +1,4 @@
-import { CELL, SIZE, TEAMS, DEFS } from './config.js';
+import { CELL, SIZE, DEFS } from './config.js';
 import { mulberry32 } from './map.js';
 import { canOccupy, clearLine, findPath } from './pathfinding.js';
 import { cloneModel } from './assets.js';
@@ -10,7 +10,8 @@ const MAX_UNIT_SIGHT = Math.max(...Object.values(DEFS).filter(d => d.kind === 'u
 // Separate from the terrain seed: the familiar quarry has new rewards each match.
 export function generateCashCrates(map, seed) {
   const random = mulberry32(seed), items = [];
-  const starts = Object.values(TEAMS).map(t => ({ x: t.startCell[0] * CELL, z: t.startCell[1] * CELL }));
+  // Every corner may hold a base, so none of them gets a crate.
+  const starts = map.spawns.map(([x, z]) => ({ x: x * CELL, z: z * CELL }));
   for (let attempt = 0; attempt < 3000 && items.length < CASH_CRATE_COUNT; attempt++) {
     const x = (4 + Math.floor(random() * (SIZE / CELL - 8)) + .5) * CELL;
     const z = (4 + Math.floor(random() * (SIZE / CELL - 8)) + .5) * CELL;

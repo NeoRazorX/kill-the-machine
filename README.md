@@ -9,10 +9,11 @@ Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
     npm start            # o: python3 -m http.server 8765
     # abre http://localhost:8765
 
-Parámetros opcionales: `?autostart=easy|normal|hard`, `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada).
+Parámetros opcionales: `?autostart=easy|normal|hard`, `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada),
+`&spawn=0,2` (fija las esquinas de humanos y máquinas: 0 abajo a la izquierda y después en sentido horario).
 
 Cada partida reparte 12 cajas de dinero en posiciones aleatorias accesibles, fuera
-de las bases y los yacimientos. Explora para descubrirlas: aparecen con una marca
+de las cuatro esquinas de salida y los yacimientos. Explora para descubrirlas: aparecen con una marca
 dorada en el minimapa. Acerca cualquier unidad (o haz clic derecho sobre la caja)
 para recibir entre 300 y 700 créditos. Cada caja se recoge una sola vez y también
 pueden recogerlas las máquinas: la IA envía su unidad de combate más rápida a
@@ -21,17 +22,30 @@ las que solo ha visto el rival (en Fácil no sale hasta los 2 min 30 s).
 La distribución cambia al volver a jugar.
 Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 
-## Cantera del Umbral
+## Cantera de los Cuatro Vientos
 
-El mapa combina una distribución diseñada con decoración procedural reproducible.
-El corredor central conecta las bases y el mineral disputado; los flancos enlazan
-los claros de expansión. Se reservan corredores de ocho celdas de ancho frente
-a la colocación de árboles, rocas y macizos. Las superficies transitables siguen
-siendo planas; los acantilados y las ruinas tienen su huella bloqueada en navegación
-y construcción, y aparecen en el minimapa.
+El mapa (192 × 192 celdas) tiene cuatro esquinas de salida idénticas: el terreno
+se diseña en un cuarto y se rota 90° tres veces, de modo que cualquier pareja de
+esquinas es justa. Cada partida sortea dónde empiezan humanos y máquinas, que
+pueden quedar en esquinas vecinas o enfrentadas. Las cuatro esquinas tienen el
+mismo pavimento, y ni el suelo ni las cajas de dinero delatan cuáles están ocupadas:
+hay que explorar para encontrar al enemigo.
+
+Cada esquina tiene dos yacimientos propios y sale por tres caminos: dos de borde
+hacia los claros con mineral que comparte con sus vecinas y uno diagonal hacia la
+expansión y el gran yacimiento central. Un anillo enlaza las expansiones. Se reservan
+corredores de ocho celdas de ancho frente a la colocación de árboles, rocas y macizos.
+Las superficies transitables siguen siendo planas; los acantilados y las ruinas
+tienen su huella bloqueada en navegación y construcción, y aparecen en el minimapa.
+
+La IA tampoco sabe dónde empezaste: solo conoce los edificios que han visto sus
+unidades o edificios. Su explorador recorre las esquinas pendientes antes de buscar
+cajas, y sus oleadas atacan la esquina sin explorar más cercana hasta encontrar la base.
+Si solo queda una esquina por ver, deduce que el enemigo está ahí. Ningún bando
+puede construir sobre la zona de descarga de una refinería.
 
 El suelo incluye caminos con rodadas, hombros irregulares, polvo alrededor de la
-roca y juntas en el pavimento de las bases. Los nuevos modelos editables son
+roca y juntas en el pavimento de las bases. Los modelos editables son
 `assets/models/env_cliff.blend` y `assets/models/env_ruin.blend`, con sus GLB locales.
 Se regeneran con `blender -b --python-exit-code 1 --python tools/build_models.py -- quarry`.
 El exportador de Blender necesita NumPy disponible en su Python.
@@ -39,7 +53,8 @@ El exportador de Blender necesita NumPy disponible en su Python.
 - [Vista general y detalle del mapa](http://localhost:8765/tools/map-preview.html).
 - [Jugar el escenario](http://localhost:8765/?autostart=easy).
 - [Pruebas de integración](http://localhost:8765/tests/models.html), incluyendo 32
-  semillas, acceso a recursos, paso de formaciones y huella de los nuevos modelos.
+  semillas, simetría de las cuatro esquinas, acceso a recursos desde cada salida,
+  paso de formaciones y huella de los nuevos modelos.
 
 ## Prueba de modelos de Blender
 
@@ -114,6 +129,8 @@ ampliar la base. También reconstruye esa economía tras perderla y espera a que
 edificios terminen de desplegarse para no duplicarlos. `npm run test:ai` comprueba
 el arranque desde solo el centro de mando, la recolección y el acceso a cuartel y
 fábrica para ambos bandos en las tres dificultades, además de la reconstrucción.
+También comprueba que la IA empieza sin conocer la base enemiga, descarta las
+esquinas vacías, deduce la última y ataca la base una vez descubierta.
 
 ## Estructura
 `src/config.js` definiciones · `map.js` terreno · `pathfinding.js` A* · `units.js` / `buildings.js` entidades ·

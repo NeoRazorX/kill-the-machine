@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { preloadModels } from '../src/assets.js';
 import { GameMap, MapVisuals } from '../src/map.js';
 import { checkMap } from '../tests/map.js';
+import { SIZE } from '../src/config.js';
+const C = SIZE / 2;
 const status = document.querySelector('#checks');
 try {
   await preloadModels();
@@ -15,16 +17,16 @@ try {
   const camera = new THREE.PerspectiveCamera(42, 1, 1, 1000);
   scene.add(new THREE.HemisphereLight(0xd6e4ff, 0x40483a, 1.25));
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.3);
-  sun.position.set(170, 220, 180); sun.target.position.set(128, 0, 128);
+  sun.position.set(C + 63, 330, C + 78); sun.target.position.set(C, 0, C);
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, {left:-190,right:190,top:190,bottom:-190,near:1,far:500});
+  Object.assign(sun.shadow.camera, {left:-C * 1.5,right:C * 1.5,top:C * 1.5,bottom:-C * 1.5,near:1,far:800});
   sun.shadow.normalBias = .08;
   scene.add(sun, sun.target);
   const start = performance.now();
   new MapVisuals(map, scene);
   const groundMs = Math.round(performance.now() - start);
   const render = () => { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.render(scene, camera); };
-  const view = (detail) => { camera.position.set(detail ? 130 : 128, detail ? 95 : 305, detail ? 212 : 370); camera.lookAt(detail ? 128 : 118, 0, detail ? 127 : 128); render(); };
+  const view = (detail) => { camera.position.set(detail ? C + 2 : C, detail ? 95 : C * 2.4, detail ? C + 85 : C * 2.9); camera.lookAt(detail ? C : C - 10, 0, C); render(); };
   document.querySelector('#overview').onclick = () => view(false);
   document.querySelector('#detail').onclick = () => view(true);
   window.addEventListener('resize', render);

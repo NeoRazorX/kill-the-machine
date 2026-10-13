@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { N, CELL, SIZE, PLAYER, TEAMS, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, other } from './config.js';
+import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, other } from './config.js';
 import { GameMap, MapVisuals } from './map.js';
 import { Unit } from './units.js';
 import { Building } from './buildings.js';
@@ -47,10 +47,12 @@ export class Game {
   emit(type, data) { if (this.onEvent) this.onEvent(type, data); }
 
   // ------------------------------------------------------------------ inicio
-  start(difficulty = 'normal', spectate = false) {
+  // slots: corner index per team; by default two different corners are drawn at random.
+  start(difficulty = 'normal', spectate = false, slots = null) {
     this.spectate = spectate;
     this.difficulty = DIFFICULTY[difficulty] || DIFFICULTY.normal;
     this.teams.machine.income = this.difficulty.income;
+    this.assignStarts(slots);
     for (const team of ['human', 'machine']) this.setupBase(team);
     this.ais.push(new AI(this, 'machine', this.difficulty));
     if (spectate) this.ais.push(new AI(this, 'human', DIFFICULTY.normal));
@@ -60,18 +62,27 @@ export class Game {
     this.cashCrates.update();
   }
 
+  assignStarts(slots = null) {
+    if (!slots) {
+      const n = this.map.spawns.length, human = Math.floor(Math.random() * n);
+      slots = { human, machine: (human + 1 + Math.floor(Math.random() * (n - 1))) % n };
+    }
+    this.startSlots = slots;
+    this.starts = { human: this.map.spawns[slots.human], machine: this.map.spawns[slots.machine] };
+  }
+
   setupBase(team) {
-    const [sx, sz] = TEAMS[team].startCell;
-    const hx = TEAMS.human.startCell[0] - 1, hz = TEAMS.human.startCell[1] - 1;
+    const [sx, sz] = this.starts[team];
+    // Refinery towards the centre of the map, whichever corner the base is in.
+    const side = sx < N / 2 ? 1 : -1;
     const layout = [['hq', 0, 0], ['power', -5, 1], ['refinery', 5, -1]];
     for (const [role, dx, dz] of layout) {
       const def = ROLE[team][role];
-      let cx = hx + dx, cz = hz + dz;
-      if (team === 'machine') { cx = N - cx - def.w; cz = N - cz - def.h; }
-      this.placeBuilding(team, def.id, cx, cz, true);
+      const cx = side > 0 ? sx - 1 + dx : sx + 2 - dx - def.w;
+      this.placeBuilding(team, def.id, cx, sz - 1 + dz, true);
     }
-    // unidades iniciales
-    const f = TEAMS[team].front;
+    // unidades iniciales, en el lado de la base que mira al centro
+    const f = sz < N / 2 ? 1 : -1;
     const bx = sx * CELL, bz = sz * CELL;
     const light = ROLE[team].inf1, tank = ROLE[team].tank, harv = ROLE[team].harv;
     for (let i = 0; i < 4; i++) this.spawnUnit(light, team, bx + (i - 1.5) * 2.4, bz + f * 10);
@@ -378,6 +389,13 @@ export class Game {
       if (!crate.collected && rectDist(crate.x, crate.z, r) < CASH_CRATE_RADIUS) return false;
     }
     for (const f of this.map.fields) if (rectDist(f.x, f.z, r) < f.r * 0.85) return false;
+    // Nothing may cover a refinery's unloading apron, or its harvesters could never deliver.
+    for (const b of this.buildings) {
+      if (b.dead || b.def.role !== 'refinery') continue;
+      const d = b.dock;
+      if (r.x0 < Math.max(b.rect.x1, d.x + 3) && r.x1 > Math.min(b.rect.x0, d.x - 3) &&
+          r.z0 < Math.max(b.z, d.z + 3) && r.z1 > Math.min(b.z, d.z - 3)) return false;
+    }
     if (margin) {
       for (let z = cz - 1; z <= cz + def.h; z++) for (let x = cx - 1; x <= cx + def.w; x++) {
         if (x >= 0 && z >= 0 && x < N && z < N && g[z * N + x] === 2) return false;

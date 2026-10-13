@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getInstanceAsset } from './assets.js';
-import { N, CELL, SIZE, TEAMS } from './config.js';
+import { N, CELL, SIZE } from './config.js';
 
 export function mulberry32(a) {
   return function () {
@@ -23,19 +23,33 @@ export function routeDistance(x, z, routes) {
   return best;
 }
 
+// Four-fold rotational symmetry: every corner has an identical start, so any pairing is fair.
+// rot turns a continuous cell position 90° around the centre; mir reflects it across a corner's diagonal.
+export const rot = ([x, z]) => [N - z, x];
+const mir = ([x, z]) => [N - z, N - x];
+const turn = (p, k) => { for (let i = 0; i < k; i++) p = rot(p); return p; };
+const rotations = (p) => [0, 1, 2, 3].map(k => turn(p, k));
+const rotCell = (cx, cz) => [N - 1 - cz, cx];
+
+// Bottom-left corner; the other three are its rotations.
+const START = [28, N - 28];
+const MID = [22, N / 2];          // edge clearing shared with the next corner
+const EXPANSION = [64, N - 64];   // contested field on the road to the centre
+
 // grid: 0 libre, 1 obstáculo estático, 2 edificio
 export class GameMap {
   constructor(seed = 20260) {
     this.seed = seed;
-    this.name = 'Cantera del Umbral';
-    const halfRoutes = [
-      [[24, 100], [40, 94], [48, 80], [64, 64]],
-      [[24, 100], [27, 79], [34, 66], [20, 52], [25, 33], [48, 27], [64, 24]],
-      [[34, 66], [48, 66], [64, 64]],
-      [[27, 79], [48, 80]],
+    this.name = 'Cantera de los Cuatro Vientos';
+    this.spawns = rotations(START);
+    // Each corner reaches the centre, both neighbouring edge clearings and a ring that links the expansions.
+    const toEdge = [START, [22, 140], [30, 118], MID];
+    const toRing = [MID, [40, 112], EXPANSION];
+    const quarter = [
+      [START, [46, 146], EXPANSION, [80, 112], [N / 2, N / 2]],
+      toEdge, toEdge.map(mir), toRing, toRing.map(mir),
     ];
-    this.routes = [...halfRoutes, ...halfRoutes.map(r => r.map(([x, z]) => [N - x, N - z]))];
-    this.routes.push([[64, 24], [88, 34], [104, 28]], [[64, 104], [40, 94], [24, 100]]);
+    this.routes = quarter.flatMap(route => [0, 1, 2, 3].map(k => route.map(p => turn(p, k))));
     this.grid = new Uint8Array(N * N);
     this.trees = [];
     this.rocks = [];
@@ -59,31 +73,25 @@ export class GameMap {
       this.grid[i] = this.grid[(N - 1) * N + i] = 1;
       this.grid[i * N] = this.grid[i * N + N - 1] = 1;
     }
-    const starts = [TEAMS.human.startCell, TEAMS.machine.startCell];
-    const nearStart = (cx, cz, r) => starts.some((s) => Math.hypot(cx - s[0], cz - s[1]) < r);
+    const nearStart = (cx, cz, r) => this.spawns.some((s) => Math.hypot(cx + 0.5 - s[0], cz + 0.5 - s[1]) < r);
     const nearField = (cx, cz, m) => this.fields.some((f) => Math.hypot(cx + 0.5 - f.x / CELL, cz + 0.5 - f.z / CELL) < f.r / CELL + m);
 
-    // Campos de mineral (simétricos respecto al centro)
-    const addField = (cx, cz, rc, amount) => {
+    // Campos de mineral, repetidos en las cuatro esquinas
+    const addField = ([cx, cz], rc, amount) => {
       this.fields.push({ x: cx * CELL, z: cz * CELL, r: rc * CELL, amount, max: amount, id: this.fields.length });
     };
-    const hs = TEAMS.human.startCell;
-    const specs = [
-      [hs[0] + 16, hs[1] - 6, 5, 7000],
-      [hs[0] + 3, hs[1] - 21, 4, 6000],
-      [34, 66, 5, 9000],
-      [20, 52, 4, 7000],
-    ];
-    for (const [cx, cz, r, a] of specs) { addField(cx, cz, r, a); addField(N - cx, N - cz, r, a); }
-    addField(N / 2, N / 2, 6, 14000);
+    const home = [START[0] + 20, START[1] - 2];
+    const specs = [[home, 4, 6500], [mir(home), 4, 6500], [EXPANSION, 5, 9000], [[28, N / 2], 4, 7000]];
+    for (const [p, r, a] of specs) for (const q of rotations(p)) addField(q, r, a);
+    addField([N / 2, N / 2], 7, 16000);
 
     const reserved = (cx, cz) => nearStart(cx, cz, 18) || nearField(cx, cz, 4) || routeDistance(cx + 0.5, cz + 0.5, this.routes) < 4;
     const free = (cx, cz) => !this.blockedCell(cx, cz) && !reserved(cx, cz);
     // Large authored obstacles define the battlefield; their entire visual footprint is blocked.
-    const addLandmark = (cx, cz, radius, kind, rotation = 0) => {
+    const addLandmark = ([cx, cz], radius, kind, rotation = 0) => {
       const cells = [];
-      for (let z = Math.floor(cz - radius); z <= Math.ceil(cz + radius); z++) {
-        for (let x = Math.floor(cx - radius); x <= Math.ceil(cx + radius); x++) {
+      for (let z = Math.floor(cz - radius - 1); z <= Math.ceil(cz + radius); z++) {
+        for (let x = Math.floor(cx - radius - 1); x <= Math.ceil(cx + radius); x++) {
           if (Math.hypot(x + .5 - cx, z + .5 - cz) > radius + .7) continue;
           if (!this.inBounds(x, z) || reserved(x, z) || this.blockedCell(x, z)) return;
           cells.push([x, z]);
@@ -92,31 +100,44 @@ export class GameMap {
       for (const [x, z] of cells) this.grid[z * N + x] = 1;
       this.landmarks.push({ x: cx * CELL, z: cz * CELL, radius: radius * CELL, kind, rot: rotation });
     };
-    for (const [x, z, r, kind] of [[51, 49, 8, 'env_cliff'], [12, 72, 5, 'env_cliff'], [43, 14, 7, 'env_cliff'], [8, 23, 5, 'env_cliff'], [43, 39, 3, 'env_ruin']]) {
-      addLandmark(x, z, r, kind, 0);
-      addLandmark(N - x, N - z, r, kind, Math.PI);
+    const landmarks = [[[42, 134], 4, 'env_cliff'], [[62, 108], 6, 'env_cliff'], [[9, 122], 5, 'env_cliff'], [[10, 146], 3, 'env_ruin']];
+    const quarterMarks = landmarks.flatMap(([p, r, kind]) => [[p, r, kind], [mir(p), r, kind]]);
+    quarterMarks.push([[9, N - 9], 5, 'env_cliff']);
+    for (const [p, r, kind] of quarterMarks) {
+      rotations(p).forEach((q, k) => addLandmark(q, r, kind, k * Math.PI / 2 + (p[0] + p[1]) % 3));
     }
-    const mirrorCell = (cx, cz) => [N - 1 - cx, N - 1 - cz];
 
-    const placeTree = (cx, cz, jx, jz, s, rot) => {
-      const [mx, mz] = mirrorCell(cx, cz);
-      if (!free(cx, cz) || !free(mx, mz) || nearField(cx, cz, 1.5) || nearField(mx, mz, 1.5)) return;
-      if (cx === mx && cz === mz) return;
-      this.grid[cz * N + cx] = 1; this.grid[mz * N + mx] = 1;
-      this.trees.push({ x: (cx + 0.5 + jx) * CELL, z: (cz + 0.5 + jz) * CELL, s, rot });
-      this.trees.push({ x: SIZE - (cx + 0.5 + jx) * CELL, z: SIZE - (cz + 0.5 + jz) * CELL, s, rot: rot + Math.PI });
+    // Decoration is repeated in the four rotated positions so no corner gets more cover.
+    const rotCells = (cx, cz) => {
+      const out = [[cx, cz]];
+      for (let k = 1; k < 4; k++) out.push(rotCell(...out[k - 1]));
+      return out;
     };
-    const placeRock = (cx, cz, s, rot) => {
-      const cells = [[cx, cz], [cx + 1, cz], [cx, cz + 1], [cx + 1, cz + 1]];
-      const mcells = cells.map(([a, b]) => mirrorCell(a, b));
-      if (![...cells, ...mcells].every(([a, b]) => free(a, b) && !nearField(a, b, 1.5))) return;
-      if (cells.some(([a, b]) => mcells.some(([c, d]) => a === c && b === d))) return;
-      for (const [a, b] of [...cells, ...mcells]) this.grid[b * N + a] = 1;
-      this.rocks.push({ x: (cx + 1) * CELL, z: (cz + 1) * CELL, s, rot });
-      this.rocks.push({ x: SIZE - (cx + 1) * CELL, z: SIZE - (cz + 1) * CELL, s, rot: rot + 1.3 });
+    const rotWorld = (x, z) => [SIZE - z, x];
+    const placeTree = (cx, cz, jx, jz, s, r) => {
+      const cells = rotCells(cx, cz);
+      if (cells.some(([a, b]) => !free(a, b) || nearField(a, b, 1.5))) return;
+      if (new Set(cells.map(([a, b]) => b * N + a)).size < 4) return;
+      let p = [(cx + 0.5 + jx) * CELL, (cz + 0.5 + jz) * CELL];
+      cells.forEach(([a, b], k) => {
+        this.grid[b * N + a] = 1;
+        this.trees.push({ x: p[0], z: p[1], s, rot: r + k * Math.PI / 2 });
+        p = rotWorld(...p);
+      });
+    };
+    const placeRock = (cx, cz, s, r) => {
+      const cells = [[cx, cz], [cx + 1, cz], [cx, cz + 1], [cx + 1, cz + 1]].flatMap(([a, b]) => rotCells(a, b));
+      if (!cells.every(([a, b]) => free(a, b) && !nearField(a, b, 1.5))) return;
+      if (new Set(cells.map(([a, b]) => b * N + a)).size < cells.length) return;
+      for (const [a, b] of cells) this.grid[b * N + a] = 1;
+      let p = [(cx + 1) * CELL, (cz + 1) * CELL];
+      for (let k = 0; k < 4; k++) {
+        this.rocks.push({ x: p[0], z: p[1], s, rot: r + k * 1.3 });
+        p = rotWorld(...p);
+      }
     };
 
-    for (let k = 0; k < 65; k++) {
+    for (let k = 0; k < 75; k++) {
       const ccx = 4 + Math.floor(rng() * (N - 8));
       const ccz = 4 + Math.floor(rng() * (N - 8));
       if (rng() < 0.62) {
@@ -137,7 +158,7 @@ export class GameMap {
   }
 
   checkConnectivity() {
-    const [ax, az] = TEAMS.human.startCell, [bx, bz] = TEAMS.machine.startCell;
+    const [ax, az] = this.spawns[0];
     const seen = new Uint8Array(N * N);
     const q = [az * N + ax]; seen[q[0]] = 1;
     for (let h = 0; h < q.length; h++) {
@@ -150,7 +171,7 @@ export class GameMap {
         seen[nz * N + nx] = 1; q.push(nz * N + nx);
       }
     }
-    if (!seen[bz * N + bx]) return false;
+    if (!this.spawns.every(([x, z]) => seen[z * N + x])) return false;
     return this.fields.every((f) => seen[Math.floor(f.z / CELL) * N + Math.floor(f.x / CELL)]);
   }
 }
@@ -169,15 +190,23 @@ function vnoise(x, y, s) {
 }
 function fbm(x, y, s) { return vnoise(x, y, s) * 0.55 + vnoise(x * 2.1, y * 2.1, s + 7) * 0.3 + vnoise(x * 4.3, y * 4.3, s + 13) * 0.15; }
 
-export function makeGroundCanvas(map, px = 1024) {
+export function makeGroundCanvas(map, px = 1536) {
   const cv = document.createElement('canvas');
   cv.width = cv.height = px;
   const ctx = cv.getContext('2d');
   const img = ctx.createImageData(px, px);
   const d = img.data;
   const grass1 = [57, 72, 51], grass2 = [90, 105, 65], dirt = [133, 116, 86], dark = [57, 56, 49];
-  const pave = { human: [128, 132, 134], machine: [58, 60, 70] };
+  const pave = [104, 107, 108];
   const k = SIZE / px;
+  const R = new Float32Array(px * px), G = new Float32Array(px * px), B = new Float32Array(px * px);
+  // Road distance sampled once per world unit and interpolated per pixel.
+  const RN = SIZE + 1, roads = new Float32Array(RN * RN);
+  for (let j = 0; j < RN; j++) for (let i = 0; i < RN; i++) roads[j * RN + i] = routeDistance(i / CELL, j / CELL, map.routes) * CELL;
+  const roadAt = (wx, wz) => {
+    const i = Math.min(RN - 2, Math.floor(wx)), j = Math.min(RN - 2, Math.floor(wz)), u = wx - i, v = wz - j, o = j * RN + i;
+    return (roads[o] * (1 - u) + roads[o + 1] * u) * (1 - v) + (roads[o + RN] * (1 - u) + roads[o + RN + 1] * u) * v;
+  };
   for (let y = 0; y < px; y++) {
     for (let x = 0; x < px; x++) {
       const wx = x * k, wz = y * k;
@@ -187,40 +216,51 @@ export function makeGroundCanvas(map, px = 1024) {
       const dm = Math.min(1, Math.max(0, (n2 - 0.52) * 6));
       r += (dirt[0] - r) * dm; g += (dirt[1] - g) * dm; b += (dirt[2] - b) * dm;
       // Broad dirt roads, broken shoulders and two compacted wheel tracks.
-      const road = routeDistance(wx / CELL, wz / CELL, map.routes) * CELL;
+      const road = roadAt(wx, wz);
       const edge = road + (n1 - .5) * 3;
       const blend = Math.max(0, Math.min(1, (7.5 - edge) / 2.5));
-      const track = Math.max(0, 1 - Math.abs(road - 2.1) / .55) * 13;
-      const grit = (vnoise(wx * 1.1, wz * 1.1, 21) - .5) * 14;
-      r += (139 + grit - track - r) * blend;
-      g += (120 + grit - track - g) * blend;
-      b += (88 + grit - track - b) * blend;
-      // Stone dust integrates the cliff bases with the ground.
-      for (const l of map.landmarks) {
-        const dd = Math.hypot(wx - l.x, wz - l.z) - l.radius;
-        const a = Math.max(0, Math.min(.8, (5 - dd) / 7)) * .8;
-        r += (112 - r) * a; g += (109 - g) * a; b += (94 - b) * a;
+      if (blend > 0) {
+        const track = Math.max(0, 1 - Math.abs(road - 2.1) / .55) * 13;
+        const grit = (vnoise(wx * 1.1, wz * 1.1, 21) - .5) * 14;
+        r += (139 + grit - track - r) * blend;
+        g += (120 + grit - track - g) * blend;
+        b += (88 + grit - track - b) * blend;
       }
-      // pavimento en las bases
-      for (const tm of ['human', 'machine']) {
-        const s = TEAMS[tm].startCell;
-        const dd = Math.hypot(wx - s[0] * CELL, wz - s[1] * CELL) / CELL;
-        if (dd < 15) {
-          const a = Math.min(1, (15 - dd) / 3) * 0.85;
-          const seam = wx % 6 < .12 || wz % 6 < .12;
-          const tile = seam ? -23 : (hash2(Math.floor(wx / 6), Math.floor(wz / 6), 9) - .5) * 13;
-          const pv = pave[tm];
-          r += (pv[0] + tile - r) * a; g += (pv[1] + tile - g) * a; b += (pv[2] + tile - b) * a;
-        }
-      }
-      // suelo oscuro bajo el mineral
-      for (const f of map.fields) {
-        const dd = Math.hypot(wx - f.x, wz - f.z) / (f.r * 1.15);
-        if (dd < 1) { const a = (1 - dd) * 0.8; r += (dark[0] - r) * a; g += (dark[1] - g) * a; b += (dark[2] - b) * a; }
-      }
+      const i = y * px + x;
+      R[i] = r; G[i] = g; B[i] = b;
+    }
+  }
+  // Features only shade the pixels within their reach, in the same order as before.
+  const around = (cx, cz, reach, shade) => {
+    const x0 = Math.max(0, Math.floor((cx - reach) / k)), x1 = Math.min(px - 1, Math.ceil((cx + reach) / k));
+    const y0 = Math.max(0, Math.floor((cz - reach) / k)), y1 = Math.min(px - 1, Math.ceil((cz + reach) / k));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) shade(y * px + x, x * k, y * k);
+  };
+  const mix = (i, a, r, g, b) => { R[i] += (r - R[i]) * a; G[i] += (g - G[i]) * a; B[i] += (b - B[i]) * a; };
+  // Stone dust integrates the cliff bases with the ground.
+  for (const l of map.landmarks) around(l.x, l.z, l.radius + 5, (i, wx, wz) => {
+    const a = Math.max(0, Math.min(.8, (5 - Math.hypot(wx - l.x, wz - l.z) + l.radius) / 7)) * .8;
+    if (a > 0) mix(i, a, 112, 109, 94);
+  });
+  // Every start is paved the same, so the ground never gives away an occupied corner.
+  for (const [sx, sz] of map.spawns) around(sx * CELL, sz * CELL, 15 * CELL, (i, wx, wz) => {
+    const dd = Math.hypot(wx - sx * CELL, wz - sz * CELL) / CELL;
+    if (dd >= 15) return;
+    const a = Math.min(1, (15 - dd) / 3) * 0.85;
+    const seam = wx % 6 < .12 || wz % 6 < .12;
+    const tile = seam ? -23 : (hash2(Math.floor(wx / 6), Math.floor(wz / 6), 9) - .5) * 13;
+    mix(i, a, pave[0] + tile, pave[1] + tile, pave[2] + tile);
+  });
+  // suelo oscuro bajo el mineral
+  for (const f of map.fields) around(f.x, f.z, f.r * 1.15, (i, wx, wz) => {
+    const dd = Math.hypot(wx - f.x, wz - f.z) / (f.r * 1.15);
+    if (dd < 1) mix(i, (1 - dd) * 0.8, dark[0], dark[1], dark[2]);
+  });
+  for (let y = 0; y < px; y++) {
+    for (let x = 0; x < px; x++) {
       const grain = (hash2(x, y, 5) - 0.5) * 8;
-      const i = (y * px + x) * 4;
-      d[i] = r + grain; d[i + 1] = g + grain; d[i + 2] = b + grain; d[i + 3] = 255;
+      const i = y * px + x, o = i * 4;
+      d[o] = R[i] + grain; d[o + 1] = G[i] + grain; d[o + 2] = B[i] + grain; d[o + 3] = 255;
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -276,10 +316,11 @@ export class MapVisuals {
     }
     // A rock rim replaces the abrupt edge into empty space, outside the playable grid.
     const asset = getInstanceAsset('env_cliff');
-    const rim = new THREE.InstancedMesh(asset.geometry, asset.material, 4 * 22);
+    const per = Math.round(SIZE / 12);
+    const rim = new THREE.InstancedMesh(asset.geometry, asset.material, 4 * per);
     let index = 0;
-    for (let side = 0; side < 4; side++) for (let i = 0; i < 22; i++) {
-      const t = i * SIZE / 21, h = 7 + hash2(i, side, 11) * 10;
+    for (let side = 0; side < 4; side++) for (let i = 0; i < per; i++) {
+      const t = i * SIZE / (per - 1), h = 7 + hash2(i, side, 11) * 10;
       const x = side === 0 ? -16 : side === 1 ? SIZE + 16 : t;
       const z = side === 2 ? -16 : side === 3 ? SIZE + 16 : t;
       q.setFromAxisAngle(up, side * Math.PI / 2 + hash2(i, side, 17) * 2);

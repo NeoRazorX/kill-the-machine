@@ -126,13 +126,14 @@ for (const id of ['h_refinery', 'm_refinery']) {
 const { GameMap } = await import('../src/map.js');
 for (const seed of [20260, 20261, 20262, 20263]) {
   const map = new GameMap(seed);
+  const [[ax, az], [bx, bz]] = [map.spawns[0], map.spawns[2]].map(p => p.map(v => v * CELL));
   for (const radius of [1.5, 1.6]) {
-    const route = findPath(map.grid, 48, 200, 206, 54, radius);
-    assert(atGoal(route, 206, 54) && validRoute(map.grid, route, 48, 200, radius), `seed ${seed}: full-size ${radius} route across quarry`);
+    const route = findPath(map.grid, ax, az, bx, bz, radius);
+    assert(atGoal(route, bx, bz) && validRoute(map.grid, route, ax, az, radius), `seed ${seed}: full-size ${radius} route across quarry`);
   }
-  const vehicle = tank(map.grid, 48, 200); vehicle.pathTo(206, 54);
-  for (let i = 0; i < 4000; i++) if (vehicle.followPath(.05)) break;
-  assert(Math.hypot(vehicle.x - 206, vehicle.z - 54) < .6, `seed ${seed}: tank reaches the other base in simulation`);
+  const vehicle = tank(map.grid, ax, az); vehicle.pathTo(bx, bz);
+  for (let i = 0; i < 12000; i++) if (vehicle.followPath(.05)) break;
+  assert(Math.hypot(vehicle.x - bx, vehicle.z - bz) < .6, `seed ${seed}: tank reaches the opposite corner in simulation`);
 }
 console.log(results.join('\n'));
 console.log(checkMap());

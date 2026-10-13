@@ -1,4 +1,4 @@
-import { N, CELL, ROLE, TEAMS, other } from './config.js';
+import { N, CELL, ROLE, other } from './config.js';
 
 const SECTOR = 32; // lado en unidades de mundo de cada zona que explora el explorador
 const SECTORS = N * CELL / SECTOR;
@@ -10,7 +10,11 @@ export class AI {
     this.acc = Math.random() * 0.5; this.think = diff.think;
     this.waveTimer = diff.firstWave; this.waveNo = 0;
     this.group = []; this.placeFail = 0; this.lastDefend = -99;
-    this.scout = null; this.scoutGoal = null; this.explored = new Set();
+    this.scout = null; this.scoutGoal = null; this.scoutCorner = null; this.explored = new Set();
+    // La IA no sabe en qué esquina empezó el rival: solo conoce lo que ha visto.
+    const [ox, oz] = game.starts[team];
+    this.corners = game.map.spawns.filter(([x, z]) => x !== ox || z !== oz).map(([x, z]) => ({ x: x * CELL, z: z * CELL }));
+    this.known = new Set(); this.enemyBase = null;
   }
 
   update(dt) {
@@ -18,6 +22,7 @@ export class AI {
     if (this.acc < this.think) return;
     const d = this.acc; this.acc = 0;
     if (this.g.over) return;
+    this.updateIntel();
     this.manageStructures();
     this.manageUnits();
     this.manageWaves(d);
@@ -33,10 +38,39 @@ export class AI {
   stage() {
     const hq = this.hq;
     if (!hq) return null;
-    const e = this.g.teamBuildings(this.enemy)[0];
-    const tx = e ? e.x : N * CELL / 2, tz = e ? e.z : N * CELL / 2;
-    const dx = tx - hq.x, dz = tz - hq.z, d = Math.hypot(dx, dz) || 1;
+    const e = this.enemyBase || { x: N * CELL / 2, z: N * CELL / 2 };
+    const dx = e.x - hq.x, dz = e.z - hq.z, d = Math.hypot(dx, dz) || 1;
     return { x: hq.x + (dx / d) * 34, z: hq.z + (dz / d) * 34 };
+  }
+
+  // ------------------------------------------------------------ información
+  // Enemy buildings become known once inside the sight of an own unit or building; a corner
+  // counts as explored once something has looked at it.
+  updateIntel() {
+    const g = this.g;
+    const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
+    const sees = (x, z, pad) => eyes.some((e) => Math.hypot(e.x - x, e.z - z) <= e.def.sight + pad);
+    for (const b of this.known) if (b.dead) this.known.delete(b);
+    for (const b of g.buildings) {
+      if (b.team !== this.enemy || b.dead || this.known.has(b) || !sees(b.x, b.z, b.radius)) continue;
+      this.known.add(b);
+      if (!this.enemyBase) {
+        const corner = this.corners.find((c) => Math.hypot(c.x - b.x, c.z - b.z) < 60);
+        this.enemyBase = corner ? { x: corner.x, z: corner.z } : { x: b.x, z: b.z };
+      }
+    }
+    this.corners = this.corners.filter((c) => !sees(c.x, c.z, -4));
+    // Por eliminación: si solo queda una esquina por ver, el enemigo está ahí.
+    if (!this.enemyBase && this.corners.length === 1) this.enemyBase = { x: this.corners[0].x, z: this.corners[0].z };
+  }
+
+  nearestCorner(from) {
+    let best = null, bd = 1e9;
+    for (const c of this.corners) {
+      const d = Math.hypot(c.x - from.x, c.z - from.z);
+      if (d < bd) { bd = d; best = c; }
+    }
+    return best;
   }
 
   // -------------------------------------------------------------- estructuras
@@ -77,7 +111,6 @@ export class AI {
   placeStructure(def) {
     const g = this.g, hq = this.hq;
     if (!hq) return;
-    const enemyB = g.teamBuildings(this.enemy)[0];
     const hcx = Math.floor(hq.x / CELL), hcz = Math.floor(hq.z / CELL);
     const R = 8 + this.placeFail * 2;
     let best = null, bestS = 1e9;
@@ -148,14 +181,22 @@ export class AI {
   pickTarget(from) {
     const g = this.g;
     let best = null, bd = 1e9;
-    for (const b of g.buildings) {
-      if (b.team !== this.enemy || b.dead) continue;
+    for (const b of this.known) {
+      if (b.dead || b.selling) continue;
       const d = Math.hypot(b.x - from.x, b.z - from.z) - (b.def.role === 'hq' ? 25 : 0) + (b.def.weapon ? 15 : 0);
       if (d < bd) { bd = d; best = b; }
     }
     if (best) return { x: best.x, z: best.z };
-    const u = g.units.find((e) => e.team === this.enemy && !e.dead);
-    return u ? { x: u.x, z: u.z } : null;
+    // Sin objetivos conocidos, el ataque explora la esquina pendiente más cercana.
+    const corner = this.nearestCorner(from);
+    if (corner) return corner;
+    // Every corner checked and nothing known left: chase the remaining buildings rather than stall.
+    const rest = g.teamBuildings(this.enemy);
+    for (const b of rest) {
+      const d = Math.hypot(b.x - from.x, b.z - from.z);
+      if (d < bd) { bd = d; best = b; }
+    }
+    return best ? { x: best.x, z: best.z } : null;
   }
 
   manageWaves(dt) {
@@ -182,24 +223,33 @@ export class AI {
     }
   }
 
-  // ------------------------------------------------------------------ cajas
-  // Una unidad rápida recorre el mapa y recoge las cajas que su bando ha descubierto.
+  // ------------------------------------------------------------- exploración
+  // Una unidad rápida busca primero la base enemiga por las esquinas y después recoge
+  // las cajas que su bando ha descubierto.
   manageScout() {
     const g = this.g, crates = g.cashCrates;
     if (this.scout?.dead) this.scout = null;
-    if (!crates.items.some((c) => !c.collected) || this.explored.size >= SECTORS * SECTORS && !crates.discoveredBy(this.team).length) {
-      this.scout = null; return;
-    }
+    const hunting = !this.enemyBase && this.corners.length > 0;
+    const looting = crates.items.some((c) => !c.collected) && (this.explored.size < SECTORS * SECTORS || crates.discoveredBy(this.team).length > 0);
+    if (!hunting && !looting) { this.scout = null; return; }
     if (!this.scout) {
       // En fácil el explorador sale más tarde para dar ventaja al jugador.
       if (g.time < this.diff.scoutDelay) return;
       const army = this.armyIdle().filter((u) => u.def.weapon);
       this.scout = army.sort((a, b) => b.def.speed - a.def.speed)[0] || null;
-      this.scoutGoal = null;
+      this.scoutGoal = null; this.scoutCorner = null;
       if (!this.scout) return;
     }
     const s = this.scout;
     this.explored.add(this.sectorAt(s.x, s.z));
+    if (hunting) {
+      // Keep heading to the same corner until it has been seen, so the scout never dithers.
+      if (!this.corners.includes(this.scoutCorner)) this.scoutCorner = this.nearestCorner(s);
+      const c = this.scoutCorner;
+      if (s.order.type !== 'move' || s.order.x !== c.x || s.order.z !== c.z) s.cmdMove(c.x, c.z);
+      this.scoutGoal = null;
+      return;
+    }
     let best = null, bd = 1e9;
     for (const c of crates.discoveredBy(this.team)) {
       const d = Math.hypot(c.x - s.x, c.z - s.z);
@@ -213,13 +263,13 @@ export class AI {
     if (this.scoutGoal !== null && s.order.type === 'move' && s.path) return;
     // Llegó, se atascó o el camino solo alcanzaba un punto cercano: la zona queda descartada.
     if (this.scoutGoal !== null) this.explored.add(this.scoutGoal);
-    // Siguiente zona sin explorar más cercana, evitando la base enemiga.
-    const [ex, ez] = TEAMS[this.enemy].startCell.map((v) => v * CELL);
+    // Siguiente zona sin explorar más cercana, evitando la base enemiga si ya la conoce.
+    const e = this.enemyBase;
     let goal = null; bd = 1e9;
     for (let k = 0; k < SECTORS * SECTORS; k++) {
       if (this.explored.has(k)) continue;
       const x = (k % SECTORS + 0.5) * SECTOR, z = (Math.floor(k / SECTORS) + 0.5) * SECTOR;
-      if (Math.hypot(x - ex, z - ez) < 48) { this.explored.add(k); continue; }
+      if (e && Math.hypot(x - e.x, z - e.z) < 48) { this.explored.add(k); continue; }
       const d = Math.hypot(x - s.x, z - s.z);
       if (d < bd) { bd = d; goal = { k, x, z }; }
     }

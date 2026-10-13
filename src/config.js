@@ -1,6 +1,6 @@
 // Constantes globales y definiciones de unidades / edificios.
 
-export const N = 128;            // celdas por lado
+export const N = 192;            // celdas por lado
 export const CELL = 2;           // unidades de mundo por celda
 export const SIZE = N * CELL;    // tamaño del mapa en unidades de mundo
 export const PLAYER = 'human';
@@ -10,13 +10,13 @@ export const START_CREDITS = 4000;
 export const other = (t) => (t === 'human' ? 'machine' : 'human');
 
 export const TEAMS = {
-  human:   { id: 'human',   name: 'Humanos',  color: 0x3d8bff, css: '#3d8bff', front: -1, startCell: [24, 100] },
-  machine: { id: 'machine', name: 'Máquinas', color: 0xff3b30, css: '#ff3b30', front: 1,  startCell: [103, 27] },
+  human:   { id: 'human',   name: 'Humanos',  color: 0x3d8bff, css: '#3d8bff' },
+  machine: { id: 'machine', name: 'Máquinas', color: 0xff3b30, css: '#ff3b30' },
 };
 
-// The fixed gameplay camera looks from +Z. Show entrances and service equipment.
-export const buildingFront = (def, team = def.team) =>
-  def.produces || ['power', 'hq', 'refinery'].includes(def.role) ? 1 : TEAMS[team].front;
+// The fixed gameplay camera looks from +Z. Every base can start in any corner, so all
+// buildings show their entrances and service equipment to the camera.
+export const buildingFront = () => 1;
 
 export const DIFFICULTY = {
   easy:   { label: 'Fácil',   income: 0.7, think: 1.3, firstWave: 360, waveGap: 150, minArmy: 6, scoutDelay: 150 },
