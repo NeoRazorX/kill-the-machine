@@ -272,7 +272,9 @@ export class UI {
     const W = this.mini.width;
     const c = document.createElement('canvas'); c.width = c.height = W;
     const x = c.getContext('2d'), k = W / SIZE;
-    x.drawImage(this.game.visuals.groundCanvas, 0, 0, W, W);
+    // The ground texture extends past the playable square; the minimap shows only the square.
+    const v = this.game.visuals, g = v.groundCanvas, m = g.width * v.groundMargin / (SIZE + 2 * v.groundMargin);
+    x.drawImage(g, m, m, g.width - 2 * m, g.height - 2 * m, 0, 0, W, W);
     x.fillStyle = 'rgba(20,50,20,0.9)';
     for (const t of this.game.map.trees) x.fillRect(t.x * k - 1, t.z * k - 1, 2.2, 2.2);
     x.fillStyle = 'rgba(110,110,110,0.95)';

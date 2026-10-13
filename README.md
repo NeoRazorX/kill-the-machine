@@ -45,7 +45,9 @@ Si solo queda una esquina por ver, deduce que el enemigo está ahí. Ningún ban
 puede construir sobre la zona de descarga de una refinería.
 
 El suelo incluye caminos con rodadas, hombros irregulares, polvo alrededor de la
-roca y juntas en el pavimento de las bases. Los modelos editables son
+roca y juntas en el pavimento de las bases. Fuera del área jugable, el terreno continúa
+y se convierte en pedregal al pie de dos filas desalineadas de rocas de tamaño y altura
+variables, con piedras sueltas y tramos de bosque; todo es decorativo y reproducible. Los modelos editables son
 `assets/models/env_cliff.blend` y `assets/models/env_ruin.blend`, con sus GLB locales.
 Se regeneran con `blender -b --python-exit-code 1 --python tools/build_models.py -- quarry`.
 El exportador de Blender necesita NumPy disponible en su Python.

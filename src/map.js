@@ -190,7 +190,10 @@ function vnoise(x, y, s) {
 }
 function fbm(x, y, s) { return vnoise(x, y, s) * 0.55 + vnoise(x * 2.1, y * 2.1, s + 7) * 0.3 + vnoise(x * 4.3, y * 4.3, s + 13) * 0.15; }
 
-export function makeGroundCanvas(map, px = 1536) {
+// The ground texture continues this far past the playable edge, under the perimeter rocks.
+export const GROUND_MARGIN = 40;
+
+export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN) {
   const cv = document.createElement('canvas');
   cv.width = cv.height = px;
   const ctx = cv.getContext('2d');
@@ -198,18 +201,19 @@ export function makeGroundCanvas(map, px = 1536) {
   const d = img.data;
   const grass1 = [57, 72, 51], grass2 = [90, 105, 65], dirt = [133, 116, 86], dark = [57, 56, 49];
   const pave = [104, 107, 108];
-  const k = SIZE / px;
+  const k = (SIZE + 2 * margin) / px;
   const R = new Float32Array(px * px), G = new Float32Array(px * px), B = new Float32Array(px * px);
   // Road distance sampled once per world unit and interpolated per pixel.
-  const RN = SIZE + 1, roads = new Float32Array(RN * RN);
-  for (let j = 0; j < RN; j++) for (let i = 0; i < RN; i++) roads[j * RN + i] = routeDistance(i / CELL, j / CELL, map.routes) * CELL;
+  const RN = SIZE + 2 * margin + 1, roads = new Float32Array(RN * RN);
+  for (let j = 0; j < RN; j++) for (let i = 0; i < RN; i++) roads[j * RN + i] = routeDistance((i - margin) / CELL, (j - margin) / CELL, map.routes) * CELL;
   const roadAt = (wx, wz) => {
-    const i = Math.min(RN - 2, Math.floor(wx)), j = Math.min(RN - 2, Math.floor(wz)), u = wx - i, v = wz - j, o = j * RN + i;
+    const fx = wx + margin, fz = wz + margin;
+    const i = Math.min(RN - 2, Math.floor(fx)), j = Math.min(RN - 2, Math.floor(fz)), u = fx - i, v = fz - j, o = j * RN + i;
     return (roads[o] * (1 - u) + roads[o + 1] * u) * (1 - v) + (roads[o + RN] * (1 - u) + roads[o + RN + 1] * u) * v;
   };
   for (let y = 0; y < px; y++) {
     for (let x = 0; x < px; x++) {
-      const wx = x * k, wz = y * k;
+      const wx = x * k - margin, wz = y * k - margin;
       const n1 = fbm(wx * 0.045, wz * 0.045, 1), n2 = fbm(wx * 0.02 + 40, wz * 0.02, 2);
       let t = Math.min(1, Math.max(0, (n1 - 0.25) * 2.2));
       let r = grass1[0] + (grass2[0] - grass1[0]) * t, g = grass1[1] + (grass2[1] - grass1[1]) * t, b = grass1[2] + (grass2[2] - grass1[2]) * t;
@@ -226,15 +230,25 @@ export function makeGroundCanvas(map, px = 1536) {
         g += (120 + grit - track - g) * blend;
         b += (88 + grit - track - b) * blend;
       }
+      // Scree gathers at the foot of the perimeter rocks; far out it darkens into the void.
+      const ox = Math.max(0, -wx, wx - SIZE), oz = Math.max(0, -wz, wz - SIZE);
+      const out = ox || oz ? Math.hypot(ox, oz) : -Math.min(wx, SIZE - wx, wz, SIZE - wz);
+      const scree = Math.max(0, Math.min(1, (out + 8 + (n2 - .5) * 14) / 10));
+      if (scree > 0) {
+        const stone = (vnoise(wx * .35, wz * .35, 31) - .5) * 26 + (vnoise(wx * 1.7, wz * 1.7, 37) - .5) * 12;
+        r += (108 + stone - r) * scree; g += (104 + stone - g) * scree; b += (90 + stone * .8 - b) * scree;
+        const dusk = Math.max(0, Math.min(1, (out - margin + 16) / 14));
+        r += (34 - r) * dusk; g += (38 - g) * dusk; b += (38 - b) * dusk;
+      }
       const i = y * px + x;
       R[i] = r; G[i] = g; B[i] = b;
     }
   }
   // Features only shade the pixels within their reach, in the same order as before.
   const around = (cx, cz, reach, shade) => {
-    const x0 = Math.max(0, Math.floor((cx - reach) / k)), x1 = Math.min(px - 1, Math.ceil((cx + reach) / k));
-    const y0 = Math.max(0, Math.floor((cz - reach) / k)), y1 = Math.min(px - 1, Math.ceil((cz + reach) / k));
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) shade(y * px + x, x * k, y * k);
+    const x0 = Math.max(0, Math.floor((cx - reach + margin) / k)), x1 = Math.min(px - 1, Math.ceil((cx + reach + margin) / k));
+    const y0 = Math.max(0, Math.floor((cz - reach + margin) / k)), y1 = Math.min(px - 1, Math.ceil((cz + reach + margin) / k));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) shade(y * px + x, x * k - margin, y * k - margin);
   };
   const mix = (i, a, r, g, b) => { R[i] += (r - R[i]) * a; G[i] += (g - G[i]) * a; B[i] += (b - B[i]) * a; };
   // Stone dust integrates the cliff bases with the ground.
@@ -267,6 +281,36 @@ export function makeGroundCanvas(map, px = 1536) {
   return cv;
 }
 
+// Scenery outside the playable square: a broken inner row of rock, a taller row behind it,
+// scree at their feet and patches of woodland. Purely visual and reproducible per seed.
+export function borderDecor(seed) {
+  const rng = mulberry32(seed + 709), cliffs = [], rocks = [], trees = [];
+  // side 0..3 = west, east, north, south; t runs along the side and o is the distance outside it.
+  const at = (side, t, o) => side === 0 ? [-o, t] : side === 1 ? [SIZE + o, t] : side === 2 ? [t, -o] : [t, SIZE + o];
+  const reach = 36;
+  for (let side = 0; side < 4; side++) {
+    for (const row of [{ step: 10, o: 11, spread: 5, r: 8, rr: 5, h: .55 }, { step: 15, o: 25, spread: 8, r: 13, rr: 7, h: .7 }]) {
+      for (let t = -reach + rng() * row.step; t < SIZE + reach; t += row.step * (.75 + rng() * .5)) {
+        const o = row.o + rng() * row.spread, r = Math.min(row.r + rng() * row.rr, o - 2);
+        const [x, z] = at(side, t, o);
+        cliffs.push({ x, z, r, h: r * (row.h + rng() * .55), d: .85 + rng() * .3, rot: rng() * Math.PI * 2, shade: .78 + rng() * .22 });
+      }
+    }
+    for (let t = rng() * 5; t < SIZE; t += 3 + rng() * 5) {
+      if (rng() < .35) continue;
+      const s = .8 + rng() * 1.2, [x, z] = at(side, t, 1 + s * 1.3 + rng() * 4);
+      rocks.push({ x, z, s, rot: rng() * 6.28 });
+    }
+    // Woodland comes in stretches, so the edge alternates between forest and bare rock.
+    for (let t = rng() * 4; t < SIZE; t += 2.5 + rng() * 2.5) {
+      if (vnoise(t * .025, side * 7.3, 41) < .5 || rng() < .3) continue;
+      const [x, z] = at(side, t, 2 + rng() * 8);
+      trees.push({ x, z, s: .85 + rng() * .6, rot: rng() * 6.28 });
+    }
+  }
+  return { cliffs, rocks, trees };
+}
+
 export class MapVisuals {
   constructor(map, scene) {
     this.map = map;
@@ -277,24 +321,22 @@ export class MapVisuals {
     const tex = new THREE.CanvasTexture(this.groundCanvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0 }));
+    // The ground carries on beneath the perimeter rocks instead of ending at the playable edge.
+    this.groundMargin = GROUND_MARGIN;
+    const extent = SIZE + 2 * GROUND_MARGIN;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0 }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(SIZE / 2, 0, SIZE / 2);
     ground.receiveShadow = true;
     this.ground = ground;
     this.group.add(ground);
 
-    // Rock apron carries the playable ground out beneath the perimeter cliffs.
-    const apron = new THREE.Mesh(new THREE.PlaneGeometry(SIZE + 48, SIZE + 48), new THREE.MeshStandardMaterial({ color: 0x626753, roughness: 1 }));
-    apron.rotation.x = -Math.PI / 2; apron.position.set(SIZE / 2, -.15, SIZE / 2);
-    apron.receiveShadow = true;
-    this.group.add(apron);
-
     // vacío exterior
     const outer = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * 6, SIZE * 6), new THREE.MeshBasicMaterial({ color: 0x14181c }));
     outer.rotation.x = -Math.PI / 2; outer.position.set(SIZE / 2, -0.4, SIZE / 2);
     this.group.add(outer);
 
+    this.border = borderDecor(map.seed);
     this.buildLandmarks();
     this.buildDecor();
     this.buildOre();
@@ -314,25 +356,22 @@ export class MapVisuals {
       mesh.castShadow = mesh.receiveShadow = true;
       this.group.add(mesh);
     }
-    // A rock rim replaces the abrupt edge into empty space, outside the playable grid.
-    const asset = getInstanceAsset('env_cliff');
-    const per = Math.round(SIZE / 12);
-    const rim = new THREE.InstancedMesh(asset.geometry, asset.material, 4 * per);
-    let index = 0;
-    for (let side = 0; side < 4; side++) for (let i = 0; i < per; i++) {
-      const t = i * SIZE / (per - 1), h = 7 + hash2(i, side, 11) * 10;
-      const x = side === 0 ? -16 : side === 1 ? SIZE + 16 : t;
-      const z = side === 2 ? -16 : side === 3 ? SIZE + 16 : t;
-      q.setFromAxisAngle(up, side * Math.PI / 2 + hash2(i, side, 17) * 2);
-      matrix.compose(new THREE.Vector3(x, -1, z), q, new THREE.Vector3(14 + hash2(i, side, 13) * 3, h, 13));
-      rim.setMatrixAt(index++, matrix);
-    }
+    // Two staggered rows of rock close the map, outside the playable grid.
+    const asset = getInstanceAsset('env_cliff'), cliffs = this.border.cliffs;
+    const rim = new THREE.InstancedMesh(asset.geometry, asset.material, cliffs.length);
+    const col = new THREE.Color();
+    cliffs.forEach((c, i) => {
+      q.setFromAxisAngle(up, c.rot);
+      matrix.compose(new THREE.Vector3(c.x, -1, c.z), q, new THREE.Vector3(c.r, c.h, c.r * c.d));
+      rim.setMatrixAt(i, matrix);
+      rim.setColorAt(i, col.setScalar(c.shade));
+    });
     rim.castShadow = rim.receiveShadow = true;
     this.group.add(rim);
   }
 
   buildDecor() {
-    const { trees, rocks } = this.map;
+    const trees = [...this.map.trees, ...this.border.trees], rocks = [...this.map.rocks, ...this.border.rocks];
     const rng = mulberry32(this.map.seed + 301);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     const treeAsset = getInstanceAsset('env_tree');

@@ -1,5 +1,5 @@
-import { GameMap } from '../src/map.js';
-import { N, CELL } from '../src/config.js';
+import { GameMap, borderDecor } from '../src/map.js';
+import { N, CELL, SIZE } from '../src/config.js';
 import { clearLine, findPath } from '../src/pathfinding.js';
 
 export function checkMap() {
@@ -26,8 +26,14 @@ export function checkMap() {
     for (let i = 0; i < N; i++) assert(map.blockedCell(i, 0) && map.blockedCell(i, N - 1) && map.blockedCell(0, i) && map.blockedCell(N - 1, i), 'sealed boundary');
     for (const l of map.landmarks) assert(map.blockedXZ(l.x, l.z), 'landmark has navigation obstacle');
   }
+  // Perimeter scenery is decoration only: nothing may stand inside the playable square.
+  const outside = (x, z, r) => Math.max(-x, x - SIZE, -z, z - SIZE) >= r;
+  const border = borderDecor(20260);
+  assert(border.cliffs.every(c => outside(c.x, c.z, c.r)), 'perimeter rock stays outside the playable area');
+  assert([...border.rocks, ...border.trees].every(e => outside(e.x, e.z, 1)), 'perimeter scree and trees stay outside the playable area');
+  assert(JSON.stringify(borderDecor(20260)) === JSON.stringify(border), 'repeatable perimeter scenery');
   const a = new GameMap(20260), b = new GameMap(20260);
   assert(a.grid.every((value, i) => value === b.grid[i]), 'repeatable navigation');
   assert(JSON.stringify(a.trees) === JSON.stringify(b.trees), 'repeatable decoration');
-  return 'PASS: 32 seeds; four-fold symmetry, formation clearance, resource paths from every start, boundaries, landmarks and reproducibility.';
+  return 'PASS: 32 seeds; four-fold symmetry, formation clearance, resource paths from every start, boundaries, landmarks, perimeter scenery and reproducibility.';
 }
