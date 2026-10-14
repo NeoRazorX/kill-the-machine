@@ -1997,6 +1997,154 @@ def mammoth(accent=BLUE):
     save('m_mammoth' if accent == RED else 'h_mammoth')
 
 
+# ---------------------------------------------------------------- Juggernaut walker
+# Pre-war bipedal artillery walker assembled in the captured Juggernaut plant: the plant's
+# knee-forward legs and hip frame under a rotating gun deck with a triple battery. Same
+# weathered hull for both factions; only the identification accents follow the owner.
+JUG_HIP = 2.75      # hip axis height above the ground
+JUG_LEGX = 1.3      # hip joints at x = +-JUG_LEGX
+JUG_ELEV = .07      # the battery sits slightly elevated (baked into the mesh; `barrel` stays unrotated)
+JUG_GUNS = (-.56, 0, .56)
+JUG_DECK = .27      # gun deck parts are authored for a 2.95 race and lifted by this much
+
+
+def jug_sole(z):
+    # Rocker sole: an arc around the hip axis, so a swinging foot rolls instead of digging in.
+    return JUG_HIP - math.sqrt(JUG_HIP**2 - z*z) + .004
+
+
+def walker_leg(i, accent):
+    s = -1 if i == 0 else 1
+    lx, h = s*JUG_LEGX, JUG_HIP
+    ax, ay, az = lx, .58, .02       # ankle
+    ky, kz = 1.6, .52               # knee
+    pivot = empty(f'leg_{i}', (lx, h, 0))
+    arc = lambda z0, z1, n: [(z0 + (z1-z0)*k/n, jug_sole(z0 + (z1-z0)*k/n)) for k in range(n+1)]
+    foot = arc(-.62, .5, 4) + [(.5,.4),(.22,.6),(-.3,.6),(-.62,.36)]
+    parts = [prism('Mech foot', foot, lx-.4, lx+.4, HEAVY_T, 'zy', .03)]
+    for dx, tip in ((-.27,.95),(0,1.06),(.27,.95)):
+        toe = arc(.42, tip, 3) + [(tip, jug_sole(tip)+.1), (tip-.22,.34), (.42,.44)]
+        parts.append(prism('Toe claw', toe, lx+dx-.115, lx+dx+.115, GUNMETAL, 'zy', .02))
+    parts.append(prism('Heel spur', arc(-.88,-.55,2) + [(-.55,.34),(-.88,.26)], lx-.15, lx+.15, GUNMETAL, 'zy', .02))
+    parts += [rod('Ankle joint',.24,(ax,ay,az),.64,DARK,'x',12),
+              box('Ankle cheek',(.08,.42,.5),(lx-.33,ay+.02,az),GUNMETAL,.02),
+              box('Ankle cheek',(.08,.42,.5),(lx+.33,ay+.02,az),GUNMETAL,.02)]
+    # Shin and thigh: tapered armour boxes along the bones, knee pushed forward like the plant's leg.
+    shin = math.atan2(kz-az, ky-ay)
+    parts.append(xform(armor('Mech shin',.46,.42,0,math.hypot(kz-az,ky-ay),.12,(0,0),HEAVY_T),(shin,0,0),(0,0,0),(ax,ay,az)))
+    thigh = math.atan2(0-kz, h-ky)
+    parts.append(xform(armor('Mech thigh',.54,.5,0,math.hypot(kz,h-ky),.12,(0,0),HEAVY),(thigh,0,0),(0,0,0),(lx,ky,kz)))
+    parts += [rod('Knee joint',.26,(lx,ky,kz),.58,DARK,'x',12),
+              rod('Knee hub',.15,(lx+s*.31,ky,kz),.06,HEAVY_D,'x',8),
+              tbox('Knee guard',(.52,.5,.16),(lx,ky+.04,kz+.26),HEAVY_L,(-.32,0,0),.04),
+              rod('Hip drum',.36,(lx,h,0),.46,GUNMETAL,'x',14),
+              rod('Hip hub',.2,(lx+s*.25,h,0),.06,DARK,'x',10),
+              tbox('Thigh identification',(.04,.3,.42),(lx+s*.265,(ky+h)/2,kz/2),accent,(thigh,0,0),.008),
+              tbox('Shin plate',(.36,.4,.05),(lx,(ay+ky)/2,(az+kz)/2+.22),PRIMER,(shin,0,0),.015)]
+    # Exposed hydraulics: a ram on each side of the shin and the thigh (dark cylinder, steel rod).
+    for dx in (-.31,.31):
+        for a, b in (((lx+dx,.86,-.14),(lx+dx,1.45,.27)), ((lx+dx,1.86,.42),(lx+dx,2.5,-.25))):
+            m = tuple((p+q)/2 for p,q in zip(a,b))
+            parts += [pipe('Ram cylinder',a,m,.07,DARK,8), pipe('Ram rod',m,b,.04,STEEL,6)]
+    parts += [pipe('Calf ram',(lx,.5,-.36),(lx,1.0,-.12),.08,DARK,8),
+              pipe('Calf rod',(lx,1.0,-.12),(lx,1.42,.1),.045,STEEL,6)]
+    parts.append(beam('Hydraulic hose',(lx-s*.2,2.35,-.32),(lx-s*.2,1.65,-.1),.05,SOOT,0))
+    merge('Leg armor', parts, pivot)
+    return pivot
+
+
+def jug_turret(accent):
+    # Gun deck on a race above the pelvis: open frame, chin cockpit, ammo drums, reactor pack.
+    parts = [rod('Turret race',.64,(0,3.0,0),.1,IRON,'y',16),
+             armor('Deck hull',1.9,2.1,3.05,3.62,.3,(0,-.25),HEAVY),
+             box('Deck plate',(2.2,.1,2.5),(0,3.68,-.2),HEAVY_D,.025),
+             prism('Cockpit',[(.7,3.1),(1.32,3.1),(1.58,3.32),(1.48,3.6),(.7,3.6)],-.55,.55,HEAVY_L,'zy',.035),
+             tbox('Cockpit window',(.86,.18,.04),(0,3.46,1.555),GLASS,(-.33,0,0),.006),
+             box('Cockpit brow',(1.14,.08,.22),(0,3.63,1.42),HEAVY_D,.02)]
+    for x in (-.58,.58):
+        parts.append(box('Cockpit side window',(.04,.14,.3),(x,3.42,1.1),GLASS,.005))
+    # Exposed struts carry the deck overhang.
+    for sx in (-1,1):
+        for z in (-1.25,-.25,.75):
+            parts.append(beam('Deck strut',(sx*.72,3.12,z),(sx*1.02,3.63,z),.09,GUNMETAL,0))
+        parts += [beam('Deck stringer',(sx*1.02,3.6,-1.38),(sx*1.02,3.6,.98),.08,GUNMETAL,0),
+                  box('Deck identification',(.04,.17,1.3),(sx*1.115,3.68,-.45),accent,.008)]
+    # Gun cradle: wide base, two cheek plates and the trunnion axle.
+    parts += [box('Gun cradle',(1.7,.26,.95),(0,3.86,.12),GUNMETAL,.03),
+              rod('Trunnion axle',.13,(0,3.98,.35),2.0,DARK,'x',10)]
+    for sx in (-1,1):
+        parts += [box('Cradle cheek',(.12,.5,.85),(sx*.93,3.98,.3),HEAVY_L,.03),
+                  box('Cheek identification',(.03,.14,.5),(sx*1.0,4.06,.3),accent,.006)]
+    parts += hazard(-1.05,1.05,.9,3.73,.2)
+    # Ammo drums on the deck shoulders feeding the breeches.
+    for sx in (-1,1):
+        parts += [rod('Ammo drum',.26,(sx*.84,4.0,-.85),.5,RUST_D,'x',12),
+                  rod('Drum band',.27,(sx*.84,4.0,-.85),.08,HAZARD,'x',12),
+                  rod('Drum cap',.14,(sx*(.84+.26),4.0,-.85),.04,SOOT,'x',8),
+                  box('Drum cradle',(.46,.16,.46),(sx*.84,3.79,-.85),GUNMETAL,.02),
+                  beam('Feed chute',(sx*.74,4.02,-.62),(sx*.56,3.98,-.3),.12,SOOT,.01)]
+    # Reactor pack at the back: grilles and two short exhaust stacks.
+    parts += [box('Reactor pack',(1.2,.5,.75),(0,3.98,-1.12),HEAVY_T,.04),
+              box('Rear stencil',(.6,.14,.03),(0,3.95,-1.51),WHITE,.004)]
+    for x in (-.36,-.18,0,.18,.36):
+        parts.append(box('Vent grille',(.11,.03,.5),(x,4.24,-1.1),SOOT,.004))
+    for sx in (-1,1):
+        parts += [rod('Exhaust stack',.1,(sx*.42,4.02,-1.48),.5,RUST,'y',10),
+                  rod('Stack cap',.13,(sx*.42,4.27,-1.48),.06,SOOT,'y',10)]
+    # Rangefinder pod on the left front, radio mast on the right rear.
+    parts += [box('Rangefinder',(.3,.28,.42),(-.92,3.87,.95),HEAVY_D,.03),
+              box('Rangefinder lens',(.2,.13,.02),(-.92,3.89,1.165),GLASS,.004),
+              beam('Antenna',(.92,3.72,-1.3),(.97,4.33,-1.35),.035,SOOT),
+              rod('Antenna base',.08,(.92,3.78,-1.3),.1,HEAVY_D,'y',8),
+              tbox('Deck scrape',(.5,.02,.16),(.75,3.735,.55),RUST_D,(0,.5,0),.004),
+              tbox('Rust streak',(.4,.02,.22),(-.6,3.735,-.1),RUST,(0,-.4,0),.004)]
+    return group(parts, move=(0,JUG_DECK,0))
+
+
+def jug_guns():
+    # Three long tubes side by side, merged as one battery mesh on the `barrel` pivot.
+    y, z = 3.98, .35
+    parts = [box('Barrel clamp',(1.38,.1,.18),(0,y,1.3),DARK,.02),
+             box('Barrel clamp',(1.3,.08,.14),(0,y,2.25),DARK,.015)]
+    for x in JUG_GUNS:
+        parts += [box('Breech',(.3,.32,.7),(x,y,-.06),HEAVY_D,.03),
+                  rod('Recoil sleeve',.17,(x,y,.6),.7,HEAVY,'z',12),
+                  rod('Gun tube',.1,(x,y,1.9),1.96,IRON,'z',10),
+                  rod('Fume extractor',.145,(x,y,1.72),.36,HEAVY_D,'z',10),
+                  box('Muzzle brake',(.27,.25,.34),(x,y,2.95),SOOT,.03),
+                  box('Bore',(.12,.1,.012),(x,y,3.123),'#080d10',.004)]
+    return group(parts, (-JUG_ELEV,0,0), (0,y,z), (0,JUG_DECK,0))
+
+
+def juggernaut(accent=BLUE):
+    reset()
+    for i in (0,1):
+        walker_leg(i, accent)
+    body = empty('body',(0,0,0))
+    h = JUG_HIP
+    pelvis = [armor('Pelvis',1.5,1.15,2.3,3.1,.25,(0,-.05),HEAVY_D),
+              rod('Hip axle',.2,(0,h,0),2.1,DARK,'x',12),
+              box('Pelvis front plate',(1.15,.42,.1),(0,2.63,.56),HEAVY_L,.02),
+              box('Crotch armor',(.75,.24,.75),(0,2.23,-.05),SOOT,.03),
+              box('Hydraulic pump',(.8,.4,.35),(0,2.6,-.72),GUNMETAL,.03),
+              rod('Neck bearing',.5,(0,3.16,0),.12,DARK,'y',16)]
+    pelvis += hazard(-.52,.52,2.63,.61,.22,'xy')
+    for sx in (-1,1):
+        pelvis += [box('Hip housing',(.32,.8,.8),(sx*.9,h,0),HEAVY,.04),
+                   pipe('Hip hose',(sx*.35,2.45,-.9),(sx*.9,2.35,-.35),.045,SOOT,6)]
+    merge('Pelvis', pelvis, body)
+    t = empty('turret',(0,2.95+JUG_DECK,0),body)
+    b = empty('barrel',(0,1.03,.35),t)
+    merge('Gun deck', jug_turret(accent), t)
+    merge('Triple battery', jug_guns(), b)
+    L = 2.78
+    tip = (L*math.sin(JUG_ELEV), L*math.cos(JUG_ELEV))
+    for i, x in enumerate(JUG_GUNS):
+        empty(f'muzzle_{i}',(x,tip[0],tip[1]),b)
+    empty('muzzle',(JUG_GUNS[0],tip[0],tip[1]),b)
+    save('m_juggernaut' if accent == RED else 'h_juggernaut')
+
+
 BUILDERS = {
     'h_tank': tank, 'h_factory': factory,
     'h_rifle': lambda: infantry(), 'h_rocket': lambda: infantry(heavy=True),
@@ -2016,6 +2164,7 @@ BUILDERS = {
     't_silo': lambda: tech('silo'), 't_ion': lambda: tech('ion'), 't_mammoth': lambda: tech('mammoth'),
     't_juggernaut': lambda: tech('juggernaut'), 't_zeppelin': lambda: tech('zeppelin'),
     'h_mammoth': lambda: mammoth(BLUE), 'm_mammoth': lambda: mammoth(RED),
+    'h_juggernaut': lambda: juggernaut(BLUE), 'm_juggernaut': lambda: juggernaut(RED),
 }
 if __name__ == '__main__':
     requested = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else list(BUILDERS)

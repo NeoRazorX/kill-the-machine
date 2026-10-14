@@ -18,6 +18,7 @@ const requiredNodes = {
   h_hq: ['dish'], m_hq: ['crystal', 'ring'], m_power: ['ring_0', 'ring_1', 'ring_2'],
   h_engineer: ['body', 'leg_0', 'leg_1'], m_engineer: ['bob', 'ring'],
   h_mammoth: ['muzzle_0', 'muzzle_1'], m_mammoth: ['muzzle_0', 'muzzle_1'],
+  h_juggernaut: ['leg_0', 'leg_1', 'muzzle_0', 'muzzle_1', 'muzzle_2'], m_juggernaut: ['leg_0', 'leg_1', 'muzzle_0', 'muzzle_1', 'muzzle_2'],
 };
 export const assetStatus = { loaded: [], failed: [], loadMs: 0, total: MODEL_IDS.length };
 

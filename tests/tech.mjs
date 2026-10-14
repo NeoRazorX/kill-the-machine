@@ -257,19 +257,23 @@ for (const team of ['human', 'machine']) {
 }
 
 // ---------------------------------------------------------------- Mammoth
+// Swaps the first site of a fixture for a ruin of the given type.
+function forceSite(game, id) {
+  const old = game.techSites.items[0];
+  const site = game.placeBuilding(null, id, old.cx, old.cz, true);
+  game.buildings.splice(game.buildings.indexOf(old), 1); game.scene.remove(old.mesh);
+  site.tech = old.tech; site.hp = old.hp; site.parts.beacon.material = site.parts.beacon.material.clone();
+  game.techSites.items[0] = site;
+  return site;
+}
 {
   for (const team of ['human', 'machine']) {
     const m = ROLE[team].mammoth;
     assert(m && m.producer === 'mammoth' && DEFS.t_mammoth.produces === 'mammoth' && m.weapon && m.selfRepair, `${team}: Mammoth built by the Mammoth factory`);
     assert(m.hp > ROLE[team].tank.hp * 3 && m.radius > ROLE[team].tank.radius * 1.3 && m.speed < ROLE[team].tank.speed, `${team}: Mammoth is bigger, tougher and slower than the main tank`);
   }
-  // Force a Mammoth factory into the match.
   const { game } = fixture();
-  const old = game.techSites.items[0];
-  const site = game.placeBuilding(null, 't_mammoth', old.cx, old.cz, true);
-  game.buildings.splice(game.buildings.indexOf(old), 1); game.scene.remove(old.mesh);
-  site.tech = old.tech; site.hp = old.hp; site.parts.beacon.material = site.parts.beacon.material.clone();
-  game.techSites.items[0] = site;
+  const site = forceSite(game, 't_mammoth');
   const R = ROLE.human;
   assert(!game.requirementsMet('human', R.mammoth) && !game.queueUnit('human', R.mammoth.id), 'no Mammoth from a ruined factory');
   site.team = 'human'; site.tech.state = 'repairing';
@@ -310,6 +314,52 @@ for (let seed = 20260; seed < 20264; seed++) {
 }
 results.push('PASS 4 seeds: the Mammoth reaches every corner and the centre');
 
+// -------------------------------------------------------------- Juggernaut
+{
+  for (const team of ['human', 'machine']) {
+    const j = ROLE[team].juggernaut, m = ROLE[team].mammoth;
+    assert(j && j.producer === 'juggernaut' && DEFS.t_juggernaut.produces === 'juggernaut', `${team}: Juggernaut built by the Juggernaut factory`);
+    assert(j.weapon.range > m.weapon.range && j.hp < m.hp && !j.fireOnMove && j.weapon.salvo === 3 && j.sight >= j.weapon.range,
+      `${team}: Juggernaut outranges the Mammoth, is less armoured, stops to fire three-gun volleys and sees as far as it shoots`);
+  }
+  const { game } = fixture();
+  const site = forceSite(game, 't_juggernaut'), R = ROLE.human;
+  assert(!game.requirementsMet('human', R.juggernaut), 'no Juggernaut from a ruined factory');
+  site.team = 'human'; site.tech.state = 'online'; site.tech.progress = 1;
+  game.teams.human.credits = 5000;
+  assert(game.queueUnit('human', R.juggernaut.id), 'Juggernaut queued at its repaired factory');
+  run(game, R.juggernaut.time + 2, () => game.units.some((u) => u.def === R.juggernaut));
+  const walker = game.units.find((u) => u.def === R.juggernaut);
+  assert(walker && game.canStand(walker.x, walker.z, walker.radius), 'Juggernaut walks out of the factory');
+  // Volleys: three shells a few tenths of a second apart, then the full reload.
+  const shots = [];
+  game.fx.fireWeapon = (att, target) => {
+    shots.push({ att, t: game.time });
+    game.impact({ x: target.x, y: 0, z: target.z, target, weapon: att.def.weapon, team: att.team, dmg: att.def.weapon.damage, splash: att.def.weapon.splash, source: att });
+  };
+  const ground = (x, z, r) => { for (let d = 0; d < 30; d++) for (let a = 0; a < 6.3; a += .3) { const p = { x: x + Math.cos(a) * d, z: z + Math.sin(a) * d }; if (game.canStand(p.x, p.z, r + .5)) return p; } };
+  const here = ground(walker.x, walker.z, walker.radius);
+  walker.x = here.x; walker.z = here.z; walker.cmdStop();
+  let foe = null;
+  for (let a = 0; a < 6.3 && !foe; a += .2) {
+    const p = { x: here.x + Math.cos(a) * 27, z: here.z + Math.sin(a) * 27 };
+    if (game.canStand(p.x, p.z, 2)) foe = game.spawnUnit(ROLE.machine.tank, 'machine', p.x, p.z);
+  }
+  foe.hp = foe.maxHp = 5000;
+  walker.cmdAttack(foe);
+  const fired = () => shots.filter((s) => s.att === walker);
+  run(game, 4, () => fired().length > 0);
+  run(game, 0.6);
+  const mine = fired();
+  assert(mine.length === 3 && mine[2].t - mine[0].t < 0.5, 'a volley is three quick shells');
+  assert(foe.hp < 5000 && walker.hp === walker.maxHp && Math.hypot(walker.x - here.x, walker.z - here.z) < .5,
+    'it shells a tank from beyond the tank\'s sight and range without moving');
+  const first = mine[0].t;
+  run(game, R.juggernaut.weapon.cd * 1.15, () => fired().length > 3);
+  const second = fired()[3];
+  assert(second && second.t - first >= R.juggernaut.weapon.cd * 0.89, 'the next volley comes after the reload');
+}
+
 // -------------------------------------------------------------------- AI
 const originalRandom = Math.random;
 try {
@@ -349,6 +399,10 @@ try {
     game.teams[team].credits = 20000;
     for (let i = 0; i < 60; i++) { ai.manageUnits(); game.update(0.5); }
     assert(game.queuedCount(team, ROLE[team].mammoth.id) + game.units.filter((u) => u.def === ROLE[team].mammoth).length > 0, `${team}: AI builds Mammoths`);
+    const plant = game.placeBuilding(team, 't_juggernaut', 60, 80, true);
+    plant.tech = { state: 'online', progress: 1, found: { [team]: true }, view: {} };
+    for (let i = 0; i < 80; i++) { ai.manageUnits(); game.update(0.5); }
+    assert(game.queuedCount(team, ROLE[team].juggernaut.id) + game.units.filter((u) => u.def === ROLE[team].juggernaut).length > 0, `${team}: AI builds Juggernauts`);
   }
   {
     // The scout keeps exploring while a site is still missing, even with no crates left.

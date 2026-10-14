@@ -160,8 +160,8 @@ T({ id: 't_ion', name: 'Cañón de iones', height: 8.5,
     desc: 'Enlace con un cañón de iones orbital. Su haz se activará en una próxima actualización.' });
 T({ id: 't_mammoth', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
     desc: 'Planta de tanques pesados. Reparada, construye el supertanque Mamut (pestaña Vehículos).' });
-T({ id: 't_juggernaut', name: 'Fábrica Juggernaut', height: 8,
-    desc: 'Línea de montaje de caminantes. El Juggernaut de tres cañones llegará en una próxima actualización.' });
+T({ id: 't_juggernaut', name: 'Fábrica Juggernaut', height: 8, produces: 'juggernaut',
+    desc: 'Línea de montaje de caminantes. Reparada, construye el Juggernaut de tres cañones (pestaña Vehículos).' });
 T({ id: 't_zeppelin', name: 'Hangar de zepelines', height: 7,
     desc: 'Hangar de dirigibles. El zepelín bombardero llegará en una próxima actualización.' });
 
@@ -174,6 +174,17 @@ const MAMMOTH = { role: 'mammoth', name: 'Tanque Mamut', cost: 2200, time: 40, p
   desc: 'Supertanque de antes de la guerra: doble cañón y blindaje pesado. Fuera de combate se repara solo hasta la mitad de su vida.' };
 U({ ...MAMMOTH, id: 'h_mammoth', team: 'human' });
 U({ ...MAMMOTH, id: 'm_mammoth', team: 'machine' });
+
+// Long-range walker: outranges the Mammoth but is far less armoured and must stop to fire.
+// salvo: shells per volley, one per gun, salvoGap seconds apart.
+const JUGGERNAUT = { role: 'juggernaut', name: 'Juggernaut', cost: 2000, time: 36, producer: 'juggernaut',
+  hp: 650, speed: 3.8, turn: 2, radius: 1.9, cls: 'armor', height: 4.6, turret: true, turretTurn: 1.8,
+  sight: 30,
+  weapon: { range: 30, damage: 30, cd: 3.2, proj: 'arty', splash: 3.5, salvo: 3, salvoGap: 0.18,
+    mult: { light: 1, armor: 0.9, building: 1.25 } },
+  desc: 'Caminante de artillería de antes de la guerra: dispara salvas de tres cañones desde lejos. Menos blindado que el Mamut y tiene que detenerse para disparar.' };
+U({ ...JUGGERNAUT, id: 'h_juggernaut', team: 'human' });
+U({ ...JUGGERNAUT, id: 'm_juggernaut', team: 'machine' });
 
 // Índices auxiliares
 export const ROLE = { human: {}, machine: {} };
@@ -189,7 +200,7 @@ export const UNIT_ROLES = {
 export const ROLE_NAMES = {
   hq: 'Cuartel General', power: 'Energía', refinery: 'Refinería',
   barracks: 'Cuartel', factory: 'Fábrica', turret: 'Torreta', tech: 'Estructura tecnológica',
-  mammoth: 'Fábrica Mamut reparada',
+  mammoth: 'Fábrica Mamut reparada', juggernaut: 'Fábrica Juggernaut reparada',
 };
 
 // Un médico cura lo que sale del cuartel; un reparador, lo que sale de la fábrica.

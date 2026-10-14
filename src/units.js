@@ -220,7 +220,19 @@ export class Unit {
       const w = this.def.weapon;
       this.cooldown = w.cd * (0.9 + Math.random() * 0.2);
       this.game.fx.fireWeapon(this, t);
+      // A battery fires the rest of its volley from the other guns in quick succession.
+      if (w.salvo > 1) this.volley = { left: w.salvo - 1, t: w.salvoGap, target: t };
     }
+  }
+
+  updateVolley(dt) {
+    const v = this.volley;
+    v.t -= dt;
+    if (v.t > 0) return;
+    if (!this.hostile(v.target)) { this.volley = null; return; }
+    this.game.fx.fireWeapon(this, v.target);
+    v.t = this.def.weapon.salvoGap;
+    if (--v.left <= 0) this.volley = null;
   }
 
   approachPoint(t) {
@@ -472,6 +484,7 @@ export class Unit {
     else if (this.def.repair) this.updateSupport(dt);
     else if (this.def.engineer) this.updateEngineer(dt);
     else this.updateCombat(dt);
+    if (this.volley) this.updateVolley(dt);
     // Self-repairing armour mends slowly once the unit has been out of combat for a while.
     const sr = this.def.selfRepair;
     if (sr && this.hp < this.maxHp * sr.upTo && this.game.time - this.lastHit > sr.delay) {

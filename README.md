@@ -38,8 +38,8 @@ Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 
 Cada partida coloca dos estructuras tecnológicas en ruinas, de tipos distintos sorteados entre
 cinco: **silo de misiles**, **cañón de iones**, **fábrica Mamut**, **fábrica Juggernaut** y
-**hangar de zepelines**. La fábrica Mamut ya funciona (ver abajo); las demás se capturan y se
-reparan, y sus armas y unidades llegarán en las siguientes fases. Se colocan después de sortear las esquinas, a la misma distancia a pie
+**hangar de zepelines**. Las fábricas Mamut y Juggernaut ya funcionan (ver abajo); las demás se
+capturan y se reparan, y sus armas y unidades llegarán en las siguientes fases. Se colocan después de sortear las esquinas, a la misma distancia a pie
 (medida con la holgura del vehículo más grande) de las dos bases y lejos de ambas. Nunca quedan
 sobre caminos, mineral ni cajas, y dejan un pasillo libre alrededor. Si con dos esquinas vecinas no hay sitio exactamente
 entre ambas, se admite poco más de margen; si aun así no basta, las dos estructuras se compensan
@@ -61,7 +61,13 @@ reparada. Es un supertanque de antes de la guerra, igual para los dos bandos sal
 Tiene doble cañón con disparos alternos, 1100 de vida, el doble de tamaño que el tanque principal
 y es más lento. Fuera de combate (5 s sin recibir daño) se repara solo hasta la mitad de su vida.
 La fábrica admite punto de reunión. Si la capturan o la destruyen, se pierde lo que estuviera en cola.
-La IA mezcla Mamuts en su producción cuando tiene la fábrica reparada.
+
+**Fábrica Juggernaut**: reparada, construye el **Juggernaut** (2000 $, 36 s), un caminante bípedo
+de artillería. Dispara salvas de tres proyectiles en parábola (uno por cañón, con daño en área y más
+daño contra edificios) desde 30 de distancia, más lejos que el Mamut (20). Ve igual de lejos que
+dispara. A cambio tiene 650 de vida, no se repara solo y tiene que detenerse para disparar.
+
+La IA mezcla Mamuts y Juggernauts en su producción cuando tiene la fábrica correspondiente reparada.
 
 La IA busca las estructuras con su explorador y, pasado un tiempo según la dificultad (7 min en
 Fácil, 3 min 20 s en Normal y 1 min 30 s en Difícil), envía un ingeniero escoltado a la más cercana

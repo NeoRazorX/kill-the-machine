@@ -171,8 +171,8 @@ export class AI {
       choices.push([R.tank, 0.28], [R.arty, 0.12]);
       if (fewHealers('factory', 'repair')) choices.push([R.repair, 0.08]);
     }
-    // A captured, repaired Mammoth factory turns out super-tanks alongside the regular army.
-    if (g.requirementsMet(team, R.mammoth)) choices.push([R.mammoth, 0.3]);
+    // Captured, repaired tech factories turn out their super-units alongside the regular army.
+    for (const role of ['mammoth', 'juggernaut']) if (g.requirementsMet(team, R[role])) choices.push([R[role], 0.3]);
     let tot = choices.reduce((a, c) => a + c[1], 0), acc = 0;
     for (const [def, w] of choices) {
       acc += w / tot;
