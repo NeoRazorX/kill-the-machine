@@ -124,7 +124,7 @@ def cyl(name, radius, depth, pos, tint, axis='y', vertices=10):
     return finish(obj, tint, .018)
 
 
-def armor(name, width, length, bottom, top, inset, center, tint):
+def armor(name, width, length, bottom, top, inset, center, tint, bevel=.025):
     # Chamfered footprint, sloping upper armor: silhouette is authored, not stacked cubes.
     def ring(w, d, y):
         c = min(w, d) * .17
@@ -141,7 +141,7 @@ def armor(name, width, length, bottom, top, inset, center, tint):
     bpy.context.collection.objects.link(obj)
     bpy.ops.object.select_all(action='DESELECT')
     obj.select_set(True)
-    return finish(obj, tint, .025)
+    return finish(obj, tint, bevel)
 
 
 def empty(name, pos, parent=None):
@@ -533,9 +533,10 @@ def drone():
     save('m_drone')
 
 
-def spider(siege=False):
+def spider():
+    # m_crusher: the front-line plasma spider tank on four legs.
     reset()
-    n = 6 if siege else 4
+    n = 4
     for i in range(n):
         angle = i*math.tau/n + math.pi/n
         pivot = empty(f'spider_{i}',(0,1.0,0))
@@ -547,22 +548,19 @@ def spider(siege=False):
         pivot.rotation_euler.z = angle
     merge('Carapace',[armor('Hull',2.13,2.1,1.08,1.53,.38,(0,0),MACHINE),
                        cyl('Turret bearing',.66,.15,(0,1.6,0),BLACK,vertices=8)])
-    turret = empty('turret',(0,1.65,-.1 if siege else 0))
+    turret = empty('turret',(0,1.65,0))
     barrel = empty('barrel',(0,.25,.45),turret)
     merge('Weapon housing',[armor('Turret shell',1.3,1.15,1.69,2.13,.33,(0,-.1),MPLATE),
                            box('Target sensor',(.42,.1,.06),(0,2.08,.39),RED,.008)],turret)
-    bz = .35 if siege else .45
-    length = 1.55 if siege else 1.75
-    objects = [cyl('Accelerator',.18 if siege else .14,length,(0,1.9,bz+length/2),STEEL,'z')]
+    bz, length = .45, 1.75
+    objects = [cyl('Accelerator',.14,length,(0,1.9,bz+length/2),STEEL,'z')]
     for z in (bz+.3,bz+.75,bz+1.2):
-        objects.append(torus('Plasma coil',.24 if siege else .2,.065,(0,1.9,z),RED,'z'))
+        objects.append(torus('Plasma coil',.2,.065,(0,1.9,z),RED,'z'))
     objects += [box('Emitter',(.43,.35,.25),(0,1.9,bz+length),BLACK,.05),
-                cyl('Plasma bore',.12,.015,(0,1.9,bz+length+.133),ORANGE if siege else RED,'z')]
+                cyl('Plasma bore',.12,.015,(0,1.9,bz+length+.133),RED,'z')]
     merge('Plasma cannon',objects,barrel)
     empty('muzzle',(0,0,length+.14),barrel)
-    if siege:
-        barrel.rotation_euler.x = -.36
-    save('m_siege' if siege else 'm_crusher')
+    save('m_crusher')
 
 
 def platform(w=5.8,d=5.8,machine=False):
@@ -2145,6 +2143,200 @@ def juggernaut(accent=BLUE):
     save('m_juggernaut' if accent == RED else 'h_juggernaut')
 
 
+# ---------------------------------------------------------------- Siege spider (m_siege)
+# Machine plasma mortar on a low, long six-legged arachnid: armoured cephalothorax with a
+# sensor-eyed head, a segmented reactor abdomen, wide-stanced articulated legs, and a
+# rotating deck carrying a short, thick plasma mortar between two trunnion cheeks.
+SIEGE_DECK = (0, 1.38, -.05)    # turret pivot: top of the body, on the yaw axis
+SIEGE_TRUNNION = (2.0, .08)     # world y, z of the mortar's elevation axis
+SIEGE_REST = .35                # rest elevation (rad); the game raises it to ~0.9 when firing
+SIEGE_MOUTH = 1.75              # muzzle distance along the tube from the trunnion
+# Legs as (side, hip x, hip z, splay in degrees, reach); even and odd indices step in turn.
+SIEGE_LEGS = ((-1,.64,.75,38,.97), (1,.64,.75,38,.97), (1,.6,.12,86,.76),
+              (-1,.6,.12,86,.76), (-1,.62,-.38,140,1.0), (1,.62,-.38,140,1.0))
+SIEGE_ABDOMEN = ((-.7,.34,.8,1.12), (-.95,.6,.72,1.3), (-1.25,.74,.68,1.46),
+                 (-1.6,.72,.7,1.58), (-1.86,.55,.78,1.5), (-2.0,.3,.92,1.28))
+
+
+def loft(name, rings, tint, bevel=.02):
+    # Chamfered octagonal hull lofted along Z through (z, half width, bottom, top) sections.
+    verts = []
+    for z, hw, yb, yt in rings:
+        cb, ct = min(hw, yt-yb)*.3, min(hw, yt-yb)*.45
+        verts += [(-hw,yb+cb,z), (-hw+cb,yb,z), (hw-cb,yb,z), (hw,yb+cb,z),
+                  (hw,yt-ct,z), (hw-ct,yt,z), (-hw+ct,yt,z), (-hw,yt-ct,z)]
+    n = len(rings)
+    faces = [tuple(range(8)), tuple(range(8*n-8, 8*n))]
+    faces += [(8*r+i, 8*r+(i+1)%8, 8*r+8+(i+1)%8, 8*r+8+i) for r in range(n-1) for i in range(8)]
+    return solid(name, verts, faces, tint, bevel)
+
+
+def strut(name, a, b, r, tint, n=6):
+    # Unbevelled n-gon rod from a to b: a cheaper pipe() for cables and hydraulics.
+    d = Vector(b) - Vector(a)
+    rod_ = rod(name, r, (0,d.length/2,0), d.length, tint, 'y', n)
+    return xform(rod_, (math.acos(d.y/d.length), math.atan2(d.x, d.z), 0), (0,0,0), a)
+
+
+def bone(name, a, b, width, depth, inset, tint, bevel=0):
+    # Tapered, chamfered armour segment from joint a to joint b (both in one x = const plane).
+    tilt = math.atan2(b[2]-a[2], b[1]-a[1])
+    seg = armor(name, width, depth, 0, math.hypot(b[2]-a[2], b[1]-a[1]), inset, (0,0), tint, bevel)
+    return xform(seg, (tilt,0,0), (0,0,0), a)
+
+
+def abdomen_top(z):
+    for (z0,_,_,t0), (z1,_,_,t1) in zip(SIEGE_ABDOMEN, SIEGE_ABDOMEN[1:]):
+        if z1 <= z <= z0:
+            return t0 + (t1-t0)*(z-z0)/(z1-z0)
+    return SIEGE_ABDOMEN[-1][3]
+
+
+def siege_leg(i, side, hx, hz, splay, k):
+    # Authored pointing +Z from the hip; the pivot then splays it about the vertical axis.
+    hx *= side
+    pivot = empty(f'spider_{i}', (hx,1.0,hz))
+    P = lambda u, y: (hx, y, hz + u*k)
+    profile = lambda name, pts, w, tint: prism(name, [(hz+u*k, y) for u,y in pts], hx-w, hx+w, tint, 'zy')
+    parts = [box('Coxa',(.26,.22,.42*k),P(.21,1.02),MPLATE,0),
+             rod('Coxa joint',.12,P(.4,1.04),.32,BLACK,'x',8),
+             bone('Femur',P(.4,1.04),P(.9,1.82),.24,.2,.07,MACHINE,.02),
+             beam('Femur spine',P(.47,1.2),P(.86,1.86),.09,MPLATE,0),
+             strut('Femur ram',P(.28,.92),P(.6,1.33),.05,BLACK),
+             strut('Femur ram rod',P(.6,1.33),P(.8,1.62),.028,STEEL,5),
+             rod('Knee joint',.14,P(.9,1.82),.3,BLACK,'x',8),
+             rod('Knee hub',.08,P(.9,1.82),.36,MPLATE,'x',6),
+             profile('Knee spike',[(.76,1.9),(1.0,1.92),(.84,2.03)],.05,MPLATE),
+             bone('Tibia armor',P(.9,1.82),P(1.2,.66),.26,.24,.11,MPLATE,.02),
+             beam('Tibia strut',P(1.17,.8),P(1.3,.34),.13,BLACK,0),
+             strut('Knee actuator',P(.7,1.56),P(1.06,1.3),.045,BLACK),
+             rod('Ankle joint',.085,P(1.3,.34),.24,MACHINE,'x',6),
+             profile('Foot pad',[(1.16,.4),(1.42,.24),(1.48,0),(1.18,0),(1.1,.2)],.11,MACHINE)]
+    for dx in (-.07,.07):
+        parts.append(prism('Toe claw',[(hz+1.4*k,.14),(hz+1.58*k,0),(hz+1.42*k,0)],hx+dx-.03,hx+dx+.03,BLACK,'zy'))
+    merge('Leg', parts, pivot)
+    pivot.rotation_euler.z = side*math.radians(splay)
+    return pivot
+
+
+def siege_body():
+    parts = [armor('Belly',1.1,1.8,.64,.84,.1,(0,.3),BLACK,0),
+             armor('Thorax',1.5,1.9,.82,1.3,.4,(0,.3),MACHINE),
+             armor('Dorsal plate',1.08,1.48,1.3,1.335,.06,(0,.3),MPLATE,0),
+             loft('Head',[(1.1,.46,.72,1.2),(1.45,.4,.74,1.16),(1.7,.27,.8,1.04)],MACHINE),
+             tbox('Head plate',(.5,.04,.34),(0,1.165,1.36),MPLATE,(.12,0,0),0),
+             rod('Waist',.22,(0,1.0,-.68),.3,BLACK,'z',8)]
+    # Spider eye cluster: two big sensors, four small ones on the face and two on the crown.
+    for s in (-1,1):
+        parts += [gem('Main eye',(.075,.075,.05),(s*.1,.94,1.7),RED),
+                  gem('Side eye',(.042,.042,.03),(s*.21,.9,1.665),RED),
+                  gem('Upper eye',(.035,.035,.03),(s*.07,1.02,1.67),RED),
+                  gem('Crown eye',(.045,.03,.045),(s*.13,1.19,1.27),RED),
+                  xform(box('Chelicera',(.09,.34,.13),(s*.13,.63,1.6),MPLATE,0),(.45,0,0),(s*.13,.8,1.6)),
+                  box('Fang tip',(.06,.08,.07),(s*.13,.5,1.5),BLACK,0)]
+    for s, hx, hz, _, _ in SIEGE_LEGS:
+        parts += [rod('Hip socket',.17,(s*hx,1.0,hz),.36,BLACK,'y',8),
+                  rod('Hip cap',.2,(s*hx,1.2,hz),.05,MPLATE,'y',8)]
+    # Segmented reactor abdomen: dorsal armour plates with plasma vents between them.
+    parts.append(loft('Abdomen',SIEGE_ABDOMEN,MACHINE))
+    for z, w in ((-1.08,.86),(-1.42,1.0),(-1.74,.86)):
+        t = abdomen_top(z)
+        parts.append(armor('Abdomen plate',w,.3,t-.05,t+.045,.1,(0,z),MPLATE,0))
+    for z in (-1.25,-1.58):
+        parts.append(box('Plasma vent',(.34,.03,.05),(0,abdomen_top(z)+.008,z),RED,0))
+    for s in (-1,1):
+        for z in (-1.18,-1.36,-1.54,-1.72):
+            parts.append(box('Cooling fin',(.06,.3,.08),(s*.735,1.1,z),BLACK,0))
+        parts.append(strut('Reactor feed',(s*.2,1.12,-1.0),(s*.3,1.2,-.5),.045,BLACK))
+    parts += [rod('Tail exhaust',.12,(0,1.1,-1.98),.1,BLACK,'z',8),
+              rod('Exhaust ring',.145,(0,1.1,-1.96),.04,MPLATE,'z',8)]
+    return parts
+
+
+def siege_deck():
+    ty, tz = SIEGE_TRUNNION
+    parts = [rod('Turret bearing',.7,(0,1.39,-.05),.1,BLACK,'y',16),
+             armor('Deck glacis',.74,.3,1.44,1.58,.1,(0,.5),MPLATE,0),
+             armor('Power cell',.74,.25,1.44,1.66,.08,(0,-.66),MACHINE,0)]
+    for x in (-.2,0,.2):
+        parts.append(box('Cell grille',(.12,.02,.14),(x,1.66,-.66),BLACK,0))
+    for s in (-1,1):
+        cheek = [(tz-.42,1.44),(tz+.4,1.44),(tz+.4,ty-.06),(tz+.2,ty+.2),(tz-.16,ty+.2),(tz-.42,ty-.02)]
+        # Sponsons flare outward so the legs' femurs pass beneath them as the deck turns.
+        parts += [armor('Sponson',.44,.84,1.44,1.7,-.16,(s*.66,-.05),MACHINE),
+                  armor('Sponson plate',.54,.9,1.7,1.74,.06,(s*.66,-.05),MPLATE,0),
+                  prism('Trunnion cheek',cheek,s*.37,s*.5,MPLATE,'zy'),
+                  rod('Trunnion bearing',.19,(s*.56,ty,tz),.14,BLACK,'x',12),
+                  rod('Bearing cap',.12,(s*.645,ty,tz),.03,MPLATE,'x',8),
+                  rod('Trunnion pin',.1,(s*.4225,ty,tz),.155,STEEL,'x',8),
+                  # Plasma capacitor tank on each sponson, with a charge sight-glass.
+                  rod('Capacitor tank',.15,(s*.74,1.9,.05),.8,BLACK,'z',12),
+                  box('Tank saddle',(.3,.08,.12),(s*.74,1.77,-.2),MACHINE,0),
+                  box('Tank saddle',(.3,.08,.12),(s*.74,1.77,.3),MACHINE,0),
+                  rod('Tank band',.158,(s*.74,1.9,.05),.05,MPLATE,'z',12),
+                  box('Charge glass',(.02,.05,.4),(s*.893,1.9,.05),RED,0),
+                  strut('Charge cable',(s*.68,1.95,.44),(s*.6,1.93,.22),.03,BLACK,5),
+                  strut('Tank feed',(s*.66,1.84,-.36),(s*.34,1.62,-.62),.03,BLACK,5)]
+        for z in (-.35,.45):
+            parts.append(rod('Tank cap',.165,(s*.74,1.9,z),.06,MPLATE,'z',12))
+    # Targeting mast and ranging dish (left), radiator block (right).
+    dish = xform(bowl('Ranging dish',dish_profile(.2,.07,3),MPLATE,.03,10),(math.pi/2-.5,0,0),(0,0,0),(-.74,2.62,-.48))
+    parts += [box('Mast base',(.18,.08,.18),(-.74,1.77,-.48),BLACK,0),
+              rod('Sensor mast',.05,(-.74,2.08,-.48),.66,MACHINE,'y',6),
+              box('Sensor head',(.24,.15,.2),(-.74,2.46,-.48),MPLATE,.02),
+              box('Sensor lens',(.12,.06,.02),(-.74,2.47,-.375),RED,0),
+              dish,
+              box('Radiator',(.3,.16,.3),(.74,1.82,-.48),MACHINE,.02)]
+    for z in (-.58,-.48,-.38):
+        parts.append(box('Radiator fin',(.28,.05,.035),(.74,1.92,z),BLACK,0))
+    return parts
+
+
+def siege_mortar():
+    # Authored level along +Z from the trunnion; the `barrel` pivot supplies the elevation.
+    ty, z0 = SIEGE_TRUNNION
+    house = [(-.3,ty-.18),(-.2,ty-.28),(.2,ty-.28),(.3,ty-.18),(.3,ty+.18),(.2,ty+.28),(-.2,ty+.28),(-.3,ty+.18)]
+    cap = [(x*.8, ty+(y-ty)*.8) for x,y in house]
+    parts = [prism('Breech housing',house,z0-.42,z0+.36,MACHINE,'xy',.02),
+             prism('Breech cap',cap,z0-.47,z0-.42,BLACK,'xy'),
+             box('Accelerator spine',(.3,.08,.6),(0,ty+.31,z0-.05),MPLATE,.015),
+             rod('Trunnion collar',.17,(0,ty,z0),.64,BLACK,'x',10),
+             rod('Recoil jacket',.27,(0,ty,z0+.51),.3,MPLATE,'z',12),
+             rod('Mortar tube',.21,(0,ty,z0+.9),1.2,MACHINE,'z',12),
+             xform(cone('Muzzle bell',.24,.31,.22,(0,ty,z0+1.6),MACHINE,12),(math.pi/2,0,0),(0,ty,z0+1.6)),
+             rod('Muzzle lip',.32,(0,ty,z0+1.71),.06,MPLATE,'z',12),
+             rod('Bore',.22,(0,ty,z0+1.744),.012,BLACK,'z',12),
+             rod('Plasma charge',.13,(0,ty,z0+SIEGE_MOUTH),.012,RED,'z',10)]
+    for s in (-1,1):
+        parts += [box('Breech plate',(.03,.3,.62),(s*.31,ty,z0-.04),MPLATE,0),
+                  strut('Power conduit',(s*.24,ty+.18,z0+.2),(s*.2,ty+.2,z0+.77),.035,BLACK),
+                  rod('Recoil buffer',.06,(s*.1,ty-.24,z0+.58),.55,MPLATE,'z',8)]
+    for x in (-.12,0,.12):
+        parts.append(box('Heat sink',(.04,.34,.05),(x,ty,z0-.48),BLACK,0))
+    # Accelerator collars with the plasma glow showing between them.
+    for z in (.82,1.04,1.26):
+        parts.append(rod('Charge collar',.28,(0,ty,z0+z),.1,MPLATE,'z',12))
+    for z in (.93,1.15):
+        parts.append(rod('Charge glow',.235,(0,ty,z0+z),.11,RED,'z',12))
+    return parts
+
+
+def siege_spider():
+    reset()
+    for i, leg in enumerate(SIEGE_LEGS):
+        siege_leg(i, *leg)
+    merge('Carapace', siege_body())
+    t = empty('turret', SIEGE_DECK)
+    ty, tz = SIEGE_TRUNNION
+    b = empty('barrel', (0, ty-SIEGE_DECK[1], tz-SIEGE_DECK[2]), t)
+    merge('Gun deck', siege_deck(), t)
+    merge('Plasma mortar', siege_mortar(), b)
+    empty('muzzle', (0,0,SIEGE_MOUTH), b)
+    # Game Y-up tilt: native X rotation has the same sign.
+    b.rotation_euler.x = -SIEGE_REST
+    save('m_siege')
+
+
 BUILDERS = {
     'h_tank': tank, 'h_factory': factory,
     'h_rifle': lambda: infantry(), 'h_rocket': lambda: infantry(heavy=True),
@@ -2152,7 +2344,7 @@ BUILDERS = {
     'h_harv': lambda: harvester(), 'm_harv': lambda: harvester(True),
     'h_medic': lambda: infantry(medic=True), 'h_mech': repair_truck,
     'm_nanite': nanite, 'm_welder': welder,
-    'm_drone': drone, 'm_crusher': lambda: spider(), 'm_siege': lambda: spider(True),
+    'm_drone': drone, 'm_crusher': spider, 'm_siege': siege_spider,
     'h_turret': lambda: turret_building(), 'm_turret': lambda: turret_building(True),
     'h_hq': human_hq, 'm_hq': machine_hq,
     'h_power': lambda: power(), 'm_power': lambda: power(True),
