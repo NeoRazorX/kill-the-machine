@@ -106,8 +106,10 @@ export class Building {
     this.cooldown -= dt;
     const t = this.target;
     if (t && (t.dead || !t.team || t.team === this.team || g.distTo(this, t) > w.range + 1)) this.target = null;
+    // Without enough power, defences shut down: no tracking and no fire until it comes back.
+    if (low) this.target = null;
     this.scanT -= dt;
-    if (this.scanT <= 0) {
+    if (this.scanT <= 0 && !low) {
       this.scanT = 0.3 + Math.random() * 0.2;
       const t = g.findTarget(this, w.range);
       if (t) this.target = t;
@@ -117,7 +119,7 @@ export class Building {
       const diff = angleDiff(want, this.aim), mx = 3.2 * dt;
       this.aim += clamp(diff, -mx, mx);
       if (Math.abs(angleDiff(want, this.aim)) < 0.12 && this.cooldown <= 0) {
-        this.cooldown = w.cd * (low ? 2 : 1);
+        this.cooldown = w.cd;
         g.fx.fireWeapon(this, this.target);
       }
     }

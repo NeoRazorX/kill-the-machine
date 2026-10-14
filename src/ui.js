@@ -255,7 +255,8 @@ export class UI {
   refreshSelPanel(force = false) {
     const sel = this.input.sel, panel = $('selpanel');
     // A tech structure redraws its panel whenever its owner, state or repair switch changes.
-    const key = sel.map((e) => e.tech ? `${e.id}:${this.techView(e).team}:${this.techView(e).state}:${e.tech.repairing}` : e.id).join(',');
+    const key = sel.map((e) => e.tech ? `${e.id}:${this.techView(e).team}:${this.techView(e).state}:${e.tech.repairing}` :
+      e.kind === 'building' && e.def.weapon ? `${e.id}:${this.game.lowPower(e.team)}` : e.id).join(',');
     if (!force && key === this.selKey) {
       this.updateSelBars();
       return;
@@ -269,7 +270,7 @@ export class UI {
       const b = sel[0], own = b.team === g.player;
       const pw = b.def.power;
       panel.innerHTML = `<div class="sp-head"><img src="${this.icons[b.def.id]}"><div><div class="sp-name">${b.def.name}</div>` +
-        `<div class="sp-sub">${own ? (pw > 0 ? `⚡ +${pw}` : pw < 0 ? `⚡ ${pw}` : 'Base') : 'Edificio enemigo'}${b.def.produces && own ? ' · clic derecho: punto de reunión' : ''}</div></div></div>` +
+        `<div class="sp-sub">${own ? (pw > 0 ? `⚡ +${pw}` : pw < 0 ? `⚡ ${pw}` : 'Base') : 'Edificio enemigo'}${b.def.produces && own ? ' · clic derecho: punto de reunión' : ''}${b.def.weapon && own && g.lowPower(b.team) ? ' · <b class="off">SIN ENERGÍA: apagada</b>' : ''}</div></div></div>` +
         `<div class="hpbar"><i></i></div>` +
         (own && b.def.role !== 'hq' ? `<button id="sell-btn">Vender (Supr)</button>` : '');
       const sb = $('sell-btn');
@@ -538,6 +539,20 @@ export class UI {
       if ((e.hp < e.maxHp && g.time - e.lastHit < 6) || (e.kind === 'building' && e.team === g.player && e.hp < e.maxHp && inp.keys.has('AltLeft'))) this.drawEntity(e, 'bar');
     }
     for (const unit of g.units) this.drawRank(unit);
+    // Own defences shut down by a power shortage show a blinking red bolt.
+    if (g.lowPower(this.team) && Math.sin(g.time * 6) > -0.3) {
+      c.save();
+      c.fillStyle = '#ff453a'; c.strokeStyle = '#1a0605'; c.lineWidth = 1.5;
+      for (const b of g.buildings) {
+        if (b.dead || b.team !== this.team || !b.def.weapon || !b.complete || !b.mesh.visible) continue;
+        const p = inp.project(b.x, b.def.height + 1.8, b.z);
+        if (p.z < -1 || p.z > 1) continue;
+        c.beginPath();
+        for (const [x, y] of [[2, -11], [-6, 1], [-1, 1], [-3, 11], [6, -2], [1, -2], [4, -11]]) c.lineTo(p.x + x, p.y + y);
+        c.closePath(); c.fill(); c.stroke();
+      }
+      c.restore();
+    }
     c.save();
     c.font = 'bold 12px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'bottom';
     for (const crate of g.cashCrates.items) {

@@ -137,3 +137,4 @@ button { font: inherit; cursor: pointer; }
 .sw.own.ready .sw-bar i { background: #ffd24a; }
 .sw.enemy { border-color: #6a2a26; color: #ffb0a8; }
 .sw.enemy .sw-bar i { background: #ff5a50; }
+.sp-sub .off { color: #ff6a5a; }

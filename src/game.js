@@ -279,7 +279,7 @@ export class Game {
       const t = this.teams[k];
       t.power.prod = prod; t.power.use = use;
       const low = use > prod;
-      if (low && !t.lowPowerFlag && k === this.player && !this.spectate) { this.audio.say('Energía baja', 6000); this.emit('toast', { text: '⚠ Energía baja: producción ralentizada', kind: 'warn' }); }
+      if (low && !t.lowPowerFlag && k === this.player && !this.spectate) { this.audio.say('Energía baja', 6000); this.emit('toast', { text: '⚠ Energía baja: producción ralentizada y defensas apagadas', kind: 'warn' }); }
       t.lowPowerFlag = low;
     }
   }

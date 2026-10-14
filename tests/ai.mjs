@@ -157,6 +157,27 @@ try {
     assert(blocked.every(ok => !ok), `${team}: no building can be placed over the refinery unloading apron`);
   }
 
+  for (const team of ['human', 'machine']) {
+    // Defences shut down during a power shortage and come back with the power.
+    const { game } = fixture(team);
+    const turret = addStructure(game, team, 'turret');
+    addStructure(game, team, 'barracks'); addStructure(game, team, 'factory');
+    assert(game.lowPower(team), `${team}: barracks and factory on HQ power alone leave a deficit`);
+    let shots = 0;
+    game.fx.fireWeapon = (att) => { if (att === turret) shots++; };
+    let foe = null;
+    for (let a = 0; a < 6.3 && !foe; a += .3) {
+      const x = turret.x + Math.cos(a) * 14, z = turret.z + Math.sin(a) * 14;
+      if (game.canStand(x, z, 2)) foe = game.spawnUnit(ROLE[other(team)].tank, other(team), x, z);
+    }
+    foe.order = { type: 'hold' };
+    for (let i = 0; i < 50; i++) game.update(0.1);
+    assert(shots === 0 && !turret.target, `${team}: an unpowered turret neither tracks nor fires`);
+    addStructure(game, team, 'power');
+    for (let i = 0; i < 30; i++) game.update(0.1);
+    assert(!game.lowPower(team) && shots > 0, `${team}: power back, the turret opens fire`);
+  }
+
   // The AI starts without knowing the enemy corner and has to look for it.
   for (const team of ['human', 'machine']) {
     Math.random = mulberry32(31 + results.length);

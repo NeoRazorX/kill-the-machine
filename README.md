@@ -196,7 +196,7 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 ## Mecánicas
 - **Experiencia**: las unidades de combate ascienden a veteranas con 3 bajas (+10 % daño) y a élite con 8 (+20 % daño y +10 % vida máxima, conservando el porcentaje de salud). Solo cuenta el golpe final contra unidades enemigas; edificios y defensas estáticas no generan ascensos. Los distintivos y la ficha muestran rango y progreso. Las bonificaciones son totales y no se acumulan más allá de élite.
 - **Médicos y reparación**: el médico (humanos) y el nanodron (máquinas) salen del cuartel y curan a la infantería aliada; el vehículo de reparación y el soldador salen de la fábrica y reparan vehículos aliados, incluidas las cosechadoras. Están desarmados. En reposo atienden solos a los heridos cercanos sin alejarse de su posición; con atacar-mover acompañan al grupo y se detienen a curar por el camino. La curación nunca supera la vida máxima (incluida la de élite). La IA los produce en proporción de uno por cada seis unidades del mismo tipo.
-- **Energía**: cada edificio consume; con déficit la producción va al 40 % y las torretas disparan a la mitad.
+- **Energía**: cada edificio consume; con déficit la producción va al 40 % y las torretas se apagan: dejan de apuntar y de disparar (se marcan con un rayo rojo) hasta que vuelve la energía.
 - **Economía**: las cosechadoras llevan el mineral a la refinería; los campos se regeneran lentamente.
 - **Contadores de daño**: fusil fuerte contra infantería, cohetes/láser contra blindados y edificios, artillería con daño en área.
 - **Tiro parabólico**: la artillería, la araña de asedio y el Juggernaut elevan el cañón hasta el ángulo de salida de su parábola antes de disparar (unos 40° la artillería y 25° el Juggernaut) y lo bajan sin objetivo.
