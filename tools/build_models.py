@@ -490,54 +490,6 @@ def harvester():
     save('h_harv')
 
 
-def drone():
-    reset()
-    bob = empty('bob',(0,1.12,0))
-    objects = [gem('Sensor pod',(.41,.3,.45),(0,1.12,0),MACHINE),
-               gem('Eye',(.16,.11,.08),(0,1.19,.43),RED)]
-    for s in (-1,1):
-        objects += [armor('Wing',.43,.66,1.03,1.17,.13,(s*.46,-.07),MPLATE),
-                    cyl('Thruster',.16,.16,(s*.45,.95,-.09),BLACK,vertices=8)]
-    merge('Drone shell',objects,bob)
-    ring = empty('ring',(0,-.26,0),bob)
-    objects = [torus('Lift ring',.36,.035,(0,.86,0),RED)]
-    for a in (0,math.pi):
-        objects.append(box('Ring tab',(.09,.08,.14),(math.sin(a)*.36,.86,math.cos(a)*.36),MPLATE))
-    merge('Lift assembly',objects,ring)
-    empty('muzzle',(0,.07,.54),bob)
-    save('m_drone')
-
-
-def spider():
-    # m_crusher: the front-line plasma spider tank on four legs.
-    reset()
-    n = 4
-    for i in range(n):
-        angle = i*math.tau/n + math.pi/n
-        pivot = empty(f'spider_{i}',(0,1.0,0))
-        objects = [beam('Femur',(0,1,0),(.0,1.32,.94),.23,MPLATE),
-                   gem('Knee',(.22,.22,.22),(0,1.32,.94),MACHINE),
-                   beam('Lower leg',(0,1.32,.94),(0,.14,1.47),.15,STEEL),
-                   box('Foot',(.25,.16,.36),(0,.08,1.47),BLACK,.04)]
-        merge('Leg',objects,pivot)
-        pivot.rotation_euler.z = angle
-    merge('Carapace',[armor('Hull',2.13,2.1,1.08,1.53,.38,(0,0),MACHINE),
-                       cyl('Turret bearing',.66,.15,(0,1.6,0),BLACK,vertices=8)])
-    turret = empty('turret',(0,1.65,0))
-    barrel = empty('barrel',(0,.25,.45),turret)
-    merge('Weapon housing',[armor('Turret shell',1.3,1.15,1.69,2.13,.33,(0,-.1),MPLATE),
-                           box('Target sensor',(.42,.1,.06),(0,2.08,.39),RED,.008)],turret)
-    bz, length = .45, 1.75
-    objects = [cyl('Accelerator',.14,length,(0,1.9,bz+length/2),STEEL,'z')]
-    for z in (bz+.3,bz+.75,bz+1.2):
-        objects.append(torus('Plasma coil',.2,.065,(0,1.9,z),RED,'z'))
-    objects += [box('Emitter',(.43,.35,.25),(0,1.9,bz+length),BLACK,.05),
-                cyl('Plasma bore',.12,.015,(0,1.9,bz+length+.133),RED,'z')]
-    merge('Plasma cannon',objects,barrel)
-    empty('muzzle',(0,0,length+.14),barrel)
-    save('m_crusher')
-
-
 def platform(w=5.8,d=5.8,machine=False):
     return [box('Foundation',(w,.28,d),(0,.14,0),BLACK if machine else STEEL,.065)]
 
@@ -2730,6 +2682,209 @@ def ore_beetle():
     save('m_harv')
 
 
+# ---------------------------------------------------------------- Segador (m_crusher)
+# Machine front-line assault spider: a compact, wedge-fronted armoured hull with a red-visored
+# head, four tall arched legs with scythe-crested knees and spear feet, and a heavy turret
+# carrying a long plasma cannon: twin accelerator rails framing black coils with the red plasma
+# core glowing between them, ending in a forked emitter. The knees stay below the cannon and the
+# turret's overhangs inside the knees, so the turret can traverse freely over the legs.
+# Legs as (side, hip x, hip z, splay in degrees); 0/2 and 1/3 are the diagonal gait pairs.
+CRUSH_LEGS = ((-1,.58,.46,42), (1,.58,.46,42), (1,.58,-.42,132), (-1,.58,-.42,132))
+CRUSH_HIP = .85
+CRUSH_DECK = (0,1.4,-.05)       # turret pivot on the yaw axis
+CRUSH_GUN = (1.98,.42)          # world y, z of the cannon's `barrel` pivot, inside the mantlet
+CRUSH_MOUTH = 1.8               # muzzle distance along the cannon from the pivot
+
+
+def side_offset(a, b, t, k):
+    # Point t along the (u, y) segment a-b, pushed k off it towards +u (the leg's outer edge).
+    du, dy = b[0]-a[0], b[1]-a[1]
+    n = math.hypot(du, dy)
+    nu, ny = dy/n, -du/n
+    if nu < 0:
+        nu, ny = -nu, -ny
+    return (a[0] + du*t + nu*k, a[1] + dy*t + ny*k)
+
+
+def crusher_leg(i, side, hx, hz, splay):
+    # Same convention as siege_leg: authored pointing +Z from the hip, splayed by the pivot.
+    # The hip sits low on the hull so the knee arches well above the body.
+    hx *= side
+    h = CRUSH_HIP
+    pivot = empty(f'spider_{i}', (hx,h,hz))
+    P = lambda u, y: (hx, y, hz + u)
+    profile = lambda name, pts, w, tint, dx=0: prism(name, [(hz+u, y) for u,y in pts], hx+dx-w, hx+dx+w, tint, 'zy')
+    hip, knee, ankle = (.3,h+.02), (.72,1.58), (1.32,.42)
+    blade = [side_offset(knee, ankle, t, k) for t, k in
+             ((.06,.06),(.92,.03),(.86,.1),(.6,.19),(.3,.21),(.1,.15))]
+    parts = [box('Coxa',(.3,.26,.4),P(.15,h),MPLATE,0),
+             rod('Coxa joint',.13,P(*hip),.34,BLACK,'x',8),
+             bone('Femur',P(*hip),P(*knee),.34,.28,.09,MACHINE,.02),
+             bone('Femur plate',P(*side_offset(hip,knee,.16,.15)),P(*side_offset(hip,knee,.86,.15)),.26,.05,.06,MPLATE),
+             strut('Femur ram',P(.1,h-.1),P(.34,1.2),.05,BLACK),
+             strut('Femur ram rod',P(.34,1.2),P(.48,1.42),.028,STEEL,5),
+             rod('Knee joint',.15,P(*knee),.34,BLACK,'x',10),
+             rod('Knee hub',.09,P(*knee),.4,MPLATE,'x',6),
+             # Scythe crest over the knee, kept below the cannon's sweep.
+             profile('Knee crest',[(.56,1.62),(.7,1.72),(.94,1.7),(1.06,1.52),(.86,1.62)],.05,MPLATE),
+             bone('Tibia',P(*knee),P(*ankle),.3,.26,.14,MPLATE,.02),
+             profile('Tibia blade',blade,.025,BLACK),
+             strut('Knee actuator',P(.52,1.3),P(.94,1.18),.045,BLACK),
+             rod('Ankle joint',.085,P(*ankle),.24,MACHINE,'x',6),
+             # Spear foot: a long black spike with a short heel claw.
+             profile('Spear foot',[(1.2,.52),(1.42,.46),(1.56,0),(1.38,.12)],.08,BLACK),
+             profile('Heel claw',[(1.26,.3),(1.2,0),(1.34,.16)],.04,BLACK)]
+    merge('Leg', parts, pivot)
+    pivot.rotation_euler.z = side*math.radians(splay)
+    return pivot
+
+
+def crusher_body():
+    h = CRUSH_HIP
+    parts = [armor('Belly',.9,1.8,.36,.52,.12,(0,0),BLACK,0),
+             loft('Hull',[(-1.05,.34,.62,1.0),(-.85,.56,.5,1.2),(-.3,.66,.46,1.34),(.3,.64,.46,1.34),
+                          (.8,.5,.5,1.22),(1.0,.38,.56,1.1)],MACHINE,0),
+             rod('Race collar',.74,(0,1.36,-.05),.05,MPLATE,'y',16),
+             # Low wedge head: a brow overhanging an angry red V visor, black mandibles below.
+             loft('Head',[(.78,.44,.46,1.18),(1.12,.4,.46,1.06),(1.34,.3,.5,.88)],MPLATE,0),
+             tbox('Brow',(.74,.06,.42),(0,1.04,1.18),MACHINE,(.42,0,0),.01),
+             box('Visor plate',(.5,.2,.02),(0,.72,1.345),BLACK,0)]
+    for s in (-1,1):
+        parts += [tbox('Visor slit',(.19,.045,.02),(s*.12,.74,1.36),RED,(0,0,s*.38),0),
+                  gem('Side eye',(.04,.04,.03),(s*.31,.66,1.27),RED),
+                  prism('Mandible',[(s*.16,1.2),(s*.32,1.3),(s*.33,1.5),(s*.2,1.66),(s*.22,1.48),(s*.2,1.32)],.46,.54,BLACK,'xz'),
+                  # Flank armour between the hips, with cooling slats.
+                  box('Flank armor',(.08,.38,.6),(s*.67,.86,.02),MPLATE,.015)]
+        for z in (-.13,.02,.17):
+            parts.append(box('Flank slat',(.03,.26,.05),(s*.72,.86,z),BLACK,0))
+    for s, hx, hz, _ in CRUSH_LEGS:
+        parts += [rod('Hip socket',.18,(s*hx,h,hz),.32,BLACK,'y',8),
+                  tbox('Pauldron',(.34,.07,.48),(s*.55,1.2,hz),MPLATE,(0,0,-s*.42),.015)]
+    # Short reactor tail: a black drum with a red core, ringed by heat sinks.
+    parts += [rod('Reactor drum',.28,(0,.86,-1.1),.22,BLACK,'z',12),
+              rod('Reactor core',.16,(0,.86,-1.215),.02,RED,'z',10)]
+    for k in range(6):
+        a = k*math.tau/6 + math.pi/6
+        parts.append(tbox('Heat sink',(.05,.14,.2),(math.sin(a)*.3,.86+math.cos(a)*.3,-1.1),MPLATE,(0,0,-a),0))
+    return parts
+
+
+def crusher_turret():
+    # Low, wide wedge on a race; armour skirts over the flank radiators, cheeks around the gun.
+    gy, gz = CRUSH_GUN
+    parts = [rod('Turret race',.66,(0,1.43,-.05),.08,BLACK,'y',16),
+             armor('Turret hull',1.36,1.62,1.44,2.06,.52,(0,-.22),MACHINE),
+             armor('Roof plate',.7,.94,2.05,2.1,.1,(0,-.3),MPLATE,0),
+             rod('Mantlet',.3,(0,gy,.64),.2,MPLATE,'z',10),
+             box('Reactor bustle',(.66,.24,.2),(0,1.72,-1.0),BLACK,.02)]
+    for s in (-1,1):
+        parts += [prism('Gun cheek',[(.1,1.5),(.68,1.56),(.84,1.78),(.74,2.12),(.24,2.16)],s*.28,s*.42,MPLATE,'zy',.015),
+                  box('Radiator',(.12,.3,.8),(s*.7,1.62,-.3),BLACK,0),
+                  tbox('Side skirt',(.34,.06,.96),(s*.76,1.82,-.28),MPLATE,(0,0,-s*.55),.015),
+                  strut('Power conduit',(s*.62,1.9,.12),(s*.42,1.98,.4),.04,BLACK)]
+        for z in (-.56,-.4,-.24,-.08):
+            parts.append(box('Radiator fin',(.05,.26,.05),(s*.77,1.62,z),MPLATE,0))
+    # Exhaust grille across the back of the roof.
+    for x in (-.2,-.1,0,.1,.2):
+        parts.append(box('Roof grille',(.06,.03,.34),(x,2.11,-.56),BLACK,0))
+    # Sensor block on the roof (left) with a red lens, and a whip antenna at the back (right).
+    parts += [box('Sensor block',(.26,.14,.3),(-.36,2.19,.02),BLACK,.02),
+              box('Sensor lens',(.16,.05,.02),(-.36,2.2,.175),RED,0),
+              rod('Antenna base',.06,(.38,2.12,-.72),.06,BLACK,'y',6),
+              strut('Antenna',(.38,2.12,-.72),(.44,2.44,-.84),.018,BLACK,4)]
+    return parts
+
+
+def crusher_cannon():
+    # Authored along +Z from the `barrel` pivot, in world coordinates.
+    gy, gz = CRUSH_GUN
+    octagon = lambda r: [(r*math.cos(a), gy+r*math.sin(a)) for a in [math.pi/8 + k*math.tau/8 for k in range(8)]]
+    parts = [prism('Breech',octagon(.27),gz-.3,gz+.3,MACHINE,'xy',.02),
+             rod('Breech sleeve',.2,(0,gy,gz+.38),.16,MACHINE,'z',10),
+             rod('Plasma core',.075,(0,gy,gz+.96),1.32,RED,'z',8),
+             prism('Emitter',octagon(.2),gz+1.56,gz+1.74,BLACK,'xy',.015),
+             rod('Focus ring',.13,(0,gy,gz+1.76),.04,MPLATE,'z',10),
+             rod('Plasma bore',.09,(0,gy,gz+1.785),.012,RED,'z',10)]
+    for z in (.48,.76,1.04,1.32):
+        parts += [rod('Coil',.155,(0,gy,gz+z),.14,BLACK,'z',12),
+                  rod('Coil band',.165,(0,gy,gz+z),.04,MPLATE,'z',12)]
+    for s in (-1,1):
+        parts += [box('Accelerator rail',(.06,.16,1.3),(s*.19,gy,gz+.95),MPLATE,.01),
+                  box('Emitter prong',(.06,.1,.26),(s*.15,gy,gz+1.77),MPLATE,.01)]
+    for z in (.36,1.5):
+        parts.append(box('Rail brace',(.44,.05,.08),(0,gy+.1,gz+z),MACHINE,0))
+    return parts
+
+
+def crusher():
+    reset()
+    for i, leg in enumerate(CRUSH_LEGS):
+        crusher_leg(i, *leg)
+    merge('Carapace', crusher_body())
+    t = empty('turret', CRUSH_DECK)
+    gy, gz = CRUSH_GUN
+    b = empty('barrel', (0, gy-CRUSH_DECK[1], gz-CRUSH_DECK[2]), t)
+    merge('Turret armor', crusher_turret(), t)
+    merge('Plasma cannon', crusher_cannon(), b)
+    empty('muzzle', (0,0,CRUSH_MOUTH), b)
+    save('m_crusher')
+
+
+# ---------------------------------------------------------------- Dron (m_drone)
+# Cheap, fast machine hover drone shaped like an arrowhead: a faceted pod with a red eye,
+# swept wings ending in thruster nacelles, twin canted tail fins, and a lift fan spinning in a
+# duct on its back (the `ring` node). A chin ball under the nose carries the small laser.
+DRONE_BOB = (0,1.1,0)
+DRONE_FAN = (0,1.3,-.08)        # `ring` pivot: centre of the lift fan, spinning about +Y
+DRONE_LENS = (0,.95,.69)        # tip of the laser emitter
+
+
+def drone():
+    reset()
+    bob = empty('bob', DRONE_BOB)
+    fx, fy, fz = DRONE_FAN
+    lx, ly, lz = DRONE_LENS
+    parts = [loft('Pod',[(.58,.07,1.05,1.13),(.44,.16,.98,1.2),(.2,.26,.94,1.27),(-.3,.27,.95,1.27),
+                         (-.52,.17,1.0,1.21),(-.64,.09,1.05,1.15)],MACHINE,0),
+             loft('Belly keel',[(.3,.12,.9,.98),(-.4,.12,.9,.98)],BLACK,0),
+             # Lift fan duct on the back: raised collar, dark well, rim.
+             rod('Fan duct',.25,(fx,1.29,fz),.08,MPLATE,'y',16),
+             rod('Duct well',.21,(fx,1.333,fz),.01,BLACK,'y',16),
+             torus('Duct rim',.225,.03,(fx,1.335,fz),MPLATE),
+             # Sensor visor on the nose with the red eye, and the chin laser.
+             tbox('Visor',(.24,.07,.12),(0,1.15,.44),BLACK,(-.3,0,0),.01),
+             gem('Eye',(.07,.04,.04),(0,1.155,.5),RED),
+             gem('Chin ball',(.11,.1,.11),(lx,ly,.32),BLACK),
+             rod('Emitter',.028,(lx,ly,.5),.34,STEEL,'z',6),
+             rod('Emitter coil',.05,(lx,ly,.46),.1,MPLATE,'z',8),
+             rod('Laser lens',.04,(lx,ly,lz-.01),.02,RED,'z',8),
+             # Rear thruster and a short antenna.
+             rod('Main thruster',.08,(0,1.1,-.66),.1,BLACK,'z',10),
+             rod('Thruster bell',.06,(0,1.1,-.72),.04,MPLATE,'z',10),
+             strut('Antenna',(.1,1.25,-.38),(.13,1.46,-.52),.012,BLACK,4)]
+    for s in (-1,1):
+        wing = [(s*.2,.22),(s*.5,-.08),(s*.58,-.32),(s*.46,-.36),(s*.2,-.3)]
+        parts += [prism('Wing',wing,1.06,1.11,MPLATE,'xz',.01),
+                  box('Wing stripe',(.05,.012,.2),(s*.4,1.115,-.16),BLACK,0),
+                  rod('Nacelle',.065,(s*.53,1.07,-.2),.42,MACHINE,'z',8),
+                  rod('Nacelle band',.07,(s*.53,1.07,-.06),.04,BLACK,'z',8),
+                  rod('Exhaust ring',.055,(s*.53,1.07,-.42),.03,BLACK,'z',8),
+                  xform(cone('Nacelle nose',.065,.02,.12,(s*.53,1.07,.07),MPLATE,8),(math.pi/2,0,0),(s*.53,1.07,.07)),
+                  rod('Hover jet',.06,(s*.53,1.0,-.2),.08,MPLATE,'y',8),
+                  rod('Jet nozzle',.045,(s*.53,.955,-.2),.02,BLACK,'y',8),
+                  xform(prism('Tail fin',[(-.38,1.2),(-.58,1.4),(-.66,1.4),(-.62,1.2)],s*.08-.012,s*.08+.012,MPLATE,'zy'),
+                        (0,0,-s*.35),(s*.08,1.2,-.5))]
+    merge('Drone shell', parts, bob)
+    ring = empty('ring', (fx, fy-DRONE_BOB[1], fz), bob)
+    fan = [rod('Fan hub',.05,(fx,1.35,fz),.035,RED,'y',8)]
+    for k in range(4):
+        a = k*math.tau/4
+        fan.append(xform(tbox('Fan blade',(.06,.012,.15),(fx,1.345,fz+.11),MPLATE,(0,0,.3),0),(0,a,0),(fx,1.345,fz)))
+    merge('Lift fan', fan, ring)
+    empty('muzzle', (lx, ly-DRONE_BOB[1], lz), bob)
+    save('m_drone')
+
+
 BUILDERS = {
     'h_tank': tank, 'h_factory': factory,
     'h_rifle': lambda: infantry(), 'h_rocket': lambda: infantry(heavy=True),
@@ -2737,7 +2892,7 @@ BUILDERS = {
     'h_harv': harvester, 'm_harv': ore_beetle,
     'h_medic': lambda: infantry(medic=True), 'h_mech': repair_truck,
     'm_nanite': nanite, 'm_welder': welder,
-    'm_drone': drone, 'm_crusher': spider, 'm_siege': siege_spider,
+    'm_drone': drone, 'm_crusher': crusher, 'm_siege': siege_spider,
     'h_turret': lambda: turret_building(), 'm_turret': lambda: turret_building(True),
     'h_hq': human_hq, 'm_hq': machine_hq,
     'h_power': lambda: power(), 'm_power': lambda: power(True),
