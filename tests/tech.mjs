@@ -368,6 +368,32 @@ results.push('PASS 4 seeds: the Mammoth reaches every corner and the centre');
   assert(walker.pitch < 0.01, 'with no target the guns return to level');
 }
 
+// ---------------------------------------------------------------- Artillery
+for (const id of ['h_arty', 'm_siege']) {
+  // Artillery raises its gun from its resting angle to the launch angle of its arc, then lowers it.
+  const { game } = fixture();
+  const enemy = other(DEFS[id].team), ground = (x, z, r) => { for (let d = 0; d < 40; d++) for (let a = 0; a < 6.3; a += .3) { const p = { x: x + Math.cos(a) * d, z: z + Math.sin(a) * d }; if (game.canStand(p.x, p.z, r + .4)) return p; } };
+  const here = ground(SIZE / 2 + 30, SIZE / 2 + 30, 1.6);
+  const gun = game.spawnUnit(DEFS[id], DEFS[id].team, here.x, here.z);
+  const rest = gun.pitch;
+  assert(rest > 0.2 && rest === gun.restPitch, `${id}: the gun starts at its authored elevation`);
+  let foe = null;
+  for (let a = 0; a < 6.3 && !foe; a += .2) {
+    const p = { x: here.x + Math.cos(a) * 30, z: here.z + Math.sin(a) * 30 };
+    if (game.canStand(p.x, p.z, 1.8)) foe = game.spawnUnit(ROLE[enemy].tank, enemy, p.x, p.z);
+  }
+  foe.hp = foe.maxHp = 9999;
+  let at = null;
+  game.fx.fireWeapon = (att) => { if (att === gun && at === null) at = gun.pitch; };
+  gun.cmdAttack(foe);
+  run(game, 6, () => at !== null);
+  const deg = at * 180 / Math.PI;
+  assert(at !== null && Math.abs(at - gun.lobPitch(foe)) < 0.05 && deg > 35 && deg < 50, `${id}: fires with the gun raised to its arc (${deg.toFixed(0)}°)`);
+  foe.dead = true; gun.cmdStop();
+  run(game, 2);
+  assert(Math.abs(gun.pitch - rest) < 1e-6, `${id}: with no target the gun returns to its resting angle`);
+}
+
 // ------------------------------------------------------------ Superweapons
 {
   assert(DEFS.t_silo.superweapon.kind === 'nuke' && DEFS.t_ion.superweapon.kind === 'ion' &&

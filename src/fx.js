@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
-// Height of an arcing shell's flight over a horizontal distance d. Weapons with `lob` fly a flatter
-// arc, so guns that elevate to fire it never need to point steeply up.
+// Height of an arcing shell's flight over a horizontal distance d. Weapons with `lob` set how high
+// their arc rises, and their guns elevate to its launch angle.
 export const lobApex = (w, d) => (w.lob ? 1 + w.lob * d : Math.min(30, 4 + d * 0.28));
 // Where shots aim on a target.
 export const hitY = (t) => (t.kind === 'building' ? Math.max(0.8, t.def.height * 0.45) : t.def.height * 0.45);

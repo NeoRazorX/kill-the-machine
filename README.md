@@ -199,6 +199,7 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 - **Energía**: cada edificio consume; con déficit la producción va al 40 % y las torretas disparan a la mitad.
 - **Economía**: las cosechadoras llevan el mineral a la refinería; los campos se regeneran lentamente.
 - **Contadores de daño**: fusil fuerte contra infantería, cohetes/láser contra blindados y edificios, artillería con daño en área.
+- **Tiro parabólico**: la artillería, la araña de asedio y el Juggernaut elevan el cañón hasta el ángulo de salida de su parábola antes de disparar (unos 40° la artillería y 25° el Juggernaut) y lo bajan sin objetivo.
 - **Niebla de guerra** con zonas inexploradas, exploradas y visibles (también en el minimapa).
 - **IA enemiga** con tres dificultades: construye, cosecha, defiende y lanza oleadas crecientes.
 

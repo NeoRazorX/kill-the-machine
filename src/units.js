@@ -38,6 +38,8 @@ export class Unit {
 
     const m = buildUnitModel(def, team);
     this.mesh = m.group; this.parts = m.parts;
+    // Elevation of the gun as authored; lobbing guns return to it when they have nothing to aim at.
+    this.restPitch = this.pitch = m.parts.barrel ? -m.parts.barrel.rotation.x : 0;
     game.scene.add(this.mesh);
     this.syncMesh(0);
   }
@@ -509,7 +511,7 @@ export class Unit {
       if (this.def.turret) {
         const diff = angleDiff(this.heading, this.aim), mx = (this.def.turretTurn || 2) * dt;
         this.aim += clamp(diff, -mx, mx);
-        if (this.pitch) this.elevate(0, dt);
+        if (this.def.weapon?.lob && this.pitch !== this.restPitch) this.elevate(this.restPitch, dt);
       } else this.aim = this.heading;
     }
     this.syncMesh(dt);
@@ -533,10 +535,13 @@ export class Unit {
     if (p.turret) p.turret.rotation.y = angleDiff(this.aim, this.heading);
     if (p.barrel) {
       this.recoil = Math.max(0, this.recoil - dt * 4);
-      // Elevated guns recoil along their raised axis: the rest axis turned about X by the pitch.
-      const a = p.recoilAxis, e = this.pitch || 0, c = Math.cos(e), s = Math.sin(e), k = -this.recoil * 0.4;
-      if (this.def.weapon?.lob) p.barrel.rotation.x = -e;
-      p.barrel.position.set(p.barrelRest.x + a.x * k, p.barrelRest.y + (a.y * c + a.z * s) * k, p.barrelRest.z + (a.z * c - a.y * s) * k);
+      const k = -this.recoil * 0.4;
+      if (this.def.weapon?.lob) {
+        // Elevating guns recoil along their current elevation.
+        const e = this.pitch;
+        p.barrel.rotation.x = -e;
+        p.barrel.position.set(p.barrelRest.x, p.barrelRest.y + Math.sin(e) * k, p.barrelRest.z + Math.cos(e) * k);
+      } else p.barrel.position.copy(p.barrelRest).addScaledVector(p.recoilAxis, k);
     }
     if (p.bob) {
       p.bob.position.y = p.bobBase + Math.sin(t * 3 + this.id) * 0.12;
