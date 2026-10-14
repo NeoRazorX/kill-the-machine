@@ -424,23 +424,6 @@ def repair_truck():
     save('h_mech')
 
 
-def welder():
-    reset()
-    objects = tracked_chassis(True)
-    objects += [armor('Workshop',1.6,2.2,1.05,1.7,.35,(0,-.35),MPLATE),
-                box('Sensor bar',(.9,.1,.06),(0,1.55,.78),TEAL,.008),
-                cyl('Coolant tank',.22,1.2,(.55,1.9,-.6),BLACK,'z',8),
-                cyl('Coolant tank',.22,1.2,(-.55,1.9,-.6),BLACK,'z',8)]
-    for s in (-1,1):
-        objects += [cyl('Shoulder joint',.18,.2,(s*.55,1.55,.55),STEEL,'x',8),
-                    beam('Upper arm',(s*.55,1.6,.55),(s*.45,2.15,1.05),.14,MACHINE),
-                    beam('Forearm',(s*.45,2.15,1.05),(s*.2,1.7,1.55),.11,MPLATE),
-                    cone('Torch',.08,.02,.25,(s*.17,1.62,1.68),ORANGE,6)]
-    merge('Welder',objects)
-    empty('muzzle',(0,1.6,1.75))
-    save('m_welder')
-
-
 def nanite():
     reset()
     bob = empty('bob',(0,1.12,0))
@@ -2335,6 +2318,194 @@ def siege_spider():
     # Game Y-up tilt: native X rotation has the same sign.
     b.rotation_euler.x = -SIEGE_REST
     save('m_siege')
+
+
+# ---------------------------------------------------------------- Soldador (m_welder)
+# Machine field-repair walker: a wide, crab-like armoured shell on four short, chunky legs,
+# two heavy manipulator arms reaching forward (pincer claw left, plasma torch right), a teal
+# scanning head between the shoulders, gas tanks along the deck and a small recovery boom.
+# Legs as (side, hip x, hip z, splay in degrees); 0/2 and 1/3 are the diagonal gait pairs.
+WELD_LEGS = ((-1,.5,.02,62), (1,.5,.02,62), (1,.5,-.74,118), (-1,.5,-.74,118))
+WELD_HIP = .78
+WELD_ARM = ((.42,1.24,.5), (.8,1.98,.8), (.5,1.76,1.29))     # shoulder, elbow, wrist (x mirrored)
+WELD_TORCH = (.14,1.48,1.9)     # the torch points from the right wrist towards this point
+WELD_TORCH_LEN = .56            # wrist to the hot tip, where the welding arc starts
+
+
+def limb(name, a, b, width, depth, inset, tint, bevel=0):
+    # Tapered, chamfered armour segment from joint a to joint b in any direction.
+    d = Vector(b) - Vector(a)
+    seg = armor(name, width, depth, 0, d.length, inset, (0,0), tint, bevel)
+    return xform(seg, (math.acos(d.y/d.length), math.atan2(d.x, d.z), 0), (0,0,0), a)
+
+
+def aim(objs, origin, target):
+    # Parts authored along +Z from the origin (+Y up) are turned to point at target and moved to origin.
+    d = Vector(target) - Vector(origin)
+    return group(objs, (math.atan2(-d.y, math.hypot(d.x, d.z)), math.atan2(d.x, d.z), 0), (0,0,0), origin)
+
+
+def welder_leg(i, side, hx, hz, splay):
+    # Same convention as siege_leg: authored pointing +Z from the hip, splayed by the pivot.
+    # The hip sits under the shell rim, so only the femur and knee rise past the carapace edge.
+    hx *= side
+    h = WELD_HIP
+    pivot = empty(f'spider_{i}', (hx,h,hz))
+    P = lambda u, y: (hx, y, hz + u)
+    profile = lambda name, pts, w, tint, dx=0: prism(name, [(hz+u, y) for u,y in pts], hx+dx-w, hx+dx+w, tint, 'zy')
+    knee, ankle = (.68,1.5), (1.07,.24)
+    parts = [box('Coxa',(.26,.22,.42),P(.21,h),MPLATE,0),
+             rod('Coxa joint',.13,P(.42,h+.02),.34,BLACK,'x',8),
+             bone('Femur',P(.42,h+.02),P(*knee),.3,.26,.08,MACHINE,.02),
+             beam('Femur spine',P(.48,h+.22),P(.68,1.58),.11,MPLATE,0),
+             strut('Femur ram',P(.24,h-.1),P(.5,1.08),.05,BLACK),
+             strut('Femur ram rod',P(.5,1.08),P(.62,1.32),.028,STEEL,5),
+             rod('Knee joint',.16,P(*knee),.36,BLACK,'x',10),
+             rod('Knee hub',.095,P(*knee),.42,MPLATE,'x',6),
+             profile('Knee guard',[(.52,1.62),(.72,1.76),(.9,1.62),(.84,1.48)],.1,MPLATE),
+             bone('Tibia armor',P(*knee),P(1.01,.48),.3,.28,.1,MPLATE,.02),
+             beam('Tibia strut',P(.99,.58),P(*ankle),.15,BLACK,0),
+             strut('Knee actuator',P(.5,1.32),P(.9,1.06),.045,BLACK),
+             rod('Ankle joint',.09,P(*ankle),.28,MACHINE,'x',8),
+             profile('Foot pad',[(.95,.28),(1.1,.22),(1.16,0),(.88,0),(.86,.14)],.13,MACHINE)]
+    for dx in (-.09,0,.09):
+        parts.append(profile('Toe claw',[(1.08,.12),(1.19,0),(1.08,0)],.026,BLACK,dx))
+    merge('Leg', parts, pivot)
+    pivot.rotation_euler.z = side*math.radians(splay)
+    return pivot
+
+
+def welder_torch():
+    # Plasma torch: banded barrel under a heat hood, steel nozzle and a glowing tip.
+    L = WELD_TORCH_LEN
+    tip = xform(cone('Hot tip',.042,.012,.07,(0,0,L-.035),ORANGE,8),(math.pi/2,0,0),(0,0,L-.035))
+    return [rod('Wrist collar',.14,(0,0,.04),.08,BLACK,'z',10),
+            rod('Torch body',.12,(0,0,.2),.26,MPLATE,'z',10),
+            rod('Torch band',.13,(0,0,.11),.04,BLACK,'z',8),
+            rod('Torch band',.13,(0,0,.29),.04,BLACK,'z',8),
+            tbox('Heat hood',(.32,.03,.3),(0,.15,.25),MACHINE,(-.12,0,0),.01),
+            box('Gas valve',(.07,.08,.08),(.1,.1,.14),STEEL,.01),
+            xform(cone('Nozzle',.075,.036,.16,(0,0,L-.15),STEEL,8),(math.pi/2,0,0),(0,0,L-.15)),
+            tip]
+
+
+def welder_claw():
+    # Crab pincer opening sideways, so it reads from above: a heavy outer finger and an inner one.
+    outer = [(.04,.24),(.23,.24),(.26,.42),(.2,.58),(.04,.7),(.09,.55),(.12,.42),(.04,.34)]
+    inner = [(-.04,.24),(-.18,.24),(-.23,.38),(-.21,.52),(-.1,.64),(-.11,.51),(-.1,.4),(-.04,.33)]
+    return [rod('Wrist collar',.14,(0,0,.04),.08,BLACK,'z',10),
+            box('Claw palm',(.4,.3,.26),(0,0,.16),MACHINE,.03),
+            rod('Jaw pin',.07,(0,0,.28),.34,BLACK,'y',8),
+            prism('Claw finger',outer,-.08,.08,MPLATE,'xz'),
+            prism('Claw finger',inner,-.065,.065,MPLATE,'xz'),
+            prism('Claw tip',[(.04,.62),(.14,.54),(.04,.7)],-.082,.082,BLACK,'xz'),
+            prism('Claw tip',[(-.1,.58),(-.17,.5),(-.1,.64)],-.067,.067,BLACK,'xz')]
+
+
+def welder_arm(s):
+    # Crab cheliped: the elbow swings out and up, the forearm folds back in towards the tool.
+    S, E, W = [Vector((s*x,y,z)) for x,y,z in WELD_ARM]
+    def up(a, b, k):
+        # Offset k along the side of segment a-b that faces up.
+        d = (b - a).normalized()
+        return (Vector((0,1,0)) - d * d.y).normalized() * k
+    T = lambda v: tuple(v)
+    u1, u2 = up(S, E, .17), up(E, W, .16)
+    parts = [box('Shoulder mount',(.3,.42,.28),(s*.4,S.y-.1,S.z-.04),MACHINE,.03),
+             rod('Shoulder drum',.2,T(S),.36,BLACK,'x',10),
+             rod('Shoulder cap',.13,(s*.61,S.y,S.z),.04,MPLATE,'x',8),
+             limb('Upper arm',T(S),T(E),.34,.3,.06,MACHINE,.02),
+             limb('Arm plate',T(S+u1+(E-S)*.08),T(E+u1*.9-(E-S)*.12),.38,.06,.1,MPLATE),
+             strut('Arm ram',(s*.4,S.y-.28,S.z+.12),T(S+(E-S)*.55-u1),.055,BLACK),
+             strut('Arm ram rod',T(S+(E-S)*.55-u1),T(S+(E-S)*.75-u1*.8),.032,STEEL,5),
+             rod('Elbow joint',.15,T(E),.36,BLACK,'x',10),
+             rod('Elbow hub',.09,T(E),.42,MPLATE,'x',6),
+             limb('Forearm',T(E),T(W),.32,.28,.08,MPLATE,.02),
+             strut('Forearm ram',T(E+u2+(W-E)*.1),T(W+u2*.9-(W-E)*.12),.035,BLACK,5),
+             rod('Wrist joint',.12,T(W),.34,BLACK,'x',8)]
+    if s > 0:
+        parts += aim(welder_torch(), T(W), WELD_TORCH)
+    else:
+        parts += aim(welder_claw(), T(W), (s*.16,1.5,1.92))
+    return parts
+
+
+def welder_body():
+    parts = [armor('Belly',.8,1.3,.42,.58,.1,(0,-.3),BLACK,0),
+             loft('Hull',[(-1.05,.4,.5,1.0),(-.75,.5,.46,1.02),(.15,.5,.46,1.02),(.55,.4,.5,1.0)],MACHINE,0),
+             # Wide, rounded crab shell overhanging the hips, with a raised dorsal plate.
+             loft('Carapace',[(-1.12,.36,1.0,1.18),(-.96,.6,.98,1.3),(-.66,.74,.97,1.38),(-.15,.8,.97,1.43),
+                              (.25,.78,.98,1.41),(.5,.66,1.0,1.33),(.64,.44,1.03,1.24)],MACHINE,0),
+             loft('Dorsal plate',[(-.96,.38,1.24,1.33),(-.7,.56,1.32,1.44),(-.15,.62,1.37,1.47),
+                                  (.25,.6,1.36,1.455),(.48,.42,1.27,1.37)],MPLATE,0),
+             # Repair emblem: a teal cross on a dark hexagon in the middle of the deck.
+             prism('Emblem plate',[(.21*math.cos(a),-.34+.21*math.sin(a)) for a in [k*math.tau/6 for k in range(6)]],
+                   1.45,1.485,BLACK,'xz'),
+             box('Emblem cross',(.26,.02,.075),(0,1.49,-.34),TEAL,0),
+             box('Emblem cross',(.075,.02,.26),(0,1.49,-.34),TEAL,0),
+             box('Face plate',(.56,.26,.06),(0,.78,.56),MPLATE,.02),
+             box('Face visor',(.36,.05,.02),(0,.82,.595),TEAL,0)]
+    for s, hx, hz, _ in WELD_LEGS:
+        parts.append(rod('Hip socket',.18,(s*hx,WELD_HIP,hz),.28,BLACK,'y',8))
+    for s in (-1,1):
+        # Gas tanks along the deck with a teal coolant band, saddles and a valve.
+        parts += [rod('Gas tank',.15,(s*.42,1.62,-.58),.76,BLACK,'z',12),
+                  rod('Tank cap',.11,(s*.42,1.62,-.18),.05,MPLATE,'z',8),
+                  rod('Tank cap',.11,(s*.42,1.62,-.98),.05,MPLATE,'z',8),
+                  box('Tank saddle',(.28,.1,.1),(s*.42,1.48,-.34),MACHINE,0),
+                  box('Tank saddle',(.28,.1,.1),(s*.42,1.48,-.82),MACHINE,0),
+                  rod('Coolant band',.158,(s*.42,1.62,-.58),.08,TEAL,'z',12),
+                  rod('Tank valve',.035,(s*.42,1.78,-.24),.07,STEEL,'y',6)]
+        parts += welder_arm(s)
+    # Scanning sensor head between the shoulders.
+    parts += [rod('Sensor neck',.1,(0,1.46,.3),.1,BLACK,'y',8),
+              loft('Sensor head',[(.1,.19,1.5,1.74),(.42,.2,1.5,1.74),(.6,.14,1.53,1.7)],MPLATE,0),
+              rod('Lens ring',.095,(0,1.62,.6),.04,BLACK,'z',12),
+              rod('Sensor lens',.07,(0,1.62,.62),.02,TEAL,'z',12),
+              box('Scanner bar',(.24,.03,.02),(0,1.7,.55),TEAL,0)]
+    for s in (-1,1):
+        parts.append(box('Scanner fin',(.03,.14,.18),(s*.11,1.8,.2),MACHINE,0))
+    # Recovery boom raised over the tail: turntable, post, lift ram, hoist and hook.
+    bz0, bz1, by0, by1 = -.8, -1.4, 1.72, 2.36
+    parts += [rod('Crane turntable',.2,(0,1.44,-.8),.06,BLACK,'y',16),
+              box('Crane post',(.24,.3,.28),(0,1.62,-.8),MPLATE,.03),
+              limb('Boom',(0,by0,bz0),(0,by1,bz1),.17,.19,.05,MPLATE),
+              rod('Boom pivot',.1,(0,by0,bz0),.3,BLACK,'x',8),
+              rod('Boom sheave',.08,(0,by1,bz1),.22,BLACK,'x',8),
+              strut('Lift ram',(0,1.48,-.6),(0,1.78,-.86),.05,BLACK),
+              strut('Lift ram rod',(0,1.78,-.86),(0,2.0,-1.06),.03,STEEL,5),
+              strut('Hoist cable',(0,by1-.05,bz1-.02),(0,1.86,bz1-.02),.012,BLACK,4),
+              box('Hook block',(.1,.12,.08),(0,1.81,bz1-.02),BLACK,.01),
+              prism('Hook',[(-.05,1.76),(.04,1.76),(.05,1.68),(-.02,1.66),(-.02,1.7),(.01,1.71),(-.01,1.74),(-.05,1.74)],
+                    bz1-.05,bz1+.01,STEEL,'xy'),
+              gem('Boom lamp',(.05,.04,.05),(0,by1+.07,bz1+.04),TEAL)]
+    # Winch drum behind the post: the hoist cable runs from it up to the boom head.
+    parts += [rod('Winch drum',.12,(0,1.38,-1.04),.3,BLACK,'x',12),
+              rod('Winch flange',.17,(-.17,1.38,-1.04),.04,MPLATE,'x',10),
+              rod('Winch flange',.17,(.17,1.38,-1.04),.04,MPLATE,'x',10),
+              box('Winch bracket',(.42,.1,.2),(0,1.25,-1.02),MACHINE,0),
+              strut('Winch cable',(0,1.48,-1.06),(0,by1-.02,bz1+.06),.012,BLACK,4),
+              box('Tail plate',(.62,.3,.06),(0,.78,-1.07),MPLATE,.02)]
+    for x in (-.16,0,.16):
+        parts.append(box('Tail vent',(.08,.2,.02),(x,.78,-1.105),BLACK,0))
+    # Tool lockers slung on the hull flanks between the hips.
+    for s in (-1,1):
+        parts += [box('Tool locker',(.1,.3,.38),(s*.54,.72,-.36),MACHINE,0),
+                  box('Locker lid',(.03,.06,.4),(s*.6,.86,-.36),MPLATE,0)]
+        for z in (-.48,-.36,-.24):
+            parts.append(box('Tool handle',(.03,.24,.04),(s*.605,.74,z),STEEL,0))
+    return parts
+
+
+def welder():
+    reset()
+    for i, leg in enumerate(WELD_LEGS):
+        welder_leg(i, *leg)
+    merge('Welder', welder_body())
+    W = Vector(WELD_ARM[2])
+    tip = W + (Vector(WELD_TORCH) - W).normalized() * WELD_TORCH_LEN
+    empty('muzzle', tuple(tip))
+    save('m_welder')
 
 
 BUILDERS = {
