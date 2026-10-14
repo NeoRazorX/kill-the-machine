@@ -135,6 +135,17 @@ for (const seed of [20260, 20261, 20262, 20263]) {
   for (let i = 0; i < 12000; i++) if (vehicle.followPath(.05)) break;
   assert(Math.hypot(vehicle.x - bx, vehicle.z - bz) < .6, `seed ${seed}: tank reaches the opposite corner in simulation`);
 }
+// Fast, nimble units slow down near a goal they must reach instead of circling it for ever:
+// a drone sent to a point inside its turning circle, beside or behind it, arrives and stops.
+for (const [dx, dz] of [[1, 0], [-1, 0], [0.9, 0.4], [-1.2, -0.6], [6, -6]]) {
+  grid = blank();
+  const drone = tank(grid, 100, 100);
+  drone.def = DEFS.m_drone; drone.radius = drone.def.radius; drone.heading = 0;
+  drone.pathTo(100 + dx, 100 + dz);
+  let arrived = false;
+  for (let i = 0; i < 400 && !arrived; i++) arrived = drone.followPath(.05);
+  assert(arrived && Math.hypot(drone.x - 100 - dx, drone.z - 100 - dz) < .6, `fast drone reaches a point at (${dx}, ${dz}) without orbiting it`);
+}
 console.log(results.join('\n'));
 console.log(checkMap());
 console.log('ALL PASSED');

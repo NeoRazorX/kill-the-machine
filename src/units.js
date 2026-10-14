@@ -145,6 +145,9 @@ export class Unit {
     let sp = this.def.speed * this.speedMul;
     const ad = Math.abs(diff);
     if (ad > 0.5 && this.def.turn < 4) sp *= Math.max(0.15, 1 - ad / 1.6);
+    // Near a waypoint it must actually reach, slow down until the turning circle fits in the
+    // distance left; otherwise a fast unit can orbit its destination forever.
+    if (last || !canSkip) sp = Math.min(sp, Math.max(0.8, d * this.def.turn * 0.5));
     const step = Math.min(sp * dt, d);
     const oldX = this.x, oldZ = this.z;
     // Turn on the spot if the curved approach would leave the safe path at a corner.
@@ -399,12 +402,12 @@ export class Unit {
     if (o.type !== 'capture') return;
     const t = o.target;
     if (!canCapture(this, t)) { this.becomeIdle(); return; }
-    if (g.distTo(this, t) <= this.radius + 1.2) { g.techSites.capture(t, this); return; }
+    if (g.distTo(this, t) <= this.radius + 1.5) { g.techSites.capture(t, this); return; }
     this.repathT -= dt;
     if (this.repathT <= 0) {
       this.repathT = 1;
       // Nearest point of a ring around the footprint, so the route ends against its wall.
-      const r = t.rect, m = this.radius + 0.5;
+      const r = t.rect, m = this.radius + 0.4;
       this.pathTo(clamp(this.x, r.x0 - m, r.x1 + m), clamp(this.z, r.z0 - m, r.z1 + m));
     }
     this.followPath(dt);
