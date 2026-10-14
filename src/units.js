@@ -2,6 +2,7 @@ import { SIZE, canRepair, canCapture } from './config.js';
 import { findPath, clearLine } from './pathfinding.js';
 import { buildUnitModel } from './models.js';
 import { RANKS, isCombatUnit } from './experience.js';
+import { lobApex, hitY } from './fx.js';
 
 let NEXT_ID = 1;
 export const nextId = () => NEXT_ID++;
@@ -200,13 +201,26 @@ export class Unit {
     else if (this.order.type !== 'attack') this.target = null;
   }
 
+  // Guns that lob their shells elevate to the launch angle of the arc they fire.
+  lobPitch(t) {
+    const w = this.def.weapon, d = Math.max(1, Math.hypot(t.x - this.x, t.z - this.z));
+    return Math.atan2(hitY(t) - this.def.height * 0.95 + Math.PI * lobApex(w, d), d);
+  }
+
+  elevate(want, dt) {
+    const mx = 1.2 * dt;
+    this.pitch = (this.pitch || 0) + clamp(want - (this.pitch || 0), -mx, mx);
+    return Math.abs(want - this.pitch) < 0.05;
+  }
+
   faceTarget(t, dt) {
     const want = Math.atan2(t.x - this.x, t.z - this.z);
     this.aimed = true;
     if (this.def.turret) {
       const diff = angleDiff(want, this.aim), mx = this.def.turretTurn * dt;
       this.aim += clamp(diff, -mx, mx);
-      return Math.abs(angleDiff(want, this.aim)) < 0.12;
+      const raised = !this.def.weapon?.lob || this.elevate(this.lobPitch(t), dt);
+      return Math.abs(angleDiff(want, this.aim)) < 0.12 && raised;
     }
     const diff = angleDiff(want, this.heading), mx = this.def.turn * dt;
     this.heading += clamp(diff, -mx, mx);
@@ -495,6 +509,7 @@ export class Unit {
       if (this.def.turret) {
         const diff = angleDiff(this.heading, this.aim), mx = (this.def.turretTurn || 2) * dt;
         this.aim += clamp(diff, -mx, mx);
+        if (this.pitch) this.elevate(0, dt);
       } else this.aim = this.heading;
     }
     this.syncMesh(dt);
@@ -518,7 +533,10 @@ export class Unit {
     if (p.turret) p.turret.rotation.y = angleDiff(this.aim, this.heading);
     if (p.barrel) {
       this.recoil = Math.max(0, this.recoil - dt * 4);
-      p.barrel.position.copy(p.barrelRest).addScaledVector(p.recoilAxis, -this.recoil * 0.4);
+      // Elevated guns recoil along their raised axis: the rest axis turned about X by the pitch.
+      const a = p.recoilAxis, e = this.pitch || 0, c = Math.cos(e), s = Math.sin(e), k = -this.recoil * 0.4;
+      if (this.def.weapon?.lob) p.barrel.rotation.x = -e;
+      p.barrel.position.set(p.barrelRest.x + a.x * k, p.barrelRest.y + (a.y * c + a.z * s) * k, p.barrelRest.z + (a.z * c - a.y * s) * k);
     }
     if (p.bob) {
       p.bob.position.y = p.bobBase + Math.sin(t * 3 + this.id) * 0.12;

@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+// Height of an arcing shell's flight over a horizontal distance d. Weapons with `lob` fly a flatter
+// arc, so guns that elevate to fire it never need to point steeply up.
+export const lobApex = (w, d) => (w.lob ? 1 + w.lob * d : Math.min(30, 4 + d * 0.28));
+// Where shots aim on a target.
+export const hitY = (t) => (t.kind === 'building' ? Math.max(0.8, t.def.height * 0.45) : t.def.height * 0.45);
+
 const MAXP = 2200;
 const FIRE0 = [1, 0.85, 0.35], FIRE1 = [0.55, 0.1, 0.02];
 const SMOKE0 = [0.34, 0.34, 0.34], SMOKE1 = [0.1, 0.1, 0.1];
@@ -243,7 +249,7 @@ export class FX {
     return m;
   }
 
-  hitY(t) { return t.kind === 'building' ? Math.max(0.8, t.def.height * 0.45) : t.def.height * 0.45; }
+  hitY(t) { return hitY(t); }
 
   fireWeapon(att, target) {
     const w = att.def.weapon, style = PROJ_STYLE[w.proj];
@@ -281,7 +287,7 @@ export class FX {
     if (style.arc) {
       const d = Math.hypot(tx - mx, tz - mz);
       p.sx = mx; p.sy = my; p.sz = mz;
-      p.T = Math.max(0.6, d / style.speed); p.t = 0; p.apex = Math.min(30, 4 + d * 0.28);
+      p.T = Math.max(0.6, d / style.speed); p.t = 0; p.apex = lobApex(w, d);
     }
     p.mesh.position.set(mx, my, mz);
     this.projectiles.push(p);

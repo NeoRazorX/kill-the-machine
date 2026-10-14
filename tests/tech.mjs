@@ -352,12 +352,17 @@ results.push('PASS 4 seeds: the Mammoth reaches every corner and the centre');
   run(game, 0.6);
   const mine = fired();
   assert(mine.length === 3 && mine[2].t - mine[0].t < 0.5, 'a volley is three quick shells');
+  // The guns rise to the launch angle of the shells' arc before firing, about 25°, and settle afterwards.
+  assert(Math.abs(walker.pitch - walker.lobPitch(foe)) < 0.05 && walker.pitch > 0.35 && walker.pitch < 0.5, 'the battery is elevated to the arc it fires');
   assert(foe.hp < 5000 && walker.hp === walker.maxHp && Math.hypot(walker.x - here.x, walker.z - here.z) < .5,
     'it shells a tank from beyond the tank\'s sight and range without moving');
   const first = mine[0].t;
   run(game, R.juggernaut.weapon.cd * 1.15, () => fired().length > 3);
   const second = fired()[3];
   assert(second && second.t - first >= R.juggernaut.weapon.cd * 0.89, 'the next volley comes after the reload');
+  foe.dead = true; walker.cmdStop();
+  run(game, 2);
+  assert(walker.pitch < 0.01, 'with no target the guns return to level');
 }
 
 // -------------------------------------------------------------------- AI

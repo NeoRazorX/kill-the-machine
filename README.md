@@ -63,8 +63,8 @@ y es más lento. Fuera de combate (5 s sin recibir daño) se repara solo hasta l
 La fábrica admite punto de reunión. Si la capturan o la destruyen, se pierde lo que estuviera en cola.
 
 **Fábrica Juggernaut**: reparada, construye el **Juggernaut** (2000 $, 36 s), un caminante bípedo
-de artillería. Dispara salvas de tres proyectiles en parábola (uno por cañón, con daño en área y más
-daño contra edificios) desde 30 de distancia, más lejos que el Mamut (20). Ve igual de lejos que
+de artillería. Eleva los cañones unos 25° y dispara salvas de tres proyectiles en una parábola más
+tendida que la de la artillería (uno por cañón, con daño en área y más daño contra edificios) desde 30 de distancia, más lejos que el Mamut (20). Ve igual de lejos que
 dispara. A cambio tiene 650 de vida, no se repara solo y tiene que detenerse para disparar.
 
 La IA mezcla Mamuts y Juggernauts en su producción cuando tiene la fábrica correspondiente reparada.

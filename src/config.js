@@ -180,7 +180,7 @@ U({ ...MAMMOTH, id: 'm_mammoth', team: 'machine' });
 const JUGGERNAUT = { role: 'juggernaut', name: 'Juggernaut', cost: 2000, time: 36, producer: 'juggernaut',
   hp: 650, speed: 3.8, turn: 2, radius: 1.9, cls: 'armor', height: 4.6, turret: true, turretTurn: 1.8,
   sight: 30,
-  weapon: { range: 30, damage: 30, cd: 3.2, proj: 'arty', splash: 3.5, salvo: 3, salvoGap: 0.18,
+  weapon: { range: 30, damage: 30, cd: 3.2, proj: 'arty', lob: 0.15, splash: 3.5, salvo: 3, salvoGap: 0.18,
     mult: { light: 1, armor: 0.9, building: 1.25 } },
   desc: 'Caminante de artillería de antes de la guerra: dispara salvas de tres cañones desde lejos. Menos blindado que el Mamut y tiene que detenerse para disparar.' };
 U({ ...JUGGERNAUT, id: 'h_juggernaut', team: 'human' });
