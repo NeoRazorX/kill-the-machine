@@ -45,7 +45,7 @@ export class Unit {
   }
 
   recordKill(victim) {
-    if (this.dead || !isCombatUnit(this) || victim.kind !== 'unit' || victim.team === this.team) return;
+    if (this.dead || !isCombatUnit(this) || victim.team === this.team) return;
     this.kills++;
     const nextRank = this.kills >= RANKS[2].kills ? 2 : this.kills >= RANKS[1].kills ? 1 : 0;
     if (nextRank === this.rank) return;

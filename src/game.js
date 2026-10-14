@@ -523,9 +523,9 @@ export class Game {
     e.hp = 0;
     this.teams[e.team].stats.lost++;
     if (byTeam && this.teams[byTeam]) this.teams[byTeam].stats.killed++;
+    if (source?.team === byTeam) source.recordKill?.(e);
     if (e.kind === 'unit') {
       e.dead = true;
-      if (source?.team === byTeam) source.recordKill?.(e);
       this.scene.remove(e.mesh);
       const big = e.radius > 1.1;
       this.fx.explosion(e.x, 0.6, e.z, big ? 2.4 : 1.2);
