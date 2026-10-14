@@ -171,6 +171,9 @@ export class UI {
   reqText(def) {
     const g = this.game;
     if (def.kind === 'unit') return g.requirementsMet(this.team, def) ? '' : `Requiere: ${ROLE_NAMES[def.producer]}`;
+    // Requirements gate starting a build; losing one mid-construction must not strand the queued item,
+    // or the lone struct queue stays occupied and the missing prerequisite can never be rebuilt.
+    if (g.teams[this.team].structQueue?.def === def) return '';
     const miss = (def.requires || []).filter((r) => !g.hasRole(this.team, r)).map((r) => ROLE_NAMES[r]);
     return miss.length ? `Requiere: ${miss.join(', ')}` : '';
   }
