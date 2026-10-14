@@ -11,6 +11,7 @@ const { generateCashCrates } = await import('../src/cash-crates.js');
 const { TechSites, chooseTechSites, walkDistances, fairTolerance, TECH_MIN_START, TECH_MARGIN } = await import('../src/tech-sites.js');
 const { N, CELL, SIZE, ROLE, DEFS, DIFFICULTY, START_CREDITS, TECH_IDS, TECH_SITE_COUNT, UNIT_ROLES, canCapture, other } = await import('../src/config.js');
 const { clearLine, findPath } = await import('../src/pathfinding.js');
+const { Superweapons, HQ_FLOOR } = await import('../src/superweapons.js');
 
 const results = [];
 const assert = (ok, text) => { if (!ok) throw new Error(text); results.push(`PASS ${text}`); };
@@ -120,12 +121,14 @@ function fixture({ slots = { human: 0, machine: 2 }, seed = 9, ai = null, specta
     map: new GameMap(20260), scene: new THREE.Scene(), units: [], buildings: [],
     teams: { human: newTeam(), machine: newTeam() },
     buckets: Array.from({ length: (SIZE / 8) ** 2 }, () => []), _q: [],
-    fx: { update: noop, spawn: noop, marker: noop, repairBeam: noop, fireWeapon: noop, bigExplosion: noop, explosion: noop, scorch: noop, smoke: noop },
+    fx: { update: noop, spawn: noop, marker: noop, repairBeam: noop, fireWeapon: noop, bigExplosion: noop, explosion: noop, scorch: noop, smoke: noop,
+      flash: noop, beam: noop, delayed: [] },
     audio: { play: noop, say: noop }, visuals: { updateOre: noop }, emit: (type, data) => events.push({ type, data }),
     cashCrates: { items: [], update: noop, discover: noop, discoveredBy: () => [] }, updateFog: noop, fogT: 0, oreT: 0,
     fog: new Uint8Array(N * N).fill(spectate ? 2 : 0), ais: [],
   });
   game.techSites = new TechSites(game, seed);
+  game.superweapons = new Superweapons(game);
   game.assignStarts(slots);
   game.techSites.place();
   for (const side of ['human', 'machine']) {
@@ -365,6 +368,80 @@ results.push('PASS 4 seeds: the Mammoth reaches every corner and the centre');
   assert(walker.pitch < 0.01, 'with no target the guns return to level');
 }
 
+// ------------------------------------------------------------ Superweapons
+{
+  assert(DEFS.t_silo.superweapon.kind === 'nuke' && DEFS.t_ion.superweapon.kind === 'ion' &&
+    DEFS.t_silo.superweapon.radius > DEFS.t_ion.superweapon.radius && DEFS.t_silo.superweapon.delay > DEFS.t_ion.superweapon.delay &&
+    DEFS.t_silo.superweapon.charge > DEFS.t_ion.superweapon.charge, 'the missile hits wider but slower and charges longer than the ion cannon');
+  const { game, events } = fixture({ spectate: false });
+  const sw = game.superweapons, site = forceSite(game, 't_ion'), W = site.def.superweapon;
+  run(game, 3);
+  assert(!site.tech.charge && !sw.status('human').own.length, 'a ruin does not charge');
+  site.team = 'human'; site.tech.state = 'online'; site.tech.progress = 1; game.recomputePower();
+  assert(game.teams.human.power.use === 60, 'the repaired weapon draws power');
+  run(game, 5);
+  assert(game.lowPower('human') && !site.tech.charge, 'without enough power it does not charge');
+  addStructure(game, 'human', 'power');
+  run(game, 10);
+  assert(Math.abs(site.tech.charge - 10) < 0.2 && !sw.isReady(site) && sw.status('human').own[0] === site, 'with power it charges over time');
+  assert(sw.status('machine').enemy.length === 0, 'the enemy only tracks a superweapon it has discovered');
+  site.tech.found.machine = true;
+  assert(sw.status('machine').enemy[0] === site, 'once discovered, the enemy sees its countdown');
+  site.tech.charge = W.charge - 0.5;
+  run(game, 1);
+  assert(sw.isReady(site) && events.some((e) => e.type === 'toast' && /listo/.test(e.data.text)), 'when charged it is ready and the owner is told');
+  run(game, 30);
+  assert(sw.isReady(site) && site.tech.charge === W.charge, 'a ready weapon waits for its owner');
+  // Aiming is limited to explored ground.
+  const enemyHq = game.teamBuildings('machine', 'hq')[0];
+  assert(!sw.fire(site, enemyHq.x, enemyHq.z) && sw.isReady(site), 'it cannot be aimed into unexplored ground');
+  game.fog.fill(1);
+  // Units around the target: enemies inside, enemies outside, and one of the firing side's own.
+  const ground = (x, z, r, min = 0) => { for (let d = min; d < 40; d++) for (let a = 0; a < 6.3; a += .3) { const p = { x: x + Math.cos(a) * d, z: z + Math.sin(a) * d }; if (game.canStand(p.x, p.z, r + .3)) return p; } };
+  const at = ground(enemyHq.x, enemyHq.rect.z1 + 6, 1.5);
+  const inside = game.spawnUnit(ROLE.machine.tank, 'machine', at.x, at.z);
+  const far = ground(at.x, at.z, 1.5, W.radius + 8), outside = game.spawnUnit(ROLE.machine.tank, 'machine', far.x, far.z);
+  const near = ground(at.x, at.z, 0.7, 1.5), friend = game.spawnUnit(ROLE.human.rifle ?? ROLE.human.inf1, 'human', near.x, near.z);
+  game.rebuildHash();
+  assert(sw.fire(site, at.x, at.z) && !sw.isReady(site) && site.tech.charge === 0 && sw.strikes.length === 1, 'firing spends the charge and launches a strike');
+  assert(events.some((e) => e.type === 'alert'), 'a strike sets off an alert');
+  run(game, W.delay * 0.8);
+  assert(inside.hp === inside.maxHp, 'nothing is hit before the strike lands');
+  run(game, W.delay * 0.4);
+  assert(!sw.strikes.length && (inside.dead || inside.hp < inside.maxHp * 0.2), 'the ion beam wrecks what stands at its centre');
+  assert(outside.hp === outside.maxHp, 'units beyond the radius are untouched');
+  assert(friend.dead || friend.hp < friend.maxHp, 'the strike spares nobody, not even the side that fired');
+  // Headquarters survive any single strike.
+  enemyHq.hp = 700;
+  site.tech.charge = W.charge;
+  sw.fire(site, enemyHq.x, enemyHq.z);
+  run(game, W.delay + 0.5);
+  assert(!enemyHq.dead && Math.abs(enemyHq.hp - enemyHq.maxHp * HQ_FLOOR) < 1e-6 && !game.over, 'a superweapon never takes a headquarters below a quarter of its health');
+  // A new owner starts charging from zero.
+  site.tech.charge = W.charge;
+  const thief = game.spawnUnit(ROLE.machine.engineer, 'machine', beside(site).x, beside(site).z);
+  thief.cmdCapture(site);
+  run(game, 10, () => site.team === 'machine');
+  assert(site.team === 'machine' && site.tech.charge < 11 && !sw.isReady(site), 'capturing a superweapon restarts its charge');
+}
+{
+  // The missile: wider and slower than the ion beam.
+  const { game } = fixture();
+  const sw = game.superweapons, site = forceSite(game, 't_silo'), W = site.def.superweapon;
+  site.team = 'human'; site.tech.state = 'online'; site.tech.progress = 1; site.tech.charge = W.charge;
+  const hq = game.teamBuildings('machine', 'hq')[0];
+  const ring = [];
+  for (let a = 0; a < 6.3 && ring.length < 4; a += .4) {
+    const x = hq.x + Math.cos(a) * (W.radius - 2), z = hq.z + Math.sin(a) * (W.radius - 2);
+    if (game.canStand(x, z, 0.8)) ring.push(game.spawnUnit(ROLE.machine.inf1, 'machine', x, z));
+  }
+  sw.fire(site, hq.x, hq.z);
+  run(game, W.delay - 1);
+  assert(ring.every((u) => u.hp === u.maxHp) && sw.strikes.length === 1, 'the missile takes its time to arrive');
+  run(game, 2);
+  assert(ring.length >= 2 && ring.every((u) => u.dead), 'and kills infantry well away from the centre');
+}
+
 // -------------------------------------------------------------------- AI
 const originalRandom = Math.random;
 try {
@@ -408,6 +485,27 @@ try {
     plant.tech = { state: 'online', progress: 1, found: { [team]: true }, view: {} };
     for (let i = 0; i < 80; i++) { ai.manageUnits(); game.update(0.5); }
     assert(game.queuedCount(team, ROLE[team].juggernaut.id) + game.units.filter((u) => u.def === ROLE[team].juggernaut).length > 0, `${team}: AI builds Juggernauts`);
+  }
+  for (const team of ['human', 'machine']) {
+    // A ready superweapon is aimed at the enemy's most valuable known spot, never at home.
+    Math.random = mulberry32(13 + results.length);
+    const { game } = fixture({ ai: { team } });
+    const ai = game.ais[0], sw = game.superweapons, enemy = other(team);
+    ai.update = function () { this.updateIntel(); this.manageSuperweapons(); };
+    const site = forceSite(game, 't_silo');
+    site.team = team; site.tech.state = 'online'; site.tech.progress = 1; site.tech.charge = site.def.superweapon.charge;
+    run(game, 2);
+    assert(sw.isReady(site), `${team}: AI holds its fire without a known target`);
+    const ehq = game.teamBuildings(enemy, 'hq')[0];
+    for (const role of ['power', 'refinery', 'barracks']) addStructure(game, enemy, role);
+    game.spawnUnit(ROLE[team].inf1, team, ehq.x, ehq.rect.z1 + 30);
+    ai.corners = [];
+    for (const b of game.teamBuildings(enemy)) ai.known.add(b);
+    run(game, 2);
+    const strike = sw.strikes[0];
+    assert(strike && Math.hypot(strike.x - ehq.x, strike.z - ehq.z) < 30, `${team}: AI fires at the enemy base it has found`);
+    const home = game.teamBuildings(team, 'hq')[0];
+    assert(Math.hypot(strike.x - home.x, strike.z - home.z) > 60, `${team}: AI never aims at its own base`);
   }
   {
     // The scout keeps exploring while a site is still missing, even with no crates left.

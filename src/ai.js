@@ -30,6 +30,7 @@ export class AI {
     this.manageDefense();
     this.manageScout();
     this.manageTech();
+    this.manageSuperweapons();
   }
 
   get hq() {
@@ -317,6 +318,42 @@ export class AI {
       const a = (i / escort.length) * Math.PI * 2;
       u.cmdMove(goal.x + Math.cos(a) * 9, goal.z + Math.sin(a) * 9, true);
     });
+  }
+
+  // ---------------------------------------------------------- superarmas
+  // Fires a ready superweapon at the most valuable spot it knows of: known enemy buildings and enemy
+  // units its own forces can see, minus what it would lose of its own. Waits for a worthwhile target.
+  manageSuperweapons() {
+    const g = this.g, sw = g.superweapons;
+    if (!sw) return;
+    for (const b of sw.ready(this.team)) {
+      const t = this.superTarget(b.def.superweapon);
+      if (t) sw.fire(b, t.x, t.z);
+    }
+  }
+
+  superTarget(w) {
+    const g = this.g, R = w.radius;
+    const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
+    const seen = g.units.filter((u) => u.team === this.enemy && !u.dead && eyes.some((e) => Math.hypot(e.x - u.x, e.z - u.z) <= e.def.sight));
+    const targets = [...[...this.known].filter((b) => !b.dead && b.team === this.enemy), ...seen];
+    const worth = (e) => (e.def.role === 'hq' ? 1500 : e.def.tech ? 2000 : e.def.cost || 300) * (e.def.role === 'power' || e.def.role === 'refinery' ? 1.5 : 1);
+    // Measured like the blast: to a building's walls, to a unit's centre.
+    const reach = (e, x, z) => (e.kind === 'building' ? Math.hypot(Math.max(e.rect.x0 - x, 0, x - e.rect.x1), Math.max(e.rect.z0 - z, 0, z - e.rect.z1)) : Math.hypot(e.x - x, e.z - z));
+    // Aim points: every target, and the midpoint of every pair close enough to be caught together.
+    const points = targets.map((e) => ({ x: e.x, z: e.z }));
+    for (let i = 0; i < targets.length; i++) for (let j = i + 1; j < targets.length; j++) {
+      const a = targets[i], b = targets[j];
+      if (Math.hypot(a.x - b.x, a.z - b.z) < 2 * R + 8) points.push({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 });
+    }
+    let best = null, bestScore = w.kind === 'nuke' ? 2000 : 1200;
+    for (const p of points) {
+      let score = 0;
+      for (const e of targets) if (reach(e, p.x, p.z) <= R * 0.9) score += worth(e);
+      for (const e of eyes) if (reach(e, p.x, p.z) <= R + 4) score -= 2 * worth(e);
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+    return best;
   }
 
   sectorAt(x, z) {

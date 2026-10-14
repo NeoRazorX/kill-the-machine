@@ -217,9 +217,12 @@ export class TechSites {
     // A captured site resumes repairs for its new owner; paid work stays with the building.
     t.repairing = t.state === 'repairing';
     t.waiting = false;
+    // A superweapon starts charging again for its new owner.
+    t.charge = 0; t.announcedReady = false;
     // Work in progress belonged to the old owner and is lost with the building.
     b.target = null; b.lastHit = -99; b.queue = []; b.rally = null;
     g.consumeUnit(unit);
+    g.recomputePower();
     if (this.inSight(b)) g.fx.marker(b.x, b.z, 'rally');
     // The player learns at once about their own losses; anything else only when seen.
     this.refreshView(b, prev === g.player || unit.team === g.player);
@@ -243,7 +246,8 @@ export class TechSites {
     g.fx.bigExplosion(b.x, b.z, b.w * CELL, b.h * CELL, b.def.height);
     g.audio.play('bigexplosion', b.x, b.z);
     b.team = null; b.hp = b.maxHp * b.def.ruin; b.target = null; b.queue = []; b.rally = null;
-    Object.assign(t, { state: 'ruin', progress: 0, paid: 0, repairing: false, waiting: false });
+    Object.assign(t, { state: 'ruin', progress: 0, paid: 0, repairing: false, waiting: false, charge: 0, announcedReady: false });
+    g.recomputePower();
     this.refreshView(b, prev === g.player);
     if (prev === g.player && !g.spectate) g.emit('toast', { text: `${b.def.name} destruido: vuelve a estar en ruinas`, kind: 'warn' });
   }
@@ -267,6 +271,7 @@ export class TechSites {
     b.hp = Math.min(b.maxHp, b.hp + b.maxHp * (1 - def.ruin) * inc);
     if (t.progress < 0.9999) return;
     t.progress = 1; t.state = 'online'; t.repairing = false;
+    g.recomputePower();
     if (b.maxHp - b.hp < 1e-6) b.hp = b.maxHp;
     if (b.team === g.player && !g.spectate) {
       g.audio.play('ready');

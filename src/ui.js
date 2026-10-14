@@ -5,6 +5,7 @@ import { isCombatUnit, experienceText } from './experience.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const clock = (s) => { const t = Math.ceil(s); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 
 // Renderiza cada modelo 3D a un icono con un renderer auxiliar.
 export function makeIcons(defs) {
@@ -59,6 +60,12 @@ export class UI {
     this.resize();
     window.addEventListener('resize', () => this.resize());
 
+    // A ready superweapon of one's own is a button that starts aiming.
+    $('supers').onclick = (e) => {
+      const el = e.target.closest('.sw.own.ready');
+      const b = el && game.techSites.items.find((s) => String(s.id) === el.dataset.id);
+      if (b && !game.spectate) input.beginSuperTarget(b);
+    };
     $('btn-pause').onclick = () => this.togglePause();
     $('btn-mute').onclick = () => this.toggleMute();
     $('btn-help').onclick = () => $('help').classList.toggle('hidden');
@@ -227,6 +234,23 @@ export class UI {
     this.tabEls.struct.classList.toggle('alert', !!(q && q.ready));
   }
 
+  // ----------------------------------------------------------- superarmas
+  refreshSupers() {
+    const g = this.game, sw = g.superweapons, { own, enemy } = sw.status(this.team);
+    // Spectators see every working superweapon, labelled with its side.
+    const prefix = (b, mine) => (g.spectate ? `${TEAMS[b.team].name} · ` : mine ? '' : 'Enemigo · ');
+    const row = (b, mine) => {
+      const p = sw.progress(b), ready = p >= 1, low = !ready && g.lowPower(b.team);
+      const state = ready ? 'LISTO' : low ? 'SIN ENERGÍA' : clock(sw.remaining(b));
+      return `<div class="sw ${mine ? 'own' : 'enemy'}${ready ? ' ready' : ''}" data-id="${b.id}" title="${mine && ready ? 'Clic para elegir objetivo' : b.def.name}">` +
+        `<img src="${this.icons[b.def.id]}" alt=""><div class="sw-body"><div class="sw-name"><span>${prefix(b, mine)}${b.def.superweapon.title}</span><span>${state}</span></div>` +
+        `<div class="sw-bar"><i style="width:${(p * 100).toFixed(1)}%"></i></div></div></div>`;
+    };
+    const all = g.spectate ? sw.sites.filter((b) => sw.online(b)) : null;
+    const html = all ? all.map((b) => row(b, false)).join('') : own.map((b) => row(b, true)).join('') + enemy.map((b) => row(b, false)).join('');
+    if (html !== this.supersHtml) { this.supersHtml = html; $('supers').innerHTML = html; }
+  }
+
   // ----------------------------------------------------------- selección
   refreshSelPanel(force = false) {
     const sel = this.input.sel, panel = $('selpanel');
@@ -286,6 +310,12 @@ export class UI {
   techStatus(b) {
     const g = this.game, v = this.techView(b), own = v.team === g.player && !g.spectate;
     if (v.state === 'online') {
+      const sw = g.superweapons;
+      if (b.def.superweapon) {
+        if (!own) return 'Operativa';
+        if (sw.isReady(b)) return `${b.def.superweapon.title} LISTO · pulsa su botón en la barra lateral`;
+        return `Cargando ${Math.floor(sw.progress(b) * 100)} % · ${clock(sw.remaining(b))}` + (g.lowPower(b.team) ? ' · SIN ENERGÍA' : '');
+      }
       if (!b.def.produces) return 'Operativa · sistema de armas aún sin activar';
       const unit = Object.values(DEFS).find((d) => d.producer === b.def.produces);
       return own ? `Operativa · construye el ${unit.name} desde Vehículos · clic derecho: punto de reunión` : 'Operativa';
@@ -401,6 +431,13 @@ export class UI {
       c.fillStyle = TEAMS[u.team].css;
       const s = u.radius > 2 ? 4 : u.radius > 1.1 ? 3 : 2;
       c.fillRect(u.x * k - s / 2, u.z * k - s / 2, s, s);
+    }
+    // superarmas en camino
+    for (const s of g.superweapons.strikes) {
+      c.strokeStyle = s.sw.kind === 'ion' ? '#6fd8ff' : '#ff4a3a'; c.lineWidth = 2;
+      c.globalAlpha = 0.5 + 0.5 * Math.sin(g.time * 10);
+      c.beginPath(); c.arc(s.x * k, s.z * k, Math.max(4, s.sw.radius * k), 0, 6.3); c.stroke();
+      c.globalAlpha = 1;
     }
     // alertas
     this.pings = this.pings.filter((p) => g.time - p.t < 3.5);
@@ -539,8 +576,25 @@ export class UI {
       c.fillStyle = 'rgba(92,240,138,0.12)'; c.fillRect(x, y, w, h);
       c.strokeStyle = 'rgba(92,240,138,0.9)'; c.lineWidth = 1; c.strokeRect(x + 0.5, y + 0.5, w, h);
     }
-    $('modehint').classList.toggle('hidden', !(inp.attackMode || inp.placing));
-    $('modehint').textContent = inp.attackMode ? 'ATACAR-MOVER · clic izquierdo en el destino · Esc cancela' : (inp.placing ? `Colocando: ${inp.placing.name} · clic izquierdo coloca · clic derecho cancela` : '');
+    // Superweapon aim: the blast radius on the ground under the cursor.
+    const st = inp.superTarget;
+    if (st && inp.mouse.inside) {
+      const gp = inp.groundAt(inp.mouse.cx, inp.mouse.cy);
+      if (gp) {
+        const R = st.def.superweapon.radius, ok = g.superweapons.canTarget(st.team, gp.x, gp.z);
+        c.strokeStyle = ok ? (st.def.superweapon.kind === 'ion' ? '#6fd8ff' : '#ff6a50') : '#888';
+        c.fillStyle = ok ? 'rgba(255,90,60,0.12)' : 'rgba(128,128,128,0.1)';
+        c.lineWidth = 2; c.beginPath();
+        for (let i = 0; i <= 48; i++) {
+          const a = (i / 48) * Math.PI * 2, p = inp.project(gp.x + Math.cos(a) * R, 0.2, gp.z + Math.sin(a) * R);
+          if (i) c.lineTo(p.x, p.y); else c.moveTo(p.x, p.y);
+        }
+        c.fill(); c.stroke();
+      }
+    }
+    $('modehint').classList.toggle('hidden', !(inp.attackMode || inp.placing || st));
+    $('modehint').textContent = st ? `${st.def.superweapon.title.toUpperCase()} · clic izquierdo en una zona explorada · Esc o clic derecho cancela` :
+      inp.attackMode ? 'ATACAR-MOVER · clic izquierdo en el destino · Esc cancela' : (inp.placing ? `Colocando: ${inp.placing.name} · clic izquierdo coloca · clic derecho cancela` : '');
   }
 
   // ---------------------------------------------------------------- ciclo
@@ -563,6 +617,7 @@ export class UI {
       this.t = 0;
       this.refreshItems();
       this.refreshSelPanel();
+      this.refreshSupers();
     }
     this.drawMinimap();
   }

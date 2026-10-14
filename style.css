@@ -34,7 +34,7 @@ button { font: inherit; cursor: pointer; }
 .tab { flex: 1; padding: 6px 2px; background: var(--panel); border: 1px solid var(--line); color: var(--dim); border-radius: 4px 4px 0 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
 .tab.active { background: var(--panel2); color: #fff; border-bottom-color: var(--human); box-shadow: inset 0 -2px 0 var(--human); }
 .tab.alert::after { content: " ●"; color: var(--good); animation: blink 0.8s infinite; }
-#build { flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-content: start; padding: 6px; background: var(--panel2); border: 1px solid var(--line); border-radius: 0 0 4px 4px; margin-top: -8px; }
+#build { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: max-content; scrollbar-width: thin; scrollbar-color: #2a3a48 transparent; gap: 6px; align-content: start; padding: 6px; background: var(--panel2); border: 1px solid var(--line); border-radius: 0 0 4px 4px; margin-top: -8px; }
 .item { position: relative; background: #0c141c; border: 1px solid var(--line); border-radius: 4px; padding: 4px; text-align: center; cursor: pointer; overflow: hidden; transition: border-color .12s, transform .08s; }
 .item:hover { border-color: var(--human); transform: translateY(-1px); }
 .item img { width: 100%; height: 64px; object-fit: contain; display: block; }
@@ -125,3 +125,15 @@ button { font: inherit; cursor: pointer; }
 .repairbar i { display: block; height: 100%; width: 0; background: #ffb84a; }
 #repair-btn { margin-top: 8px; width: 100%; padding: 5px; background: #102a3a; border: 1px solid #2f6f95; color: #a8dcff; border-radius: 4px; font-weight: 600; }
 #repair-btn:hover { background: #163a50; }
+#supers { display: flex; flex-direction: column; gap: 4px; }
+#supers:empty { display: none; }
+.sw { display: flex; align-items: center; gap: 6px; padding: 4px 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; font-size: 12px; }
+.sw img { width: 30px; height: 30px; object-fit: contain; }
+.sw .sw-body { flex: 1; min-width: 0; }
+.sw .sw-name { display: flex; justify-content: space-between; gap: 6px; font-weight: 600; }
+.sw .sw-bar { height: 5px; margin-top: 3px; background: #05080b; border-radius: 3px; overflow: hidden; }
+.sw .sw-bar i { display: block; height: 100%; background: #6fd8ff; }
+.sw.own.ready { cursor: pointer; border-color: #ffd24a; box-shadow: 0 0 8px rgba(255,210,74,.35); animation: blink 1.2s infinite; }
+.sw.own.ready .sw-bar i { background: #ffd24a; }
+.sw.enemy { border-color: #6a2a26; color: #ffb0a8; }
+.sw.enemy .sw-bar i { background: #ff5a50; }

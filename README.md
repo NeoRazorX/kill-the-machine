@@ -38,8 +38,8 @@ Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 
 Cada partida coloca dos estructuras tecnológicas en ruinas, de tipos distintos sorteados entre
 cinco: **silo de misiles**, **cañón de iones**, **fábrica Mamut**, **fábrica Juggernaut** y
-**hangar de zepelines**. Las fábricas Mamut y Juggernaut ya funcionan (ver abajo); las demás se
-capturan y se reparan, y sus armas y unidades llegarán en las siguientes fases. Se colocan después de sortear las esquinas, a la misma distancia a pie
+**hangar de zepelines**. Todas funcionan salvo el hangar, que se captura y se repara pero cuyo
+zepelín llegará en la siguiente fase. Se colocan después de sortear las esquinas, a la misma distancia a pie
 (medida con la holgura del vehículo más grande) de las dos bases y lejos de ambas. Nunca quedan
 sobre caminos, mineral ni cajas, y dejan un pasillo libre alrededor. Si con dos esquinas vecinas no hay sitio exactamente
 entre ambas, se admite poco más de margen; si aun así no basta, las dos estructuras se compensan
@@ -68,6 +68,22 @@ tendida que la de la artillería (uno por cañón, con daño en área y más da�
 dispara. A cambio tiene 650 de vida, no se repara solo y tiene que detenerse para disparar.
 
 La IA mezcla Mamuts y Juggernauts en su producción cuando tiene la fábrica correspondiente reparada.
+
+**Superarmas** (`src/superweapons.js`): el **silo de misiles** y el **cañón de iones** reparados
+consumen 60 de energía y empiezan a cargarse: 6 min el misil nuclear y 4 min el cañón de iones.
+Sin energía suficiente la carga se detiene, y vuelve a cero cuando la estructura cambia de manos.
+La carga aparece en la barra lateral. Cuando está lista, su botón parpadea: se pulsa y se hace clic en
+una zona ya explorada, con una vista previa del radio bajo el cursor (Esc o clic derecho cancela).
+- **Misil nuclear**: tarda 8 s en caer, radio 11 y 1000 de daño en el centro.
+- **Cañón de iones**: tarda 1,5 s, radio 5 y 1200 de daño en el centro.
+
+El daño baja hasta el 40 % en el borde y alcanza a todos, también al bando que dispara. Ningún impacto
+deja un centro de mando por debajo de una cuarta parte de su vida, así que una superarma sola no
+acaba la partida. Todos ven el círculo del impacto en el suelo y en el minimapa mientras llega, y el
+bando atacado recibe un aviso. Como en Command & Conquer, cada bando ve en su barra lateral la cuenta
+atrás de las superarmas enemigas que ha descubierto. La IA dispara las suyas contra el punto más
+valioso que conoce (edificios descubiertos y unidades a la vista, sobre todo energía y refinerías),
+evita alcanzar lo suyo y espera si no hay un objetivo que merezca la pena.
 
 La IA busca las estructuras con su explorador y, pasado un tiempo según la dificultad (7 min en
 Fácil, 3 min 20 s en Normal y 1 min 30 s en Difícil), envía un ingeniero escoltado a la más cercana

@@ -10,6 +10,7 @@ import { GameAudio } from './audio.js';
 import { AI } from './ai.js';
 import { CashCrates, CASH_CRATE_RADIUS } from './cash-crates.js';
 import { TechSites } from './tech-sites.js';
+import { Superweapons } from './superweapons.js';
 import { nearestFreeCell, canOccupy } from './pathfinding.js';
 
 const HASH = 8, HN = SIZE / HASH;
@@ -47,6 +48,7 @@ export class Game {
     this.initFog();
     this.cashCrates = new CashCrates(this);
     this.techSites = new TechSites(this);
+    this.superweapons = new Superweapons(this);
   }
 
   // Themes only change the look of the map, so they can be swapped from the menu before starting.
@@ -270,6 +272,8 @@ export class Game {
       let prod = 0, use = 0;
       for (const b of this.buildings) {
         if (b.team !== k || b.dead || !b.complete) continue;
+        // Tech structures only draw power once repaired.
+        if (b.tech && b.tech.state !== 'online') continue;
         if (b.def.power > 0) prod += b.def.power; else use -= b.def.power;
       }
       const t = this.teams[k];
@@ -597,6 +601,7 @@ export class Game {
     if (this.fogT <= 0) { this.fogT = 0.18; this.updateFog(); this.cashCrates.discover(); this.techSites.discover(); this.foundations?.update(); }
     this.cashCrates.update();
     this.techSites.update(dt);
+    this.superweapons?.update(dt);
 
     this.oreT += dt;
     if (this.oreT >= 1) {

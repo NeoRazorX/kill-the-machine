@@ -12,7 +12,7 @@ export class Input {
     this.game = game; this.camera = camera; this.dom = renderer.domElement; this.sun = sun;
     this.target = { x: SIZE / 2, z: SIZE / 2 }; this.dist = 70;
     this.sel = []; this.groups = {}; this.lastGroupKey = null; this.lastGroupT = 0;
-    this.placing = null; this.ghost = null; this.attackMode = false;
+    this.placing = null; this.ghost = null; this.attackMode = false; this.superTarget = null;
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, inside: false };
     this.drag = null; this.pan = null; this.hover = null;
@@ -248,11 +248,28 @@ export class Input {
     this.game.audio.play('attack');
   }
 
+  // ---------------------------------------------------------- superarmas
+  beginSuperTarget(b) {
+    if (!this.game.superweapons.isReady(b) || b.team !== this.player) return;
+    this.cancelPlacement();
+    this.attackMode = false;
+    this.superTarget = b;
+    this.game.audio.play('click');
+  }
+
+  fireSuperAt(cx, cy) {
+    const g = this.game, b = this.superTarget, gp = this.groundAt(cx, cy);
+    if (!b || !gp) return;
+    if (g.superweapons.fire(b, gp.x, gp.z)) { this.superTarget = null; g.audio.play('attack'); return; }
+    g.audio.play('error');
+    if (this.ui) this.ui.toast('Solo puedes apuntar a zonas exploradas del mapa', 'warn');
+  }
+
   // ------------------------------------------------------- colocar edificio
   beginPlacement(def) {
     this.cancelPlacement();
     this.placing = def;
-    this.attackMode = false;
+    this.attackMode = false; this.superTarget = null;
     const grp = new THREE.Group();
     const model = buildBuildingModel(def).group;
     const ghostMat = new THREE.MeshBasicMaterial({ color: 0x66ff88, transparent: true, opacity: 0.45, depthWrite: false });
@@ -352,11 +369,13 @@ export class Input {
     if (e.button === 2) {
       if (this.placing) { this.cancelPlacement(); return; }
       if (this.attackMode) { this.attackMode = false; return; }
+      if (this.superTarget) { this.superTarget = null; return; }
       this.commandAt(e.clientX, e.clientY);
       return;
     }
     if (e.button !== 0) return;
     if (this.placing) { this.tryPlace(); return; }
+    if (this.superTarget) { this.fireSuperAt(e.clientX, e.clientY); return; }
     if (this.attackMode) { this.attackMode = false; this.attackMoveAt(e.clientX, e.clientY); return; }
     this.drag = { x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, active: false, shift: e.shiftKey };
   }
@@ -409,11 +428,11 @@ export class Input {
     if (down) this.keys.add(code); else this.keys.delete(code);
     if (!down) return;
     const g = this.game;
-    if (code === 'Escape') { this.cancelPlacement(); this.attackMode = false; this.setSelection([], true); return; }
+    if (code === 'Escape') { this.cancelPlacement(); this.attackMode = false; this.superTarget = null; this.setSelection([], true); return; }
     if (code === 'KeyP') { if (this.ui) this.ui.togglePause(); return; }
     if (code === 'KeyM') { if (this.ui) this.ui.toggleMute(); return; }
     if (g.over) return;
-    if (code === 'KeyA' && !e.ctrlKey) { if (this.selUnits().some((u) => u.def.weapon || u.def.repair)) { this.attackMode = true; this.cancelPlacement(); } return; }
+    if (code === 'KeyA' && !e.ctrlKey) { if (this.selUnits().some((u) => u.def.weapon || u.def.repair)) { this.attackMode = true; this.superTarget = null; this.cancelPlacement(); } return; }
     if (code === 'KeyA' && e.ctrlKey) { e.preventDefault(); this.setSelection(g.units.filter((u) => u.team === this.player && !u.dead)); return; }
     if (code === 'KeyS') { for (const u of this.selUnits()) u.cmdStop(); g.audio.play('order'); return; }
     if (code === 'KeyH') { const hq = g.teamBuildings(this.player, 'hq')[0]; if (hq) { this.centerOn(hq.x, hq.z); } return; }
@@ -464,10 +483,11 @@ export class Input {
 
     this.sel = this.sel.filter((e) => !e.dead);
     this.updateGhost();
-    this.hover = this.mouse.inside && !this.drag?.active && !this.placing ? this.pickEntity(this.mouse.cx, this.mouse.cy) : null;
+    if (this.superTarget && !this.game.superweapons.isReady(this.superTarget)) this.superTarget = null;
+    this.hover = this.mouse.inside && !this.drag?.active && !this.placing && !this.superTarget ? this.pickEntity(this.mouse.cx, this.mouse.cy) : null;
 
     let cur = 'default';
-    if (this.placing || this.attackMode) cur = 'crosshair';
+    if (this.placing || this.attackMode || this.superTarget) cur = 'crosshair';
     else if (this.hover && this.selUnits().some((u) => canCapture(u, this.hover))) cur = 'copy';
     else if (this.hover && this.hover.team && this.hover.team !== this.player && this.selUnits().some((u) => u.def.weapon)) cur = 'crosshair';
     else if (this.hover && this.hover.team === this.player && this.hover.hp < this.hover.maxHp && this.selUnits().some((u) => canRepair(u, this.hover))) cur = 'cell';
