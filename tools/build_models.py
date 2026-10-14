@@ -465,17 +465,17 @@ def artillery():
     save('h_arty')
 
 
-def harvester(machine=False):
+def harvester():
+    # h_harv: wheeled ore truck with an open cargo bin (m_harv is the ore beetle further down).
     reset()
-    hull, edge, base, accent = (MACHINE,MPLATE,BLACK,RED) if machine else (OLIVE,LIGHT,DARK,BLUE)
-    objects = tracked_chassis(True) if machine else [box('Chassis',(2,.37,3.4),(0,.68,0),DARK,.07)]
-    if not machine:
-        for s in (-1,1):
-            for z in (-1.15,0,1.15):
-                objects += [cyl('Tire',.46,.38,(s*.99,.46,z),DARK,'x'),
-                            cyl('Hub',.23,.025,(s*1.19,.46,z),STEEL,'x')]
+    hull, edge, base, accent = OLIVE, LIGHT, DARK, BLUE
+    objects = [box('Chassis',(2,.37,3.4),(0,.68,0),DARK,.07)]
+    for s in (-1,1):
+        for z in (-1.15,0,1.15):
+            objects += [cyl('Tire',.46,.38,(s*.99,.46,z),DARK,'x'),
+                        cyl('Hub',.23,.025,(s*1.19,.46,z),STEEL,'x')]
     objects += [armor('Cab',1.72,1.2,.83,1.86,.35,(0,1.04),hull),
-                box('Windscreen',(1.3,.32,.07),(0,1.53,1.57),GLASS if not machine else RED),
+                box('Windscreen',(1.3,.32,.07),(0,1.53,1.57),GLASS),
                 box('Bumper',(1.8,.2,.2),(0,.76,1.83),base)]
     # Open cargo bin: the runtime hides the mineral mesh when the load is empty.
     for s in (-1,1):
@@ -487,15 +487,7 @@ def harvester(machine=False):
     fill = empty('fill',(0,1.27,-.62))
     fill['height'] = .55
     merge('Mineral load',[box('Ore', (1.48,.55,1.57),(0,1.27,-.62),TEAL,.04)],fill)
-    if machine:
-        drill = empty('drill',(0,.77,1.68))
-        obj = cone('Drill bit',.43,.04,.95,(0,.77,2.04),STEEL,8)
-        obj.rotation_euler.x = math.pi/2
-        objects = [obj]
-        for z,r in ((1.72,.38),(1.98,.27),(2.22,.16)):
-            objects.append(torus('Cutting edge',r,.055,(0,.77,z),ORANGE,'z'))
-        merge('Borer',objects,drill)
-    save('m_harv' if machine else 'h_harv')
+    save('h_harv')
 
 
 def drone():
@@ -2507,12 +2499,242 @@ def welder():
     empty('muzzle', tuple(tip))
     save('m_welder')
 
+# ---------------------------------------------------------------- Recolector (m_harv)
+# Machine ore harvester: a heavy ore beetle on four short, massive legs. A rotary cutter wheel
+# with orange carbide teeth spins in a hooded head between two crusher mandibles; a belt
+# conveyor climbs the spine from the intake to an open hopper over the abdomen, where the
+# teal ore heap shows from above. The heap's vertical extent is the `fill` height, centred on
+# the node, so the game can grow it from the hopper floor.
+# Legs as (side, hip x, hip z, splay in degrees); 0/2 and 1/3 are the diagonal gait pairs.
+HARV_LEGS = ((-1,.55,.5,58), (1,.55,.5,58), (1,.55,-1.15,100), (-1,.55,-1.15,100))
+HARV_HIP = .84
+HARV_HUB = (0,.8,1.86)          # `drill` pivot: centre of the cutter wheel, spinning about +Z
+HARV_BIN = (.64,-1.84,-.46,1.1,1.9)     # hopper interior: half width, rear z, front z, floor, wall top
+HARV_BELT = ((0,1.0,1.32), (0,1.95,-.3))   # conveyor belt surface: intake end, head pulley
+
+
+def harv_leg(i, side, hx, hz, splay):
+    # Same convention as welder_leg, but shorter and heavier: the knee stays low under the
+    # hopper's flared walls and each leg ends in a broad, three-clawed stomping foot.
+    hx *= side
+    h = HARV_HIP
+    pivot = empty(f'spider_{i}', (hx,h,hz))
+    P = lambda u, y: (hx, y, hz + u)
+    profile = lambda name, pts, w, tint, dx=0: prism(name, [(hz+u, y) for u,y in pts], hx+dx-w, hx+dx+w, tint, 'zy')
+    knee, ankle = (.45,1.14), (.78,.3)
+    parts = [box('Coxa',(.36,.3,.34),P(.14,h),MPLATE,0),
+             rod('Coxa joint',.17,P(.28,h+.02),.36,BLACK,'x',10),
+             bone('Femur',P(.28,h+.02),P(*knee),.44,.38,.08,MACHINE,.02),
+             rod('Knee joint',.18,P(*knee),.38,BLACK,'x',10),
+             rod('Knee hub',.11,P(*knee),.44,MPLATE,'x',8),
+             profile('Knee guard',[(.34,1.26),(.5,1.36),(.66,1.26),(.62,1.08),(.5,1.2)],.15,MPLATE),
+             bone('Tibia armor',P(*knee),P(.74,.52),.44,.4,.1,MPLATE,.02),
+             beam('Tibia strut',P(.74,.62),P(*ankle),.2,BLACK,0),
+             strut('Knee ram',P(.1,h-.14),P(.48,.8),.06,BLACK),
+             strut('Knee ram rod',P(.48,.8),P(.64,.8),.035,STEEL,5),
+             rod('Ankle joint',.13,P(*ankle),.38,MACHINE,'x',8),
+             profile('Foot pad',[(.62,.32),(.86,.3),(.98,.14),(1.0,.04),(.54,.04),(.52,.18)],.2,MACHINE),
+             profile('Sole',[(.5,0),(1.02,0),(1.02,.05),(.5,.05)],.23,BLACK)]
+    for dx in (-.14,0,.14):
+        parts.append(profile('Toe claw',[(.94,.14),(1.06,0),(.94,0)],.04,BLACK,dx))
+    merge('Leg', parts, pivot)
+    pivot.rotation_euler.z = side*math.radians(splay)
+    return pivot
+
+
+def harv_cutter():
+    # Rotary cutter wheel facing +Z: six spokes on a dark face, carbide picks on the spokes and
+    # around the drum rim, and a pilot bit. Six-fold symmetric, so it reads the same at any angle.
+    x0, y0, z0 = HARV_HUB
+    spin = lambda objs, a: group(objs, (0,0,a), HARV_HUB)
+    pick = lambda name, pts, w: prism(name, [(z0+z, y0+y) for z,y in pts], -w, w, ORANGE, 'zy')
+    parts = [rod('Cutter back',.62,(0,y0,z0-.04),.08,BLACK,'z',18),
+             rod('Cutter drum',.68,(0,y0,z0+.08),.16,MACHINE,'z',18),
+             rod('Drum lip',.7,(0,y0,z0+.15),.04,MPLATE,'z',18),
+             rod('Cutter face',.6,(0,y0,z0+.17),.03,BLACK,'z',18),
+             rod('Cutter hub',.2,(0,y0,z0+.22),.1,MPLATE,'z',12),
+             rod('Hub ring',.13,(0,y0,z0+.275),.03,BLACK,'z',12),
+             xform(cone('Pilot bit',.13,.035,.14,(0,y0,z0+.33),STEEL,12),(math.pi/2,0,0),(0,y0,z0+.33)),
+             xform(cone('Pilot tip',.04,.0,.05,(0,y0,z0+.425),ORANGE,8),(math.pi/2,0,0),(0,y0,z0+.425))]
+    for k in range(6):
+        a = k*math.tau/6
+        parts += spin([prism('Cutter spoke',[(-.07,.17),(.07,.17),(.09,.66),(-.09,.66)],z0+.18,z0+.25,MPLATE,'xy',.012),
+                       pick('Spoke pick',[(.25,.33),(.36,.4),(.25,.47)],.04)], a)
+        parts += spin([box('Muck slot',(.12,.3,.02),(0,y0+.42,z0+.186),'#0b0f15',0)], a + math.pi/6)
+    for k in range(12):
+        parts += spin([pick('Rim pick',[(.1,.6),(.27,.66),(.22,.73),(.1,.71)],.045)], k*math.tau/12 + math.pi/12)
+    return parts
+
+
+def ore_heap(seed=5):
+    # Lumpy ore heap filling the hopper: flat bottom on the floor, vertical sides, a crest just
+    # over the rim. One heightfield mesh plus a few crystal shards sunk into its surface.
+    hw, z0, z1, floor, top = HARV_BIN
+    hw, z0, z1 = hw-.02, z0+.02, z1-.02
+    crest, edge = top+.11, top-.18
+    rnd = random.Random(seed)
+    nx, nz = 6, 8
+    height = lambda u, v: crest - (crest-edge)*min(1, .6*max(u,v)**1.3 + .4*(u*u+v*v)/2)
+    grid = []
+    for j in range(nz+1):
+        for i in range(nx+1):
+            u, v = abs(2*i/nx-1), abs(2*j/nz-1)
+            y = height(u, v)
+            if 0 < i < nx and 0 < j < nz and (u, v) != (0, 0):
+                y -= rnd.uniform(0, .09)
+            grid.append((-hw + 2*hw*i/nx, y, z0 + (z1-z0)*j/nz))
+    idx = lambda i, j: j*(nx+1) + i
+    ring = ([idx(i,0) for i in range(nx+1)] + [idx(nx,j) for j in range(1,nz+1)] +
+            [idx(i,nz) for i in range(nx-1,-1,-1)] + [idx(0,j) for j in range(nz-1,0,-1)])
+    n = len(grid)
+    verts = grid + [(grid[k][0], floor, grid[k][2]) for k in ring]
+    faces = [(idx(i,j), idx(i+1,j), idx(i+1,j+1), idx(i,j+1)) for j in range(nz) for i in range(nx)]
+    m = len(ring)
+    faces += [(ring[k], ring[(k+1)%m], n+(k+1)%m, n+k) for k in range(m)]
+    faces.append(tuple(n+k for k in range(m)))
+    parts = [solid('Ore heap', verts, faces, TEAL)]
+    # Crystal shards breaking the surface, kept under the 2.1 height budget.
+    for x, z, r, tilt in ((-.26,-.8,.14,(.35,0,.5)), (.24,-1.38,.17,(-.3,0,-.4)), (.06,-1.02,.15,(.15,0,.2)),
+                          (-.3,-1.56,.12,(-.4,0,.6)), (.36,-.78,.11,(.3,0,-.7)), (-.08,-1.3,.1,(0,0,-.3))):
+        u, v = abs(x/hw), abs((2*z-z0-z1)/(z1-z0))
+        y = min(height(u, v) - .03, 2.08 - r*1.35)
+        parts.append(xform(gem('Ore crystal',(r*.7,r*1.4,r*.7),(x,y,z),TEAL),tilt,(x,y,z)))
+    return parts
+
+
+def harv_hopper():
+    hw, z0, z1, floor, top = HARV_BIN
+    yb, flare, knee = 1.0, .98, 1.42     # vertical lower walls clear the knees; flared above
+    section = [(-hw-.05,yb),(hw+.05,yb),(hw+.05,knee),(flare,top),(-flare,top),(-hw-.05,knee)]
+    parts = [box('Hopper floor',(2*hw+.02,floor-yb,z1-z0),(0,(floor+yb)/2,(z0+z1)/2),BLACK,0),
+             prism('Hopper front',section,z1,z1+.14,MPLATE,'xy',.02),
+             prism('Hopper rear',section,z0-.14,z0,MPLATE,'xy',.02),
+             box('Hopper rim',(2*flare+.04,.05,.18),(0,top+.025,z1+.07),BLACK,0),
+             box('Hopper rim',(2*flare+.04,.05,.18),(0,top+.025,z0-.07),BLACK,0),
+             armor('Abdomen',1.28,1.7,.52,yb+.02,.16,(0,(z0+z1)/2),MACHINE)]
+    for s in (-1,1):
+        side = [(s*hw,yb),(s*(hw+.05),yb),(s*(hw+.05),knee),(s*flare,top),(s*hw,top)]
+        parts += [prism('Hopper side',side,z0,z1,MACHINE,'xy',.02),
+                  box('Hopper liner',(.02,top-floor,z1-z0),(s*(hw-.005),(top+floor)/2,(z0+z1)/2),BLACK,0),
+                  box('Hopper rim',(flare-hw+.06,.05,z1-z0+.3),(s*(hw+flare)/2,top+.025,(z0+z1)/2),MPLATE,0)]
+        # Stiffener ribs down the flared walls.
+        for z in (z0+.16,z1-.16):
+            rib = [(s*(hw+.05),yb+.04),(s*(hw+.11),yb+.04),(s*(hw+.11),knee-.02),(s*(flare+.06),top-.04),
+                   (s*flare,top-.04),(s*(hw+.05),knee)]
+            parts.append(prism('Hopper rib',rib,z-.04,z+.04,MPLATE,'xy'))
+    # Rear dump gate: hinged at the top, with two rams under it.
+    parts += [box('Dump gate',(1.2,.56,.05),(0,1.48,z0-.17),MACHINE,.015),
+              rod('Gate hinge',.05,(0,1.8,z0-.18),1.3,BLACK,'x',8)]
+    for s in (-1,1):
+        parts += [strut('Gate ram',(s*.5,1.02,z0-.12),(s*.5,1.3,z0-.2),.04,BLACK,6),
+                  box('Gate latch',(.12,.08,.05),(s*.4,1.24,z0-.2),BLACK,0)]
+    return parts
+
+
+def harv_conveyor():
+    A, B = Vector(HARV_BELT[0]), Vector(HARV_BELT[1])
+    d = B - A
+    L, pitch = d.length, math.atan2(d.y, -d.z)
+    n = Vector((0, -d.z, d.y)).normalized() * -1          # belt surface normal (up and forward)
+    n = n if n.y > 0 else -n
+    on = lambda t, k=0: tuple(A + d*t + n*k)
+    M = on(.5)
+    parts = [tbox('Belt',(.44,.05,L),on(.5,-.025),BLACK,(pitch,0,0),0),
+             tbox('Belt bed',(.5,.1,L-.1),on(.5,-.1),MACHINE,(pitch,0,0),0),
+             rod('Tail pulley',.07,on(0,-.07),.5,BLACK,'x',10),
+             rod('Head pulley',.08,on(1,-.08),.56,MPLATE,'x',10),
+             # Discharge hood over the head pulley, dropping the ore into the hopper.
+             tbox('Discharge hood',(.62,.05,.42),on(.93,.13),MACHINE,(pitch*.4,0,0),.012)]
+    for s in (-1,1):
+        parts += [tbox('Belt rail',(.07,.16,L+.04),(s*.26,M[1]+n.y*.03,M[2]+n.z*.03),MPLATE,(pitch,0,0),0),
+                  tbox('Hood cheek',(.04,.16,.36),(s*.29,on(.93,.06)[1],on(.93,.06)[2]),MACHINE,(pitch*.4,0,0),0)]
+    for k in range(9):
+        parts.append(tbox('Belt cleat',(.42,.035,.05),on(.06+k*.105,.015),MPLATE,(pitch,0,0),0))
+    for t in (.3,.62):
+        p = Vector(on(t,-.15))
+        for s in (-1,1):
+            parts.append(strut('Belt support',(s*.22,1.12,p.z),(s*.24,p.y,p.z),.04,BLACK,6))
+    return parts
+
+
+def harv_body():
+    hx, hy, hz = HARV_HUB
+    parts = [armor('Belly',1.0,3.1,.42,.6,.12,(0,-.25),BLACK,0),
+             loft('Thorax',[(-.5,.58,.5,1.06),(-.1,.64,.46,1.18),(.3,.58,.46,1.2),(.95,.56,.46,1.2),(1.4,.52,.5,1.05)],MACHINE,0),
+             rod('Drive housing',.48,(hx,hy,1.46),.18,MACHINE,'z',16),
+             rod('Cutter drive',.4,(hx,hy,1.63),.28,BLACK,'z',16),
+             # Intake lip under the cutter: the ore falls onto the conveyor's tail.
+             prism('Intake lip',[(1.3,.2),(1.76,.06),(1.76,.14),(1.3,.44)],-.5,.5,BLACK,'zy')]
+    # Cutter hood: an arch over the wheel with side cheeks carrying the crusher mandibles.
+    ri, ro, a0, a1, k = .77, .9, math.radians(8), math.radians(172), 14
+    arc = [(math.cos(a0+(a1-a0)*i/k), math.sin(a0+(a1-a0)*i/k)) for i in range(k+1)]
+    hood = [(hx+c*ro, hy+s*ro) for c,s in arc] + [(hx+c*ri, hy+s*ri) for c,s in reversed(arc)]
+    parts += [prism('Cutter hood',hood,1.5,1.92,MACHINE,'xy',.015),
+              prism('Hood crest',[(hx+c*(ro+.04), hy+s*(ro+.04)) for c,s in arc[4:11]] +
+                    [(hx+c*(ro-.02), hy+s*(ro-.02)) for c,s in reversed(arc[4:11])],1.48,1.86,MPLATE,'xy')]
+    for s in (-1,1):
+        jaw = [(.8,1.5),(1.02,1.55),(1.06,1.8),(1.0,2.04),(.86,2.22),(.66,2.3),(.5,2.27),(.62,2.19),
+               (.74,2.08),(.82,1.94),(.84,1.75),(.78,1.6)]
+        parts += [box('Jaw mount',(.14,.62,.4),(s*.88,.72,1.65),MACHINE,.02),
+                  rod('Jaw pivot',.1,(s*.92,.42,1.62),.3,BLACK,'y',8),
+                  prism('Crusher jaw',[(s*x,z) for x,z in jaw],.3,.5,MPLATE,'xz',.012),
+                  prism('Jaw edge',[(s*x,z) for x,z in [(.5,2.27),(.62,2.19),(.74,2.08),(.82,1.94),
+                                                         (.78,1.94),(.7,2.06),(.56,2.2)]],.33,.47,STEEL,'xz')]
+        for z in (1.8,1.96):
+            parts.append(prism('Jaw tooth',[(s*.84,z-.05),(s*.77,z+.01),(s*.82,z+.05)],.34,.46,BLACK,'xz'))
+        # Hydraulics from the thorax to the hood; the jaw rams under them.
+        parts += [strut('Hood ram',(s*.42,1.1,.98),(s*.54,1.42,1.5),.05,BLACK),
+                  strut('Hood ram rod',(s*.56,1.42,1.5),(s*.6,1.5,1.62),.03,STEEL,5),
+                  strut('Jaw ram',(s*.66,.62,1.2),(s*.86,.46,1.48),.045,BLACK,6)]
+    # Beetle head riding on the hood, over the conveyor's intake end: armoured brow, a red eye
+    # cluster and two sensor feelers reaching out over the cutter.
+    parts += [loft('Sensor head',[(1.05,.22,1.4,1.74),(1.35,.32,1.42,1.9),(1.65,.3,1.52,1.92),(1.88,.2,1.66,1.84)],MPLATE,0),
+              tbox('Head brow',(.5,.05,.34),(0,1.93,1.72),MACHINE,(.32,0,0),.01),
+              rod('Head socket',.1,(0,1.8,1.12),.1,BLACK,'z',8)]
+    for s in (-1,1):
+        parts += [gem('Main eye',(.055,.045,.035),(s*.075,1.775,1.88),RED),
+                  gem('Side eye',(.03,.026,.025),(s*.17,1.74,1.84),RED),
+                  strut('Feeler',(s*.13,1.86,1.78),(s*.22,2.0,1.98),.022,BLACK,5),
+                  strut('Feeler tip',(s*.22,2.0,1.98),(s*.3,2.02,2.14),.014,MPLATE,4),
+                  strut('Head strut',(s*.34,1.1,1.0),(s*.28,1.5,1.18),.05,BLACK,6)]
+    # Flank radiators between the legs and exhaust stacks in front of the hopper.
+    for s in (-1,1):
+        parts += [box('Radiator',(.1,.36,.62),(s*.73,.82,-.32),MACHINE,.015)]
+        for z in (-.52,-.39,-.26,-.13):
+            parts.append(box('Radiator slat',(.03,.28,.05),(s*.79,.82,z),BLACK,0))
+        parts += [rod('Exhaust stack',.08,(s*.42,1.36,-.22),.44,BLACK,'y',8),
+                  rod('Stack cap',.1,(s*.42,1.6,-.22),.06,MPLATE,'y',8),
+                  tbox('Flank armor',(.3,.05,.5),(s*.5,1.06,-.14),MPLATE,(0,0,-s*.75),0)]
+        for z in (-.3,-.14,.02):
+            parts.append(tbox('Vent',(.2,.02,.06),(s*.52,1.085,z),BLACK,(0,0,-s*.75),0))
+    for s, hx_, hz_, _ in HARV_LEGS:
+        parts.append(rod('Hip socket',.2,(s*hx_,HARV_HIP,hz_),.32,BLACK,'y',8))
+    return parts
+
+
+def ore_beetle():
+    reset()
+    for i, leg in enumerate(HARV_LEGS):
+        harv_leg(i, *leg)
+    merge('Recolector', harv_body() + harv_hopper() + harv_conveyor())
+    drill = empty('drill', HARV_HUB)
+    merge('Cutter wheel', harv_cutter(), drill)
+    heap = ore_heap()
+    bpy.context.view_layer.update()
+    ys = [(o.matrix_world @ v.co).z for o in heap for v in o.data.vertices]
+    lo, hi = min(ys), max(ys)
+    hw, z0, z1, floor, top = HARV_BIN
+    fill = empty('fill', (0, (lo+hi)/2, (z0+z1)/2))
+    fill['height'] = round(hi - lo, 4)
+    merge('Mineral load', heap, fill)
+    save('m_harv')
+
 
 BUILDERS = {
     'h_tank': tank, 'h_factory': factory,
     'h_rifle': lambda: infantry(), 'h_rocket': lambda: infantry(heavy=True),
     'm_sentinel': lambda: infantry(machine=True), 'h_arty': artillery,
-    'h_harv': lambda: harvester(), 'm_harv': lambda: harvester(True),
+    'h_harv': harvester, 'm_harv': ore_beetle,
     'h_medic': lambda: infantry(medic=True), 'h_mech': repair_truck,
     'm_nanite': nanite, 'm_welder': welder,
     'm_drone': drone, 'm_crusher': spider, 'm_siege': siege_spider,
