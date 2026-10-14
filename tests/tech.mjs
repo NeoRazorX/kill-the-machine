@@ -18,8 +18,8 @@ const assert = (ok, text) => { if (!ok) throw new Error(text); results.push(`PAS
 const noop = () => {};
 
 // ------------------------------------------------------------- definitions
-assert(TECH_IDS.length === 5 && TECH_IDS.every((id) => DEFS[id].team === null && !DEFS[id].buildable && DEFS[id].w === 4 && DEFS[id].h === 4),
-  'five neutral, unbuildable 4×4 tech structures');
+assert(TECH_IDS.length === 4 && TECH_IDS.every((id) => DEFS[id].team === null && !DEFS[id].buildable && DEFS[id].w === 4 && DEFS[id].h === 4),
+  'four neutral, unbuildable 4×4 tech structures');
 for (const team of ['human', 'machine']) {
   const e = ROLE[team].engineer;
   assert(e && e.engineer && !e.weapon && e.producer === 'barracks' && UNIT_ROLES.barracks.includes('engineer'), `${team}: unarmed engineer trained at the barracks`);
@@ -98,7 +98,7 @@ assert(!fairness.closest, `6 seeds × 6 corner pairs: fair (${JSON.stringify(fai
   assert(JSON.stringify(a) === JSON.stringify(b), 'same seed reproduces sites and types');
   const draws = new Set(), types = new Set();
   for (let k = 0; k < 12; k++) for (const s of chooseTechSites(map, starts, [], mulberry32(100 + k))) { draws.add(`${s.cx},${s.cz}`); types.add(s.id); }
-  assert(draws.size > 6 && types.size === TECH_IDS.length, 'new matches vary positions and draw all five types');
+  assert(draws.size > 6 && types.size === TECH_IDS.length, 'new matches vary positions and draw all four types');
 }
 
 // --------------------------------------------------------------- game rules
@@ -283,7 +283,11 @@ function forceSite(game, id) {
   assert(!game.requirementsMet('human', R.mammoth), 'no Mammoth while the factory is being repaired');
   site.tech.state = 'online'; site.tech.progress = 1;
   assert(game.requirementsMet('human', R.mammoth) && !game.requirementsMet('machine', ROLE.machine.mammoth), 'the repaired factory builds Mammoths for its owner only');
-  site.rally = { x: site.x, z: site.rect.z1 + 20 };
+  // A rally point on open ground some way from the factory, wherever the draw put it.
+  for (let d = 16; d < 40 && !site.rally; d += 2) for (let a = 0; a < 6.3 && !site.rally; a += .2) {
+    const x = site.x + Math.cos(a) * d, z = site.z + Math.sin(a) * d;
+    if (game.canStand(x, z, R.mammoth.radius + 1)) site.rally = { x, z };
+  }
   const credits = game.teams.human.credits = 5000;
   assert(game.queueUnit('human', R.mammoth.id), 'Mammoth queued at the factory');
   run(game, R.mammoth.time + 2, () => game.units.some((u) => u.def === R.mammoth));

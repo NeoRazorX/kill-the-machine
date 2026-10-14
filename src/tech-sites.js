@@ -9,7 +9,7 @@ const rectDist = (px, pz, r) => Math.hypot(Math.max(r.x0 - px, 0, px - r.x1), Ma
 export const TECH_MIN_START = 46;
 export const TECH_MARGIN = 3;
 const FOOTPRINT = 4;
-const ROAD_CLEARANCE = 3;
+const ROAD_CLEARANCE = 4;
 const SPACING = 40;
 // Armies move at the pace of their vehicles, so distances only use gaps the largest one fits through.
 const VEHICLE_RADIUS = 1.6;

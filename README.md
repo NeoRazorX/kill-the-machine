@@ -37,9 +37,8 @@ Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 ## Estructuras tecnológicas
 
 Cada partida coloca dos estructuras tecnológicas en ruinas, de tipos distintos sorteados entre
-cinco: **silo de misiles**, **cañón de iones**, **fábrica Mamut**, **fábrica Juggernaut** y
-**hangar de zepelines**. Todas funcionan salvo el hangar, que se captura y se repara pero cuyo
-zepelín llegará en la siguiente fase. Se colocan después de sortear las esquinas, a la misma distancia a pie
+cuatro: **silo de misiles**, **cañón de iones**, **fábrica Mamut** y **fábrica Juggernaut**.
+Se colocan después de sortear las esquinas, a la misma distancia a pie
 (medida con la holgura del vehículo más grande) de las dos bases y lejos de ambas. Nunca quedan
 sobre caminos, mineral ni cajas, y dejan un pasillo libre alrededor. Si con dos esquinas vecinas no hay sitio exactamente
 entre ambas, se admite poco más de margen; si aun así no basta, las dos estructuras se compensan

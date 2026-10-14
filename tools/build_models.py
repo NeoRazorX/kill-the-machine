@@ -38,7 +38,6 @@ SOOT = '#24221f'
 DOOR = '#6c6a62'
 CRANE = '#b48f3e'
 COPPER = '#b06f3d'
-CANVAS = '#a69f87'
 PRIMER = '#a39a84'
 GUNMETAL = '#555b57'
 SHEET = '#868d83'
@@ -1038,15 +1037,6 @@ def pipe(name, a, b, r, tint, vertices=10):
     return finish(obj, tint, .015)
 
 
-def ellipsoid(name, size, pos, tint, segments=16, rings=9):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=segments, ring_count=rings, radius=1, location=xyz(pos))
-    obj = bpy.context.object
-    obj.name = name
-    obj.scale = (size[0], size[2], size[1])
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    return finish(obj, tint)
-
-
 def bowl(name, profile, tint, thickness=.08, segments=16, arc=math.tau, start=0):
     # Solid dish around +Y at the origin; profile is [(radius, y), ...] from the centre outward.
     full = arc >= math.tau - 1e-6
@@ -1083,7 +1073,7 @@ def dish_profile(radius, depth, rings=4):
 
 
 def arch(name, x0, x1, zc, hw, h, y0, t, th0, th1, tint, segs=None):
-    # Semi-elliptic shell band along X (hangar vaults and ribs); theta 0 = front foot, pi = rear foot.
+    # Semi-elliptic shell band along X; theta 0 = front foot, pi = rear foot.
     segs = segs or max(2, round((th1-th0)/math.pi*14))
     ring = []
     for k in range(segs+1):
@@ -1648,121 +1638,8 @@ def jug_site():
     return base, intact, wreck, lamp
 
 
-# --- Zeppelin hangar: ribbed vault along X (front clamshell retracted), bomber airship, mooring mast, gas tank.
-ZEP = dict(zc=-1.3, hw=2.35, h=3.85)
-ZEP_RIBS = (-3.62,-2.42,-1.21,0,1.21,2.42,3.62)
-MAST = (2.95, 2.75)
-
-
-def zep_airship(ax, ay, az):
-    parts = [ellipsoid('Airship envelope',(3.15,1.2,1.2),(ax,ay,az),CANVAS,18,10)]
-    for dx in (-1.6,0,1.6):
-        r = 1.2*math.sqrt(1-(dx/3.15)**2) + .015
-        parts.append(xform(torus('Envelope frame',r,.045,(ax+dx,ay,az),SHEET),(0,0,math.pi/2),(ax+dx,ay,az)))
-    parts.append(xform(cone('Nose cap',.35,.05,.3,(0,0,0),SHEET,10),(0,0,-math.pi/2),(0,0,0),(ax+3.05,ay,az)))
-    for k in range(4):
-        fin = prism('Tail fin',[(ax-3.35,.2),(ax-2.15,.35),(ax-2.8,1.25),(ax-3.4,1.2)],-.035,.035,'#8e876f','xy')
-        parts.append(xform(fin,(math.pi/4+k*math.pi/2,0,0),(0,0,0),(0,ay,az)))
-    parts += [armor('Gondola',2.0,.72,.6,.92,.16,(ax+.4,az),IRON),
-              box('Gondola windows',(1.3,.12,.04),(ax+.6,.82,az+.33),GLASS,.005),
-              box('Bomb bay',(.8,.06,.4),(ax+.1,.585,az),BLACK,.005)]
-    for sz in (-1,1):
-        parts += [pipe('Engine nacelle',(ax-1.0,1.5,az+sz*1.45),(ax-.25,1.5,az+sz*1.45),.18,IRON),
-                  beam('Nacelle strut',(ax-.6,1.5,az+sz*1.3),(ax-.6,1.85,az+sz*.95),.07,DARK),
-                  box('Propeller',(.04,.7,.1),(ax-1.05,1.5,az+sz*1.45),DARK,.01),
-                  box('Propeller',(.04,.1,.7),(ax-1.05,1.5,az+sz*1.45),DARK,.01)]
-    return parts
-
-
-def zep_mast(x, z, y0=SLAB+.18, panels=None):
-    parts = truss(x, z, y0, 5.85, .72, .26, 3, 5, .12, .06, RUST, IRON, panels, math.pi/2)
-    if panels is None or 4 in panels:
-        parts += [cyl('Mast platform',.5,.12,(x,5.9,z),DARK,vertices=10),
-                  torus('Platform rail',.48,.025,(x,6.2,z),STEEL),
-                  box('Mooring winch',(.3,.22,.3),(x+.15,6.07,z-.15),IRON,.02),
-                  torus('Mooring ring',.38,.07,(x,6.4,z),CRANE,'z'),
-                  cyl('Ring hub',.1,.18,(x,6.4,z),DARK,'z',8)]
-    return parts
-
-
-def zep_site():
-    zc, hw, h = ZEP['zc'], ZEP['hw'], ZEP['h']
-    base = tech_slab(5)
-    base += [box('Hangar floor',(7.3,.03,4.75),(0,.255,zc),'#585a54',.01),
-             box('Door track',(7.5,.06,.16),(0,.27,1.12),STEEL,.01),
-             cyl('Mast footing',.95,.18,(MAST[0],.33,MAST[1]),CONCRETE_L,vertices=6),
-             torus('Mooring circle',1.1,.035,(MAST[0]-.3,.25,MAST[1]-.1),HAZARD),
-             box('Tank footing',(1.8,.12,1.8),(-2.3,.3,2.45),CONCRETE_L,.03)]
-    base += hazard(-1.4,1.6,1.5,SLAB,.22)
-    lamp_parts, lamp = beacon_post(-3.5, 3.5)
-    base += lamp_parts
-
-    intact = [arch('Hangar shell',-3.62,3.62,zc,hw,h,SLAB,.1,1.05,math.pi,SHEET),
-              arch('Retracted door',-3.5,3.5,zc,hw+.1,h+.1,SLAB,.08,1.1,1.95,'#99a096'),
-              box('Ridge vent',(6.8,.16,.45),(0,SLAB+h+.12,zc+.02),IRON,.02)]
-    for x in ZEP_RIBS:
-        intact.append(arch('Hangar rib',x-.1,x+.1,zc,hw+.16,h+.16,SLAB,.3,0,math.pi,IRON))
-    for th in (1.35,1.65):
-        intact.append(arch('Door seam',-3.5,3.5,zc,hw+.13,h+.13,SLAB,.05,th,th+.04,'#5d635b',1))
-    wall = [(zc+hw*math.cos(t*math.pi/13), SLAB+h*math.sin(t*math.pi/13)) for t in range(14)]
-    intact.append(prism('End wall',wall,-3.6,-3.48,SHEET,'zy'))
-    intact += zep_airship(.2,2.05,zc)
-    intact += zep_mast(*MAST)
-    tx, tz = -2.3, 2.45
-    intact += [ellipsoid('Gas tank',(.9,.9,.9),(tx,1.5,tz),'#b6b2a3',16,10),
-               torus('Tank band',.91,.05,(tx,1.5,tz),HAZARD),
-               cyl('Tank valve',.12,.25,(tx,2.45,tz),IRON,vertices=8),
-               pipe('Gas line',(tx+.6,.55,tz-.5),(tx+1.0,.55,1.2),.08,STEEL)]
-    for sx in (-1,1):
-        for sz in (-1,1):
-            intact.append(beam('Tank leg',(tx+sx*.62,.36,tz+sz*.62),(tx+sx*.45,1.1,tz+sz*.45),.09,IRON))
-
-    wreck = [arch('Shell remnant',-3.62,-.6,zc,hw,h,SLAB,.1,2.15,math.pi,SHEET),
-             arch('Shell remnant',-.6,1.21,zc,hw,h,SLAB,.1,2.6,math.pi,SHEET),
-             prism('Broken end wall',[(zc+hw,SLAB),(zc+hw*math.cos(.5),SLAB+h*math.sin(.5)),(zc+.6,2.5),
-                                      (zc-.3,2.0),(zc-hw*math.cos(.75),SLAB+h*math.sin(.75)),(zc-hw,SLAB)],-3.6,-3.48,SHEET,'zy')]
-    for x, spans in zip(ZEP_RIBS, (((0,.5),(1.7,math.pi)), ((0,.8),(2.2,math.pi)), ((2.5,math.pi),),
-                                   ((0,.45),(2.0,math.pi)), (), ((0,1.0),(2.4,math.pi)), ((0,1.3),))):
-        for th0, th1 in spans:
-            wreck.append(arch('Broken rib',x-.1,x+.1,zc,hw+.16,h+.16,SLAB,.3,th0,th1,IRON))
-    wreck.append(xform(arch('Toppled rib',1.11,1.31,zc,hw+.16,h+.16,SLAB,.3,0,math.pi,IRON),(0,0,.75),(1.21,SLAB,zc)))
-    panel = arch('Fallen panel',0,1.6,0,hw,h,0,.1,1.3,2.0,SHEET)
-    wreck.append(xform(panel,(.0,.3,-.2),(0,0,0),(-2.6,-2.45,.2)))
-    wreck += [tbox('Fallen panel',(1.5,.08,1.1),(2.6,.5,-.2),SHEET,(.3,.4,.25),.01),
-              tbox('Fallen panel',(1.3,.08,1.0),(-1.6,.45,.6),SHEET,(-.25,-.3,.2),.01)]
-    # Deflated envelope draped over the floor, tail fin and one frame ring still showing.
-    env = ellipsoid('Deflated envelope',(3.0,.6,1.5),(.1,.68,zc),CANVAS,18,8)
-    for v in env.data.vertices:
-        x, up = v.co.x, v.co.z
-        v.co.z = max(-.42, up + .16*math.sin(x*2.1)*math.cos(v.co.y*1.9) - (.2 if x > 1.2 else 0))
-        v.co.y *= 1 + .12*math.sin(x*3.3)
-    wreck.append(env)
-    fin = prism('Tail fin',[(-3.0,.2),(-1.9,.35),(-2.5,1.25),(-3.05,1.2)],-.035,.035,'#8e876f','xy')
-    wreck.append(xform(fin,(.45,.2,0),(0,0,0),(0,.75,zc)))
-    wreck.append(xform(torus('Exposed frame',.95,.05,(0,0,0),SHEET),(0,0,math.pi/2-.35),(0,0,0),(1.2,.98,zc)))
-    wreck.append(tbox('Crushed gondola',(2.0,.32,.7),(.9,.5,zc+1.3),IRON,(.2,.4,.25)))
-    wreck.append(pipe('Engine nacelle',(-1.6,.42,zc-1.9),(-.9,.5,zc-1.6),.18,IRON))
-    # Mooring mast snapped above its first storey and fell onto the ruins.
-    wreck += zep_mast(*MAST, panels=[0])
-    top = zep_mast(0, 0, panels=[1,2,3,4])
-    wreck += group(top, (-1.28,.62,0), (0,1.5,0), (MAST[0],-.75,MAST[1]))
-    # Gas tank split open.
-    tx, tz = -2.3, 2.45
-    shell = bowl('Ruptured tank', [(.9*math.sin(p), .9*(1-math.cos(p))) for p in (0,.45,.9,1.25)], '#9a978b', .05, 16, 5.2, .8)
-    wreck.append(xform(shell,(.25,0,.15),(0,0,0),(tx,.45,tz)))
-    for i in range(5):
-        a = i*math.tau/5 + .4
-        wreck.append(tbox('Tank petal',(.5,.55,.05),(tx+math.cos(a)*1.0,1.15,tz+math.sin(a)*1.0),'#8f8c80',(-1.0,math.pi/2-a,0),.01))
-    wreck.append(tbox('Tank shard',(.7,.05,.6),(tx+.9,.3,tz+.3),'#9a978b',(.2,.8,.1),.01))
-    for sx in (-1,1):
-        wreck.append(beam('Tank leg',(tx+sx*.62,.36,tz+.62),(tx+sx*.45,1.1,tz+.45),.09,IRON))
-    wreck += [scorch(tx,tz,1.1,70,.36), scorch(.4,.4,.9,71)]
-    wreck += rubble(.5,-.8,2.6,12,51,(SHEET,IRON,CONCRETE),.26)
-    return base, intact, wreck, lamp
-
-
 TECH_SITES = {'silo': (silo_site, 5.0), 'ion': (ion_site, 8.5), 'mammoth': (mammoth_site, 6.0),
-              'juggernaut': (jug_site, 8.0), 'zeppelin': (zep_site, 7.0)}
+              'juggernaut': (jug_site, 8.0)}
 
 
 def check_fit(label, objs, height, half=3.95):
@@ -2902,7 +2779,7 @@ BUILDERS = {
     'prop_cash_crate': cash_crate,
     'h_engineer': lambda: infantry(engineer=True), 'm_engineer': machine_engineer,
     't_silo': lambda: tech('silo'), 't_ion': lambda: tech('ion'), 't_mammoth': lambda: tech('mammoth'),
-    't_juggernaut': lambda: tech('juggernaut'), 't_zeppelin': lambda: tech('zeppelin'),
+    't_juggernaut': lambda: tech('juggernaut'),
     'h_mammoth': lambda: mammoth(BLUE), 'm_mammoth': lambda: mammoth(RED),
     'h_juggernaut': lambda: juggernaut(BLUE), 'm_juggernaut': lambda: juggernaut(RED),
 }

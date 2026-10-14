@@ -317,7 +317,6 @@ export class UI {
         if (sw.isReady(b)) return `${b.def.superweapon.title} LISTO · pulsa su botón en la barra lateral`;
         return `Cargando ${Math.floor(sw.progress(b) * 100)} % · ${clock(sw.remaining(b))}` + (g.lowPower(b.team) ? ' · SIN ENERGÍA' : '');
       }
-      if (!b.def.produces) return 'Operativa · sistema de armas aún sin activar';
       const unit = Object.values(DEFS).find((d) => d.producer === b.def.produces);
       return own ? `Operativa · construye el ${unit.name} desde Vehículos · clic derecho: punto de reunión` : 'Operativa';
     }

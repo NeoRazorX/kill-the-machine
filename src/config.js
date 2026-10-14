@@ -166,8 +166,6 @@ T({ id: 't_mammoth', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
     desc: 'Planta de tanques pesados. Reparada, construye el supertanque Mamut (pestaña Vehículos).' });
 T({ id: 't_juggernaut', name: 'Fábrica Juggernaut', height: 8, produces: 'juggernaut',
     desc: 'Línea de montaje de caminantes. Reparada, construye el Juggernaut de tres cañones (pestaña Vehículos).' });
-T({ id: 't_zeppelin', name: 'Hangar de zepelines', height: 7,
-    desc: 'Hangar de dirigibles. El zepelín bombardero llegará en una próxima actualización.' });
 
 // Units of a pre-war design, built by whichever side holds the repaired factory. Each side has its own
 // copy with its colours. selfRepair: mends itself up to a fraction of its health once out of combat.
