@@ -47,6 +47,16 @@ try {
     check(!!spot,def.id+': free placement found');
     game.placeBuilding(def.team,def.id,spot.x,spot.z,true);
   }
+  // Concrete pads: poured under own buildings, hidden under unseen enemy ones, removed on sale, burnt on destruction.
+  const pad=(b)=>{const o=(b.cz*N+b.cx)*4,d=game.foundations.data;return [d[o],d[o+1]];};
+  const own=game.buildings.filter(b=>b.team===game.player),enemyHq=game.buildings.find(b=>b.team!==game.player&&b.def.role==='hq');
+  check(own.every(b=>pad(b)[0]===255),'own buildings stand on concrete pads');
+  check(!enemyHq.seen&&pad(enemyHq)[0]===0,'unseen enemy base has no visible pad');
+  const extra=()=>{const def=DEFS.h_power;for(let z=1;z<N-1;z++)for(let x=1;x<N-1;x++)if(game.canPlace('human',def,x,z,true))return game.placeBuilding('human',def.id,x,z,true);};
+  const sold=extra(),burnt=extra();
+  game.removeBuilding(sold,'sold');game.kill(burnt,'machine');
+  check(pad(sold)[0]===0,'sold building takes its pad');
+  check(pad(burnt)[0]===255&&pad(burnt)[1]===255,'destroyed building leaves a scorched pad');
   for(const team of ['human','machine'])game.teams[team].credits=100000;
   const before=new Map(Object.values(DEFS).filter(d=>d.kind==='unit').map(d=>[d.id,game.units.filter(u=>u.def.id===d.id).length]));
   for(const id of before.keys())check(game.queueUnit(DEFS[id].team,id),id+': production queued');

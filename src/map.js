@@ -3,6 +3,7 @@ import { mergeGeometries } from '../lib/addons/utils/BufferGeometryUtils.js';
 import { getInstanceAsset } from './assets.js';
 import { N, CELL, SIZE } from './config.js';
 import { THEMES } from './themes.js';
+import { applySlabShader } from './foundations.js';
 
 export function mulberry32(a) {
   return function () {
@@ -201,7 +202,7 @@ export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN, theme =
   const ctx = cv.getContext('2d');
   const img = ctx.createImageData(px, px);
   const d = img.data;
-  const { low: grass1, high: grass2, patch: dirt, ore: dark, pave, road: dirtRoad, scree: screeCol, dust, dusk: duskCol } = theme.ground;
+  const { low: grass1, high: grass2, patch: dirt, ore: dark, road: dirtRoad, scree: screeCol, dust, dusk: duskCol } = theme.ground;
   const patchAt = theme.ground.patchAt, ripple = theme.ground.ripple || 0;
   const k = (SIZE + 2 * margin) / px;
   const R = new Float32Array(px * px), G = new Float32Array(px * px), B = new Float32Array(px * px);
@@ -259,15 +260,6 @@ export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN, theme =
   for (const l of map.landmarks) around(l.x, l.z, l.radius + 5, (i, wx, wz) => {
     const a = Math.max(0, Math.min(.8, (5 - Math.hypot(wx - l.x, wz - l.z) + l.radius) / 7)) * .8;
     if (a > 0) mix(i, a, dust[0], dust[1], dust[2]);
-  });
-  // Every start is paved the same, so the ground never gives away an occupied corner.
-  for (const [sx, sz] of map.spawns) around(sx * CELL, sz * CELL, 15 * CELL, (i, wx, wz) => {
-    const dd = Math.hypot(wx - sx * CELL, wz - sz * CELL) / CELL;
-    if (dd >= 15) return;
-    const a = Math.min(1, (15 - dd) / 3) * 0.85;
-    const seam = wx % 6 < .12 || wz % 6 < .12;
-    const tile = seam ? -23 : (hash2(Math.floor(wx / 6), Math.floor(wz / 6), 9) - .5) * 13;
-    mix(i, a, pave[0] + tile, pave[1] + tile, pave[2] + tile);
   });
   // suelo oscuro bajo el mineral
   for (const f of map.fields) around(f.x, f.z, f.r * 1.15, (i, wx, wz) => {
@@ -353,7 +345,8 @@ function themedMaterial(base, tint, cover) {
 }
 
 export class MapVisuals {
-  constructor(map, scene, theme = THEMES.temperate) {
+  // slabMask: the Foundations mask of concrete pads to blend into the ground, if any.
+  constructor(map, scene, theme = THEMES.temperate, slabMask = null) {
     this.map = map;
     this.theme = theme;
     this.materials = [];
@@ -367,7 +360,9 @@ export class MapVisuals {
     // The ground carries on beneath the perimeter rocks instead of ending at the playable edge.
     this.groundMargin = GROUND_MARGIN;
     const extent = SIZE + 2 * GROUND_MARGIN;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0 }));
+    const groundMaterial = new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0 });
+    if (slabMask) applySlabShader(groundMaterial, slabMask, theme);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(SIZE / 2, 0, SIZE / 2);
     ground.receiveShadow = true;

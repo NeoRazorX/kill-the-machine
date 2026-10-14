@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, other } from './config.js';
 import { GameMap, MapVisuals } from './map.js';
 import { THEMES } from './themes.js';
+import { Foundations } from './foundations.js';
 import { Unit } from './units.js';
 import { Building } from './buildings.js';
 import { FX } from './fx.js';
@@ -28,6 +29,7 @@ export class Game {
     this.player = PLAYER; this.spectate = false;
     this.time = 0; this.navVersion = 1;
     this.map = new GameMap(seed);
+    this.foundations = new Foundations(this);
     this.setTheme(theme);
     this.units = []; this.buildings = [];
     this.teams = { human: newTeam(), machine: newTeam() };
@@ -51,7 +53,7 @@ export class Game {
     this.visuals?.dispose();
     this.theme = theme;
     this.map.name = theme.name;
-    this.visuals = new MapVisuals(this.map, this.scene, theme);
+    this.visuals = new MapVisuals(this.map, this.scene, theme, this.foundations.mask);
   }
 
   emit(type, data) { if (this.onEvent) this.onEvent(type, data); }
@@ -423,6 +425,7 @@ export class Game {
     const def = DEFS[defId];
     const b = new Building(this, def, team, cx, cz, instant);
     this.buildings.push(b);
+    this.foundations?.add(b);
     this.setCells(b, 2);
     this.navVersion++;
     this.displaceUnits(b);
@@ -468,6 +471,7 @@ export class Game {
     if (b.dead) return;
     b.dead = true;
     this.setCells(b, 0);
+    this.foundations?.remove(b, reason);
     this.navVersion++;
     this.scene.remove(b.mesh);
     this.recomputePower();
@@ -564,7 +568,7 @@ export class Game {
     for (const ai of this.ais) ai.update(dt);
 
     this.fogT -= dt;
-    if (this.fogT <= 0) { this.fogT = 0.18; this.updateFog(); this.cashCrates.discover(); }
+    if (this.fogT <= 0) { this.fogT = 0.18; this.updateFog(); this.cashCrates.discover(); this.foundations?.update(); }
     this.cashCrates.update();
 
     this.oreT += dt;

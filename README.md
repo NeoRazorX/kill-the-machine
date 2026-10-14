@@ -39,9 +39,15 @@ Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 El mapa (192 × 192 celdas) tiene cuatro esquinas de salida idénticas: el terreno
 se diseña en un cuarto y se rota 90° tres veces, de modo que cualquier pareja de
 esquinas es justa. Cada partida sortea dónde empiezan humanos y máquinas, que
-pueden quedar en esquinas vecinas o enfrentadas. Las cuatro esquinas tienen el
-mismo pavimento, y ni el suelo ni las cajas de dinero delatan cuáles están ocupadas:
-hay que explorar para encontrar al enemigo.
+pueden quedar en esquinas vecinas o enfrentadas. Ni el suelo ni las cajas de dinero
+delatan qué esquinas están ocupadas: hay que explorar para encontrar al enemigo.
+
+Como en *Command & Conquer*, cada edificio se levanta sobre una losa de hormigón que
+cubre su planta y una celda alrededor; las losas vecinas se funden en una sola
+explanada que crece con la base, y la vista previa de colocación la muestra. La losa
+de un edificio enemigo solo aparece cuando se ha visto el edificio. Al vender un
+edificio se retira su losa; si lo destruyen, queda agrietada y quemada. En el desierto
+el hormigón se cubre de arena y en el mapa helado, de nieve (`src/foundations.js`).
 
 Cada esquina tiene dos yacimientos propios y sale por tres caminos: dos de borde
 hacia los claros con mineral que comparte con sus vecinas y uno diagonal hacia la
@@ -57,7 +63,7 @@ Si solo queda una esquina por ver, deduce que el enemigo está ahí. Ningún ban
 puede construir sobre la zona de descarga de una refinería.
 
 El suelo incluye caminos con rodadas, hombros irregulares, polvo alrededor de la
-roca y juntas en el pavimento de las bases. Fuera del área jugable, el terreno continúa
+roca y hormigón bajo los edificios. Fuera del área jugable, el terreno continúa
 y se convierte en pedregal al pie de dos filas desalineadas de rocas de tamaño y altura
 variables, con piedras sueltas y tramos de bosque; todo es decorativo y reproducible. Los modelos editables son
 `assets/models/env_cliff.blend` y `assets/models/env_ruin.blend`, con sus GLB locales.

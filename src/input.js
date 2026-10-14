@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SIZE, CELL, N, PLAYER, other, canRepair, buildingFront } from './config.js';
 import { buildBuildingModel } from './models.js';
+import { concreteTexture, CONCRETE_TILE, SLAB_MARGIN } from './foundations.js';
 import { nearestFreeCell } from './pathfinding.js';
 
 const PITCH = 0.98;
@@ -250,6 +251,13 @@ export class Input {
     model.rotation.y = buildingFront(def) < 0 ? Math.PI : 0;
     grp.add(model);
     this.ghostMat = ghostMat;
+    // The concrete pad that will be poured with the building.
+    const pw = def.w + 2 * SLAB_MARGIN, ph = def.h + 2 * SLAB_MARGIN, tex = concreteTexture().clone();
+    tex.repeat.set(pw * CELL / CONCRETE_TILE, ph * CELL / CONCRETE_TILE);
+    const pad = new THREE.Mesh(new THREE.PlaneGeometry(pw * CELL, ph * CELL).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, depthWrite: false }));
+    pad.position.y = 0.06; pad.renderOrder = 2;
+    grp.add(pad);
     this.ghostTiles = [];
     const tg = new THREE.PlaneGeometry(CELL * 0.92, CELL * 0.92).rotateX(-Math.PI / 2);
     for (let z = 0; z < def.h; z++) for (let x = 0; x < def.w; x++) {
@@ -263,7 +271,15 @@ export class Input {
   }
 
   cancelPlacement() {
-    if (this.ghost) { this.game.scene.remove(this.ghost); this.ghost = null; }
+    if (this.ghost) {
+      this.game.scene.remove(this.ghost);
+      // Tile and pad geometries/materials belong to this preview; the model's are shared.
+      for (const t of this.ghostTiles) t.mesh.material.dispose();
+      this.ghostTiles[0]?.mesh.geometry.dispose();
+      const pad = this.ghost.children[1];
+      pad.geometry.dispose(); pad.material.map.dispose(); pad.material.dispose(); this.ghostMat.dispose();
+      this.ghost = null;
+    }
     this.placing = null;
   }
 
