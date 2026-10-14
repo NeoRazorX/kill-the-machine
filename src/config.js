@@ -160,7 +160,7 @@ T({ id: 't_silo', name: 'Silo de misiles', height: 5, power: -60,
     superweapon: { kind: 'nuke', title: 'Misil nuclear', charge: 360, delay: 8, radius: 11, damage: 1000 },
     desc: 'Silo de misiles. Reparado y con energía, carga un misil nuclear (6 min) que arrasa una zona amplia. El misil tarda 8 s en caer y todos ven dónde.' });
 T({ id: 't_ion', name: 'Cañón de iones', height: 8.5, power: -60,
-    superweapon: { kind: 'ion', title: 'Cañón de iones', charge: 240, delay: 1.5, radius: 5, damage: 1200 },
+    superweapon: { kind: 'ion', title: 'Cañón de iones', charge: 240, delay: 1.5, radius: 9, damage: 1400 },
     desc: 'Enlace con un cañón de iones orbital. Reparado y con energía, carga (4 min) un haz preciso y devastador que cae en 1,5 s.' });
 T({ id: 't_mammoth', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
     desc: 'Planta de tanques pesados. Reparada, construye el supertanque Mamut (pestaña Vehículos).' });

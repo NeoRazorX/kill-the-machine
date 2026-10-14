@@ -62,6 +62,18 @@ export class GameAudio {
     o.start(t); o.stop(t + dur + 0.02);
   }
 
+  // A tone that grows louder while it sweeps, then cuts off: a charge building up.
+  swell(f0, f1, dur, type = 'sawtooth', gain = 0.1) {
+    const c = this.ctx, t = c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + dur);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.05);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.08);
+  }
+
   burst(dur, f0, f1, gain = 0.2, type = 'lowpass', delay = 0) {
     const c = this.ctx, t = c.currentTime + delay;
     const s = c.createBufferSource(); s.buffer = this.noise; s.loop = true;
@@ -82,6 +94,16 @@ export class GameAudio {
   s_howitzer(v) { this.burst(0.5, 600, 80, 0.4 * v); this.tone(100, 28, 0.5, 'sine', 0.4 * v); }
   s_laser(v) { this.tone(1100, 160, 0.22, 'square', 0.07 * v); this.tone(2200, 300, 0.12, 'sawtooth', 0.03 * v); }
   s_explosion(v) { this.burst(0.55, 1200, 70, 0.45 * v); this.tone(90, 28, 0.4, 'sine', 0.35 * v); }
+  // ---------------------------------------------------------- superarmas
+  s_ioncharge(v) {
+    this.swell(140, 1300, 1.5, 'sawtooth', 0.12 * v); this.swell(70, 650, 1.5, 'square', 0.06 * v);
+    this.swell(2200, 5200, 1.5, 'sine', 0.05 * v);
+  }
+  s_iondischarge(v) {
+    this.tone(1800, 55, 1.1, 'sawtooth', 0.3 * v); this.burst(1.4, 7000, 70, 0.7 * v);
+    this.tone(55, 22, 1.6, 'sine', 0.6 * v);
+  }
+  s_missilelaunch(v) { this.burst(2.6, 250, 1800, 0.35 * v); this.tone(70, 190, 2.4, 'sawtooth', 0.08 * v); }
   s_bigexplosion(v) { this.burst(1.1, 1000, 50, 0.7 * v); this.tone(70, 20, 0.9, 'sine', 0.5 * v); }
 
   // ------------------------------------------------------------------- UI

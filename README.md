@@ -75,7 +75,7 @@ Sin energía suficiente la carga se detiene, y vuelve a cero cuando la estructur
 La carga aparece en la barra lateral. Cuando está lista, su botón parpadea: se pulsa y se hace clic en
 una zona ya explorada, con una vista previa del radio bajo el cursor (Esc o clic derecho cancela).
 - **Misil nuclear**: tarda 8 s en caer, radio 11 y 1000 de daño en el centro.
-- **Cañón de iones**: tarda 1,5 s, radio 5 y 1200 de daño en el centro.
+- **Cañón de iones**: tarda 1,5 s, con un zumbido creciente y una descarga; radio 9 y 1400 de daño en el centro.
 
 El daño baja hasta el 40 % en el borde y alcanza a todos, también al bando que dispara. Ningún impacto
 deja un centro de mando por debajo de una cuarta parte de su vida, así que una superarma sola no

@@ -86,6 +86,8 @@ export class Superweapons {
     }
     for (const m of s.meshes) this.group.add(m);
     this.strikes.push(s);
+    // The ion beam hums as it builds up over the target; the missile roars out of its silo.
+    if (sw.kind === 'ion') g.audio.play('ioncharge', x, z); else g.audio.play('missilelaunch', b.x, b.z);
     const own = b.team === g.player, title = sw.title;
     if (!g.spectate) {
       if (own) { g.audio.say(sw.kind === 'nuke' ? 'Misil lanzado' : 'Cañón de iones disparado', 0); }
@@ -152,7 +154,7 @@ export class Superweapons {
 
   blast(s) {
     const g = this.game, fx = g.fx, { x, z, sw } = s, R = sw.radius, nuke = sw.kind === 'nuke';
-    g.audio.play('bigexplosion', x, z);
+    g.audio.play(nuke ? 'bigexplosion' : 'iondischarge', x, z);
     fx.flash(x, 3, z, R * (nuke ? 1.4 : 1), nuke ? 0xfff2d0 : 0xb8f0ff, nuke ? 0.9 : 0.5);
     fx.scorch(x, z, R * 1.05, 0.7);
     if (fx.beam && !nuke) fx.beam(x, 150, z, x, 0, z, 0x9fe8ff, R * 4);
