@@ -275,11 +275,12 @@ export class UI {
     // The ground texture extends past the playable square; the minimap shows only the square.
     const v = this.game.visuals, g = v.groundCanvas, m = g.width * v.groundMargin / (SIZE + 2 * v.groundMargin);
     x.drawImage(g, m, m, g.width - 2 * m, g.height - 2 * m, 0, 0, W, W);
-    x.fillStyle = 'rgba(20,50,20,0.9)';
+    const colors = v.theme.mini;
+    x.fillStyle = colors.tree;
     for (const t of this.game.map.trees) x.fillRect(t.x * k - 1, t.z * k - 1, 2.2, 2.2);
-    x.fillStyle = 'rgba(110,110,110,0.95)';
+    x.fillStyle = colors.rock;
     for (const r of this.game.map.rocks) x.fillRect(r.x * k - 2.2, r.z * k - 2.2, 4.4, 4.4);
-    x.fillStyle = '#969783';
+    x.fillStyle = colors.cliff;
     for (const l of this.game.map.landmarks) {
       x.beginPath(); x.arc(l.x * k, l.z * k, l.radius * k, 0, Math.PI * 2); x.fill();
     }

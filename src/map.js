@@ -1,6 +1,8 @@
 import * as THREE from 'three';
+import { mergeGeometries } from '../lib/addons/utils/BufferGeometryUtils.js';
 import { getInstanceAsset } from './assets.js';
 import { N, CELL, SIZE } from './config.js';
+import { THEMES } from './themes.js';
 
 export function mulberry32(a) {
   return function () {
@@ -193,14 +195,14 @@ function fbm(x, y, s) { return vnoise(x, y, s) * 0.55 + vnoise(x * 2.1, y * 2.1,
 // The ground texture continues this far past the playable edge, under the perimeter rocks.
 export const GROUND_MARGIN = 40;
 
-export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN) {
+export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN, theme = THEMES.temperate) {
   const cv = document.createElement('canvas');
   cv.width = cv.height = px;
   const ctx = cv.getContext('2d');
   const img = ctx.createImageData(px, px);
   const d = img.data;
-  const grass1 = [57, 72, 51], grass2 = [90, 105, 65], dirt = [133, 116, 86], dark = [57, 56, 49];
-  const pave = [104, 107, 108];
+  const { low: grass1, high: grass2, patch: dirt, ore: dark, pave, road: dirtRoad, scree: screeCol, dust, dusk: duskCol } = theme.ground;
+  const patchAt = theme.ground.patchAt, ripple = theme.ground.ripple || 0;
   const k = (SIZE + 2 * margin) / px;
   const R = new Float32Array(px * px), G = new Float32Array(px * px), B = new Float32Array(px * px);
   // Road distance sampled once per world unit and interpolated per pixel.
@@ -216,8 +218,10 @@ export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN) {
       const wx = x * k - margin, wz = y * k - margin;
       const n1 = fbm(wx * 0.045, wz * 0.045, 1), n2 = fbm(wx * 0.02 + 40, wz * 0.02, 2);
       let t = Math.min(1, Math.max(0, (n1 - 0.25) * 2.2));
+      // Wind ripples drift across dunes; the noise bends them so they never line up.
+      if (ripple) t = Math.min(1, Math.max(0, t + Math.sin(wx * .55 + wz * .2 + n2 * 9) * ripple));
       let r = grass1[0] + (grass2[0] - grass1[0]) * t, g = grass1[1] + (grass2[1] - grass1[1]) * t, b = grass1[2] + (grass2[2] - grass1[2]) * t;
-      const dm = Math.min(1, Math.max(0, (n2 - 0.52) * 6));
+      const dm = Math.min(1, Math.max(0, (n2 - patchAt) * 6));
       r += (dirt[0] - r) * dm; g += (dirt[1] - g) * dm; b += (dirt[2] - b) * dm;
       // Broad dirt roads, broken shoulders and two compacted wheel tracks.
       const road = roadAt(wx, wz);
@@ -226,9 +230,9 @@ export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN) {
       if (blend > 0) {
         const track = Math.max(0, 1 - Math.abs(road - 2.1) / .55) * 13;
         const grit = (vnoise(wx * 1.1, wz * 1.1, 21) - .5) * 14;
-        r += (139 + grit - track - r) * blend;
-        g += (120 + grit - track - g) * blend;
-        b += (88 + grit - track - b) * blend;
+        r += (dirtRoad[0] + grit - track - r) * blend;
+        g += (dirtRoad[1] + grit - track - g) * blend;
+        b += (dirtRoad[2] + grit - track - b) * blend;
       }
       // Scree gathers at the foot of the perimeter rocks; far out it darkens into the void.
       const ox = Math.max(0, -wx, wx - SIZE), oz = Math.max(0, -wz, wz - SIZE);
@@ -236,9 +240,9 @@ export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN) {
       const scree = Math.max(0, Math.min(1, (out + 8 + (n2 - .5) * 14) / 10));
       if (scree > 0) {
         const stone = (vnoise(wx * .35, wz * .35, 31) - .5) * 26 + (vnoise(wx * 1.7, wz * 1.7, 37) - .5) * 12;
-        r += (108 + stone - r) * scree; g += (104 + stone - g) * scree; b += (90 + stone * .8 - b) * scree;
+        r += (screeCol[0] + stone - r) * scree; g += (screeCol[1] + stone - g) * scree; b += (screeCol[2] + stone * .8 - b) * scree;
         const dusk = Math.max(0, Math.min(1, (out - margin + 16) / 14));
-        r += (34 - r) * dusk; g += (38 - g) * dusk; b += (38 - b) * dusk;
+        r += (duskCol[0] - r) * dusk; g += (duskCol[1] - g) * dusk; b += (duskCol[2] - b) * dusk;
       }
       const i = y * px + x;
       R[i] = r; G[i] = g; B[i] = b;
@@ -254,7 +258,7 @@ export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN) {
   // Stone dust integrates the cliff bases with the ground.
   for (const l of map.landmarks) around(l.x, l.z, l.radius + 5, (i, wx, wz) => {
     const a = Math.max(0, Math.min(.8, (5 - Math.hypot(wx - l.x, wz - l.z) + l.radius) / 7)) * .8;
-    if (a > 0) mix(i, a, 112, 109, 94);
+    if (a > 0) mix(i, a, dust[0], dust[1], dust[2]);
   });
   // Every start is paved the same, so the ground never gives away an occupied corner.
   for (const [sx, sz] of map.spawns) around(sx * CELL, sz * CELL, 15 * CELL, (i, wx, wz) => {
@@ -311,13 +315,52 @@ export function borderDecor(seed) {
   return { cliffs, rocks, trees };
 }
 
+// Saguaro built from capsules, standing in for trees in the desert. Same footprint and height range.
+let cactusGeometry = null;
+const cactusMaterial = new THREE.MeshStandardMaterial({ color: 0x5d7a3e, roughness: .85 });
+function getCactusGeometry() {
+  if (cactusGeometry) return cactusGeometry;
+  const part = (r, len, x, y, rz = 0) => new THREE.CapsuleGeometry(r, len, 4, 10).rotateZ(rz).translate(x, y, 0);
+  cactusGeometry = mergeGeometries([
+    part(.34, 2.5, 0, 1.6),
+    part(.2, .42, -.42, 1.35, Math.PI / 2), part(.2, .8, -.66, 1.8),
+    part(.18, .36, .4, 1.0, Math.PI / 2), part(.18, .62, .6, 1.35),
+  ]);
+  return cactusGeometry;
+}
+
+// Clones a shared environment material with the theme's tint and, optionally, a cover of snow or sand
+// on the surfaces that face up. Shared materials stay untouched.
+function themedMaterial(base, tint, cover) {
+  const m = base.clone();
+  m.color.multiply(new THREE.Color(...tint));
+  if (!cover) return m;
+  const color = new THREE.Color().setRGB(...cover.color.map(v => v / 255), THREE.SRGBColorSpace);
+  const f = (v) => v.toFixed(3);
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.coverColor = { value: color };
+    shader.vertexShader = 'varying float vCover;\n' + shader.vertexShader.replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+      vec3 coverNormal = objectNormal;
+      #ifdef USE_INSTANCING
+        coverNormal = mat3(instanceMatrix) * coverNormal;
+      #endif
+      vCover = normalize(mat3(modelMatrix) * coverNormal).y;`);
+    shader.fragmentShader = 'uniform vec3 coverColor;\nvarying float vCover;\n' + shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      diffuseColor.rgb = mix(diffuseColor.rgb, coverColor, smoothstep(${f(cover.from)}, ${f(cover.to)}, vCover) * ${f(cover.amount)});`);
+  };
+  m.customProgramCacheKey = () => `cover:${cover.from}:${cover.to}:${cover.amount}`;
+  return m;
+}
+
 export class MapVisuals {
-  constructor(map, scene) {
+  constructor(map, scene, theme = THEMES.temperate) {
     this.map = map;
+    this.theme = theme;
+    this.materials = [];
     this.group = new THREE.Group();
     scene.add(this.group);
 
-    this.groundCanvas = makeGroundCanvas(map);
+    this.groundCanvas = makeGroundCanvas(map, undefined, GROUND_MARGIN, theme);
     const tex = new THREE.CanvasTexture(this.groundCanvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
@@ -332,7 +375,7 @@ export class MapVisuals {
     this.group.add(ground);
 
     // vacío exterior
-    const outer = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * 6, SIZE * 6), new THREE.MeshBasicMaterial({ color: 0x14181c }));
+    const outer = new THREE.Mesh(new THREE.PlaneGeometry(SIZE * 6, SIZE * 6), new THREE.MeshBasicMaterial({ color: theme.sky }));
     outer.rotation.x = -Math.PI / 2; outer.position.set(SIZE / 2, -0.4, SIZE / 2);
     this.group.add(outer);
 
@@ -342,12 +385,28 @@ export class MapVisuals {
     this.buildOre();
   }
 
+  material(asset, tint) {
+    const m = themedMaterial(asset.material, tint, this.theme.cover);
+    this.materials.push(m);
+    return m;
+  }
+
+  // Frees what this instance created; model geometries and their materials are shared and stay loaded.
+  dispose() {
+    this.group.removeFromParent();
+    this.group.traverse((o) => {
+      if (o.isInstancedMesh) o.dispose();
+      else if (o.isMesh) { o.geometry.dispose(); o.material.map?.dispose(); o.material.dispose(); }
+    });
+    for (const m of this.materials) m.dispose();
+  }
+
   buildLandmarks() {
     const matrix = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
     for (const kind of ['env_cliff', 'env_ruin']) {
       const items = this.map.landmarks.filter(l => l.kind === kind);
       const asset = getInstanceAsset(kind);
-      const mesh = new THREE.InstancedMesh(asset.geometry, asset.material, items.length);
+      const mesh = new THREE.InstancedMesh(asset.geometry, this.material(asset, kind === 'env_ruin' ? this.theme.ruin : this.theme.cliff), items.length);
       items.forEach((l, i) => {
         q.setFromAxisAngle(up, l.rot);
         matrix.compose(new THREE.Vector3(l.x, 0, l.z), q, new THREE.Vector3(l.radius, l.radius * .7, l.radius));
@@ -358,7 +417,7 @@ export class MapVisuals {
     }
     // Two staggered rows of rock close the map, outside the playable grid.
     const asset = getInstanceAsset('env_cliff'), cliffs = this.border.cliffs;
-    const rim = new THREE.InstancedMesh(asset.geometry, asset.material, cliffs.length);
+    const rim = new THREE.InstancedMesh(asset.geometry, this.material(asset, this.theme.cliff), cliffs.length);
     const col = new THREE.Color();
     cliffs.forEach((c, i) => {
       q.setFromAxisAngle(up, c.rot);
@@ -374,8 +433,9 @@ export class MapVisuals {
     const trees = [...this.map.trees, ...this.border.trees], rocks = [...this.map.rocks, ...this.border.rocks];
     const rng = mulberry32(this.map.seed + 301);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-    const treeAsset = getInstanceAsset('env_tree');
-    const treeMesh = new THREE.InstancedMesh(treeAsset.geometry, treeAsset.material, trees.length);
+    const treeAsset = getInstanceAsset('env_tree'), cactus = this.theme.tree.model === 'cactus';
+    const treeMaterial = this.material(cactus ? { material: cactusMaterial } : treeAsset, this.theme.tree.tint);
+    const treeMesh = new THREE.InstancedMesh(cactus ? getCactusGeometry() : treeAsset.geometry, treeMaterial, trees.length);
     const col = new THREE.Color();
     trees.forEach((t, i) => {
       q.setFromAxisAngle(up, t.rot); p.set(t.x, 0, t.z); s.set(t.s, t.s * (0.9 + rng() * 0.4), t.s);
@@ -386,7 +446,7 @@ export class MapVisuals {
     this.group.add(treeMesh);
 
     const rockAsset = getInstanceAsset('env_rock');
-    const rockMesh = new THREE.InstancedMesh(rockAsset.geometry, rockAsset.material, rocks.length);
+    const rockMesh = new THREE.InstancedMesh(rockAsset.geometry, this.material(rockAsset, this.theme.rock), rocks.length);
     rocks.forEach((r, i) => {
       q.setFromAxisAngle(up, r.rot);
       p.set(r.x, 0, r.z); s.set(r.s * 1.05, r.s * 0.75, r.s);

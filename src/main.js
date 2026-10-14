@@ -5,6 +5,7 @@ import { UI } from './ui.js';
 import { SIZE, TEAMS, DIFFICULTY } from './config.js';
 import { preloadModels, assetStatus } from './assets.js';
 import { WarFog } from './war-fog.js';
+import { THEMES, resolveTheme } from './themes.js';
 
 const params = new URLSearchParams(location.search);
 const startButton = document.getElementById('btn-start');
@@ -46,7 +47,8 @@ scene.fog = new THREE.Fog(0x0e1216, 170, 340);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 1, 600);
 
-scene.add(new THREE.HemisphereLight(0xd6e4ff, 0x40483a, 1.25));
+const hemi = new THREE.HemisphereLight(0xd6e4ff, 0x40483a, 1.25);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.3);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -63,12 +65,34 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-const game = new Game(scene, 20260);
+// ?map=temperate|desert|ice|random chooses the look; ?seed=n repeats a scenery layout.
+const themeEls = [...document.querySelectorAll('.theme')];
+let themeChoice = THEMES[params.get('map')] ? params.get('map') : 'random';
+const seedParam = parseInt(params.get('seed'), 10);
+const seed = Number.isFinite(seedParam) ? seedParam : 20260 + Math.floor(Math.random() * 100000);
+const game = new Game(scene, seed, resolveTheme(themeChoice));
 window.__game = game;
 const warFog = new WarFog(game);
 
+function applyTheme(theme) {
+  game.setTheme(theme);
+  scene.background.setHex(theme.sky); scene.fog.color.setHex(theme.sky);
+  hemi.color.setHex(theme.hemi[0]); hemi.groundColor.setHex(theme.hemi[1]); hemi.intensity = theme.hemi[2];
+  sun.color.setHex(theme.sun[0]); sun.intensity = theme.sun[1];
+}
+function chooseTheme(choice) {
+  themeChoice = choice;
+  themeEls.forEach((e) => e.classList.toggle('active', e.dataset.map === choice));
+  // Random draws a different theme from the one on screen, so the click always shows a change.
+  const others = Object.values(THEMES).filter((t) => t !== game.theme);
+  applyTheme(THEMES[choice] || others[Math.floor(Math.random() * others.length)]);
+}
+themeEls.forEach((el) => { el.onclick = () => chooseTheme(el.dataset.map); });
+themeEls.forEach((e) => e.classList.toggle('active', e.dataset.map === themeChoice));
+applyTheme(game.theme);
+
 let input = null, ui = null, started = false, speed = 1;
-const diffEls = [...document.querySelectorAll('.diff')];
+const diffEls = [...document.querySelectorAll('.diff[data-d]')];
 let difficulty = 'normal';
 diffEls.forEach((el) => {
   el.onclick = () => { difficulty = el.dataset.d; diffEls.forEach((e) => e.classList.toggle('active', e === el)); };
@@ -84,8 +108,10 @@ function spawnSlots() {
 function begin(spectate) {
   if (started) return;
   game.start(difficulty, spectate, spawnSlots());
+  themeEls.forEach((el) => { el.onclick = null; });
   input = new Input(game, camera, renderer, sun);
   ui = new UI(game, input, camera);
+  game.emit('toast', { text: game.map.name, kind: 'info' });
   if (!spectate) game.emit('toast', { text: 'Se desconoce la posición enemiga: explora las otras esquinas', kind: 'warn' });
   window.__input = input; window.__ui = ui;
   const hq = game.teamBuildings(spectate ? 'human' : game.player, 'hq')[0];

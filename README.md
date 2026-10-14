@@ -10,7 +10,19 @@ Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
     # abre http://localhost:8765
 
 Parámetros opcionales: `?autostart=easy|normal|hard`, `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada),
-`&spawn=0,2` (fija las esquinas de humanos y máquinas: 0 abajo a la izquierda y después en sentido horario).
+`&spawn=0,2` (fija las esquinas de humanos y máquinas: 0 abajo a la izquierda y después en sentido horario),
+`&map=temperate|desert|ice|random` (aspecto del mapa) y `&seed=n` (repite una disposición de árboles y rocas).
+
+## Aspecto del mapa
+
+En el menú se elige el mapa: **Templado**, **Desierto**, **Helado** o **Aleatorio** (opción por defecto).
+El fondo del menú cambia al momento para previsualizarlo. Los tres comparten trazado, yacimientos,
+caminos y obstáculos, así que la elección no altera el equilibrio; cambian el suelo, la luz, el cielo,
+el minimapa y la vegetación: el desierto tiene dunas onduladas, arenisca y saguaros; el helado tiene
+nieve, placas de hielo, pinos y nieve acumulada en las caras superiores de rocas y riscos.
+Además, cada carga elige una semilla distinta para la disposición de árboles y rocas, que sigue siendo
+simétrica en las cuatro esquinas. Los temas están en `src/themes.js`;
+[tools/map-preview.html](http://localhost:8765/tools/map-preview.html?map=desert) acepta `?map=`.
 
 Cada partida reparte 12 cajas de dinero en posiciones aleatorias accesibles, fuera
 de las cuatro esquinas de salida y los yacimientos. Explora para descubrirlas: aparecen con una marca

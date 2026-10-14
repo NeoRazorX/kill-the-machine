@@ -8,6 +8,7 @@ import { Input } from '../src/input.js';
 import { FX } from '../src/fx.js';
 import { GameMap, MapVisuals } from '../src/map.js';
 import { checkMap } from './map.js';
+import { THEMES } from '../src/themes.js';
 
 const output = document.querySelector('#results'), results = [];
 const assert = (ok, name) => { if (!ok) throw new Error(name); results.push(`PASS ${name}`); };
@@ -170,6 +171,16 @@ try {
   renderer.render(scene,camera);
   assert(renderer.info.render.triangles>0,'mixed army and all buildings render with shadows');
   results.push(`RENDER ${JSON.stringify(renderer.info.render)}`);
+  // Every map theme compiles its tinted and snow/sand-covered materials, and disposing leaves the shared assets intact.
+  let shaderError=null;renderer.debug.onShaderError=(gl,program)=>{shaderError=gl.getProgramInfoLog(program)||'shader error';};
+  for(const theme of Object.values(THEMES)){
+    const themed=new MapVisuals(map,scene,theme),meshes=[];themed.group.traverse(o=>{if(o.isInstancedMesh)meshes.push(o);});
+    assert(meshes.length===6&&meshes.every(o=>o.count>0),`${theme.id}: six populated instanced meshes`);
+    renderer.render(scene,camera);
+    assert(!shaderError,`${theme.id}: materials compile`);
+    themed.dispose();
+    assert(!themed.group.parent&&getInstanceAsset('env_tree').geometry.attributes.position.count>0,`${theme.id}: disposal keeps shared models`);
+  }
   results.push(`CATALOG ${JSON.stringify(stats)}`);
   renderer.dispose();
   output.textContent=results.join('\n')+'\nALL PASSED';

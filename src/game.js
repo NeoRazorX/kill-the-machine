@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, other } from './config.js';
 import { GameMap, MapVisuals } from './map.js';
+import { THEMES } from './themes.js';
 import { Unit } from './units.js';
 import { Building } from './buildings.js';
 import { FX } from './fx.js';
@@ -22,12 +23,12 @@ export function rectDist(px, pz, r) {
 }
 
 export class Game {
-  constructor(scene, seed) {
+  constructor(scene, seed, theme = THEMES.temperate) {
     this.scene = scene;
     this.player = PLAYER; this.spectate = false;
     this.time = 0; this.navVersion = 1;
     this.map = new GameMap(seed);
-    this.visuals = new MapVisuals(this.map, scene);
+    this.setTheme(theme);
     this.units = []; this.buildings = [];
     this.teams = { human: newTeam(), machine: newTeam() };
     this.fx = new FX(this, scene);
@@ -42,6 +43,15 @@ export class Game {
     this.fog = new Uint8Array(N * N); this.fogT = 0;
     this.initFog();
     this.cashCrates = new CashCrates(this);
+  }
+
+  // Themes only change the look of the map, so they can be swapped from the menu before starting.
+  setTheme(theme) {
+    if (this.theme === theme) return;
+    this.visuals?.dispose();
+    this.theme = theme;
+    this.map.name = theme.name;
+    this.visuals = new MapVisuals(this.map, this.scene, theme);
   }
 
   emit(type, data) { if (this.onEvent) this.onEvent(type, data); }

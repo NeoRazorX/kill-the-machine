@@ -111,7 +111,7 @@ button { font: inherit; cursor: pointer; }
 .side.human { border-color: var(--human); background: rgba(61,139,255,.08); } .side.human b { color: var(--human); }
 .side.machine { border-color: var(--machine); background: rgba(255,59,48,.08); } .side.machine b { color: var(--machine); }
 .vsmark { font-weight: 900; color: var(--dim); }
-.diffs { display: flex; gap: 8px; justify-content: center; align-items: center; margin-bottom: 20px; }
+.diffs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin-bottom: 14px; }
 .diffs span { color: var(--dim); margin-right: 6px; }
 .diff { padding: 7px 18px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
 .diff.active { border-color: var(--human); background: rgba(61,139,255,.2); color: #fff; }
