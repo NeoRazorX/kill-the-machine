@@ -1,4 +1,4 @@
-import { SIZE, canRepair } from './config.js';
+import { SIZE, canRepair, canCapture } from './config.js';
 import { findPath, clearLine } from './pathfinding.js';
 import { buildUnitModel } from './models.js';
 import { RANKS, isCombatUnit } from './experience.js';
@@ -65,13 +65,18 @@ export class Unit {
     if (!this.pathTo(x, z)) this.becomeIdle();
   }
   cmdAttack(t) {
-    if (!this.def.weapon) { this.cmdMove(t.x, t.z); return; }
+    if (!this.def.weapon || !this.hostile(t)) { this.cmdMove(t.x, t.z); return; }
     this.order = { type: 'attack', target: t };
     this.target = t; this.path = null; this.dest = null; this.repathT = 0;
   }
   cmdRepair(t) {
     if (!canRepair(this, t)) { this.cmdMove(t.x, t.z); return; }
     this.order = { type: 'repair', target: t };
+    this.target = t; this.path = null; this.dest = null; this.repathT = 0;
+  }
+  cmdCapture(t) {
+    if (!canCapture(this, t)) { this.cmdMove(t.x, t.z); return; }
+    this.order = { type: 'capture', target: t };
     this.target = t; this.path = null; this.dest = null; this.repathT = 0;
   }
   cmdStop() {
@@ -183,6 +188,9 @@ export class Unit {
   }
 
   // --------------------------------------------------------------- combate
+  // Captured structures change hands and ruins belong to nobody: only enemies stay targets.
+  hostile(t) { return !!t && !t.dead && !!t.team && t.team !== this.team; }
+
   scan(dt, radius) {
     this.scanT -= dt;
     if (this.scanT > 0) return;
@@ -246,7 +254,7 @@ export class Unit {
 
   updateCombat(dt) {
     const o = this.order, w = this.def.weapon, g = this.game;
-    if (this.target && this.target.dead) this.target = null;
+    if (this.target && !this.hostile(this.target)) this.target = null;
     switch (o.type) {
       case 'idle': {
         if (!w) break;
@@ -277,7 +285,7 @@ export class Unit {
         break;
       }
       case 'attack': {
-        if (!o.target || o.target.dead) { this.becomeIdle(); break; }
+        if (!this.hostile(o.target)) { this.becomeIdle(); break; }
         this.target = o.target;
         this.engage(dt);
         break;
@@ -353,6 +361,25 @@ export class Unit {
         break;
       }
     }
+  }
+
+  // -------------------------------------------------------------- ingeniero
+  // Walks up to the structure and enters it. Already ours or gone: the order simply ends.
+  updateEngineer(dt) {
+    const o = this.order, g = this.game;
+    if (o.type === 'move') { if (this.followPath(dt)) this.becomeIdle(); return; }
+    if (o.type !== 'capture') return;
+    const t = o.target;
+    if (!canCapture(this, t)) { this.becomeIdle(); return; }
+    if (g.distTo(this, t) <= this.radius + 1.2) { g.techSites.capture(t, this); return; }
+    this.repathT -= dt;
+    if (this.repathT <= 0) {
+      this.repathT = 1;
+      // Nearest point of a ring around the footprint, so the route ends against its wall.
+      const r = t.rect, m = this.radius + 0.5;
+      this.pathTo(clamp(this.x, r.x0 - m, r.x1 + m), clamp(this.z, r.z0 - m, r.z1 + m));
+    }
+    this.followPath(dt);
   }
 
   // ------------------------------------------------------------ cosechadora
@@ -443,7 +470,13 @@ export class Unit {
     this.moving = false; this.aimed = false; this.gathering = false; this.healing = false;
     if (this.def.harvester) this.updateHarvester(dt);
     else if (this.def.repair) this.updateSupport(dt);
+    else if (this.def.engineer) this.updateEngineer(dt);
     else this.updateCombat(dt);
+    // Self-repairing armour mends slowly once the unit has been out of combat for a while.
+    const sr = this.def.selfRepair;
+    if (sr && this.hp < this.maxHp * sr.upTo && this.game.time - this.lastHit > sr.delay) {
+      this.hp = Math.min(this.maxHp * sr.upTo, this.hp + sr.rate * dt);
+    }
     this.separate(dt);
     if (!this.aimed) {
       if (this.def.turret) {

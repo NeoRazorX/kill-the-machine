@@ -9,6 +9,7 @@ import { FX } from './fx.js';
 import { GameAudio } from './audio.js';
 import { AI } from './ai.js';
 import { CashCrates, CASH_CRATE_RADIUS } from './cash-crates.js';
+import { TechSites } from './tech-sites.js';
 import { nearestFreeCell, canOccupy } from './pathfinding.js';
 
 const HASH = 8, HN = SIZE / HASH;
@@ -45,6 +46,7 @@ export class Game {
     this.fog = new Uint8Array(N * N); this.fogT = 0;
     this.initFog();
     this.cashCrates = new CashCrates(this);
+    this.techSites = new TechSites(this);
   }
 
   // Themes only change the look of the map, so they can be swapped from the menu before starting.
@@ -65,6 +67,8 @@ export class Game {
     this.difficulty = DIFFICULTY[difficulty] || DIFFICULTY.normal;
     this.teams.machine.income = this.difficulty.income;
     this.assignStarts(slots);
+    // The sites depend on which corners are in play: they sit at the same walking distance from both.
+    this.techSites.place();
     for (const team of ['human', 'machine']) this.setupBase(team);
     this.ais.push(new AI(this, 'machine', this.difficulty));
     if (spectate) this.ais.push(new AI(this, 'human', DIFFICULTY.normal));
@@ -72,6 +76,7 @@ export class Game {
     this.updateFog(true);
     this.cashCrates.discover();
     this.cashCrates.update();
+    this.techSites.discover();
   }
 
   assignStarts(slots = null) {
@@ -276,8 +281,12 @@ export class Game {
   }
   lowPower(team) { const p = this.teams[team].power; return p.use > p.prod; }
 
+  // A tech factory only produces once it has been repaired.
+  canProduceAt(b) { return !b.dead && b.complete && !!b.def.produces && (!b.tech || b.tech.state === 'online'); }
+  producers(team, producer) { return this.buildings.filter((b) => b.team === team && b.def.produces === producer && this.canProduceAt(b)); }
+
   requirementsMet(team, def) {
-    if (def.kind === 'unit') return this.hasRole(team, def.producer);
+    if (def.kind === 'unit') return this.producers(team, def.producer).length > 0;
     return (def.requires || []).every((r) => this.hasRole(team, r));
   }
 
@@ -316,7 +325,7 @@ export class Game {
   // -- unidades
   queueUnit(team, defId) {
     const def = DEFS[defId];
-    const cands = this.buildings.filter((b) => b.team === team && !b.dead && b.complete && b.def.produces === def.producer);
+    const cands = this.producers(team, def.producer);
     if (!cands.length) return false;
     cands.sort((a, b) => a.queue.length - b.queue.length);
     if (cands[0].queue.length >= 6) return false;
@@ -401,6 +410,11 @@ export class Game {
       if (!crate.collected && rectDist(crate.x, crate.z, r) < CASH_CRATE_RADIUS) return false;
     }
     for (const f of this.map.fields) if (rectDist(f.x, f.z, r) < f.r * 0.85) return false;
+    // Keep a walkway around tech structures so an engineer can always reach them.
+    for (const b of this.techSites?.items ?? []) {
+      const dx = Math.max(0, r.x0 - b.rect.x1, b.rect.x0 - r.x1), dz = Math.max(0, r.z0 - b.rect.z1, b.rect.z0 - r.z1);
+      if (Math.max(dx, dz) < 2 * CELL) return false;
+    }
     // Nothing may cover a refinery's unloading apron, or its harvesters could never deliver.
     for (const b of this.buildings) {
       if (b.dead || b.def.role !== 'refinery') continue;
@@ -414,7 +428,7 @@ export class Game {
       }
     }
     for (const b of this.buildings) {
-      if (b.team !== team || b.dead || b.selling) continue;
+      if (b.team !== team || b.dead || b.selling || b.def.tech) continue;
       const dx = Math.max(0, r.x0 - b.rect.x1, b.rect.x0 - r.x1), dz = Math.max(0, r.z0 - b.rect.z1, b.rect.z0 - r.z1);
       if (Math.hypot(dx, dz) <= BUILD_RADIUS) return true;
     }
@@ -429,7 +443,7 @@ export class Game {
     this.setCells(b, 2);
     this.navVersion++;
     this.displaceUnits(b);
-    this.teams[team].stats.built++;
+    if (team) this.teams[team].stats.built++;
     if (instant) { b.announced = true; this.onBuildingComplete(b); }
     this.recomputePower();
     return b;
@@ -459,12 +473,19 @@ export class Game {
   }
 
   sellBuilding(b) {
-    if (b.dead || b.selling || b.def.role === 'hq' || !b.complete) return false;
+    if (b.dead || b.selling || b.def.role === 'hq' || b.def.tech || !b.complete) return false;
     this.teams[b.team].credits += b.def.cost * 0.5;
     for (const it of b.queue) this.teams[b.team].credits += it.paid;
     b.sell();
     if (b.team === this.player) this.audio.play('sell');
     return true;
+  }
+
+  // An engineer that enters a structure leaves the map without counting as a loss.
+  consumeUnit(u) {
+    if (u.dead) return;
+    u.dead = true;
+    this.scene.remove(u.mesh);
   }
 
   removeBuilding(b, reason) {
@@ -480,7 +501,8 @@ export class Game {
 
   // ----------------------------------------------------------------- combate
   damage(target, amount, srcTeam, srcPos, source = null) {
-    if (target.dead || amount <= 0) return;
+    // Ruins belong to nobody and cannot be damaged.
+    if (target.dead || amount <= 0 || !target.team) return;
     target.hp -= amount; target.lastHit = this.time;
     const tt = this.teams[target.team];
     tt.lastAttacked = { x: target.x, z: target.z, t: this.time, src: srcPos || null };
@@ -506,6 +528,8 @@ export class Game {
       if (big) this.fx.scorch(e.x, e.z, 1.8, 0.4);
       this.audio.play('explosion', e.x, e.z);
       if (e.def.harvester && e.team === this.player && !this.spectate) { this.audio.say('Cosechadora perdida', 5000); this.emit('toast', { text: 'Cosechadora destruida', kind: 'warn' }); }
+    } else if (e.def.tech) {
+      this.techSites.wreck(e);
     } else {
       this.fx.bigExplosion(e.x, e.z, e.w * CELL, e.h * CELL, e.def.height);
       this.audio.play('bigexplosion', e.x, e.z);
@@ -537,14 +561,16 @@ export class Game {
       }
     } else {
       this.fx.hitSpark(p.x, p.y, p.z, p.type === 'laserbolt' || p.type === 'beam');
-      if (t && !t.dead) this.damage(t, p.dmg * multFor(t), p.team, src, p.source);
+      // A captured structure may have changed hands while the shot was in flight.
+      if (t && !t.dead && t.team === enemy) this.damage(t, p.dmg * multFor(t), p.team, src, p.source);
     }
   }
 
   checkVictory() {
     if (this.over) return;
     for (const team of ['human', 'machine']) {
-      if (!this.buildings.some((b) => b.team === team && !b.dead && !b.selling)) {
+      // Tech structures do not keep a defeated side in the game.
+      if (!this.buildings.some((b) => b.team === team && !b.dead && !b.selling && !b.def.tech)) {
         this.over = { winner: other(team), loser: team, time: this.time };
         this.emit('over', this.over);
         return;
@@ -568,8 +594,9 @@ export class Game {
     for (const ai of this.ais) ai.update(dt);
 
     this.fogT -= dt;
-    if (this.fogT <= 0) { this.fogT = 0.18; this.updateFog(); this.cashCrates.discover(); this.foundations?.update(); }
+    if (this.fogT <= 0) { this.fogT = 0.18; this.updateFog(); this.cashCrates.discover(); this.techSites.discover(); this.foundations?.update(); }
     this.cashCrates.update();
+    this.techSites.update(dt);
 
     this.oreT += dt;
     if (this.oreT >= 1) {

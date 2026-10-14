@@ -17,7 +17,9 @@ export function makeIcons(defs) {
   const dl = new THREE.DirectionalLight(0xffffff, 2.2); dl.position.set(3, 6, 4); sc.add(dl);
   const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
   for (const def of defs) {
-    const model = (def.kind === 'building' ? buildBuildingModel(def) : buildUnitModel(def)).group;
+    const built = def.kind === 'building' ? buildBuildingModel(def) : buildUnitModel(def), model = built.group;
+    // Tech structures are shown repaired; the ruin is what the player finds on the map.
+    if (built.parts.wreck) built.parts.wreck.visible = false;
     sc.add(model);
     const box = new THREE.Box3().setFromObject(model);
     const sph = box.getBoundingSphere(new THREE.Sphere());
@@ -131,7 +133,18 @@ export class UI {
     this.renderTab();
   }
 
+  // Units from tech factories join the vehicle tab once their factory has been found on the map.
+  techUnits() {
+    const g = this.game, out = [];
+    for (const b of g.techSites.items) {
+      if (!b.def.produces || !(b.tech.found[this.team] || g.spectate)) continue;
+      for (const d of Object.values(DEFS)) if (d.team === this.faction && d.producer === b.def.produces && !out.includes(d)) out.push(d);
+    }
+    return out;
+  }
+
   renderTab() {
+    this.lists.factory = [...UNIT_ROLES.factory.map((r) => ROLE[this.faction][r]), ...this.techUnits()];
     const grid = $('build'); grid.innerHTML = '';
     for (const [k, el] of Object.entries(this.tabEls)) el.classList.toggle('active', k === this.tab);
     this.itemEls = {};
@@ -150,7 +163,7 @@ export class UI {
 
   reqText(def) {
     const g = this.game;
-    if (def.kind === 'unit') return g.hasRole(this.team, def.producer) ? '' : `Requiere: ${ROLE_NAMES[def.producer]}`;
+    if (def.kind === 'unit') return g.requirementsMet(this.team, def) ? '' : `Requiere: ${ROLE_NAMES[def.producer]}`;
     const miss = (def.requires || []).filter((r) => !g.hasRole(this.team, r)).map((r) => ROLE_NAMES[r]);
     return miss.length ? `Requiere: ${miss.join(', ')}` : '';
   }
@@ -185,6 +198,7 @@ export class UI {
 
   refreshItems() {
     const g = this.game, T = g.teams[this.team];
+    if (this.tab === 'factory' && this.lists.factory.length !== UNIT_ROLES.factory.length + this.techUnits().length) { this.renderTab(); return; }
     for (const def of this.lists[this.tab]) {
       const it = this.itemEls[def.id];
       if (!it) continue;
@@ -216,7 +230,8 @@ export class UI {
   // ----------------------------------------------------------- selección
   refreshSelPanel(force = false) {
     const sel = this.input.sel, panel = $('selpanel');
-    const key = sel.map((e) => e.id).join(',');
+    // A tech structure redraws its panel whenever its owner, state or repair switch changes.
+    const key = sel.map((e) => e.tech ? `${e.id}:${this.techView(e).team}:${this.techView(e).state}:${e.tech.repairing}` : e.id).join(',');
     if (!force && key === this.selKey) {
       this.updateSelBars();
       return;
@@ -225,7 +240,8 @@ export class UI {
     if (!sel.length) { panel.classList.add('hidden'); panel.innerHTML = ''; return; }
     panel.classList.remove('hidden');
     const g = this.game;
-    if (sel.length === 1 && sel[0].kind === 'building') {
+    if (sel.length === 1 && sel[0].def.tech) this.techPanel(sel[0], panel);
+    else if (sel.length === 1 && sel[0].kind === 'building') {
       const b = sel[0], own = b.team === g.player;
       const pw = b.def.power;
       panel.innerHTML = `<div class="sp-head"><img src="${this.icons[b.def.id]}"><div><div class="sp-name">${b.def.name}</div>` +
@@ -251,9 +267,45 @@ export class UI {
     this.updateSelBars();
   }
 
+  // What the player knows about a tech structure: the live state if it is theirs, else the last one seen.
+  techView(b) { return b.team === this.game.player || this.game.spectate ? { ...b.tech, team: b.team } : b.tech.view; }
+
+  techPanel(b, panel) {
+    const g = this.game, v = this.techView(b), own = v.team === g.player && !g.spectate;
+    const owner = !v.team ? 'Sin dueño' : g.spectate ? TEAMS[v.team].name : own ? 'Bajo tu control' : 'En manos del enemigo';
+    panel.innerHTML = `<div class="sp-head"><img src="${this.icons[b.def.id]}"><div><div class="sp-name">${b.def.name}</div>` +
+      `<div class="sp-sub">Estructura tecnológica · ${owner}</div></div></div>` +
+      `<div class="hpbar"><i></i></div><div class="sp-tech"></div>` +
+      (v.state === 'repairing' ? '<div class="repairbar"><i></i></div>' : '') +
+      (own && v.state === 'repairing' ? `<button id="repair-btn">${b.tech.repairing ? 'Pausar reparación' : 'Reanudar reparación'}</button>` : '') +
+      `<div class="sp-desc">${b.def.desc}</div>`;
+    const rb = $('repair-btn');
+    if (rb) rb.onclick = () => { g.techSites.setRepairing(b, !b.tech.repairing); g.audio.play('click'); this.refreshSelPanel(true); };
+  }
+
+  techStatus(b) {
+    const g = this.game, v = this.techView(b), own = v.team === g.player && !g.spectate;
+    if (v.state === 'online') {
+      if (!b.def.produces) return 'Operativa · sistema de armas aún sin activar';
+      const unit = Object.values(DEFS).find((d) => d.producer === b.def.produces);
+      return own ? `Operativa · construye el ${unit.name} desde Vehículos · clic derecho: punto de reunión` : 'Operativa';
+    }
+    if (v.state === 'ruin') return 'En ruinas · clic derecho con un ingeniero para capturarla';
+    const pct = Math.floor(v.progress * 100);
+    if (!own) return `En reparación · ${pct} %`;
+    const left = Math.ceil(b.def.repairCost - b.tech.paid);
+    return `Reparando · ${pct} % · faltan ${left} $` + (!b.tech.repairing ? ' · EN PAUSA' : b.tech.waiting ? ' · SIN FONDOS' : '');
+  }
+
   updateSelBars() {
     const sel = this.input.sel, bar = document.querySelector('#selpanel .hpbar i');
     if (!bar || !sel.length) return;
+    const tech = document.querySelector('#selpanel .sp-tech');
+    if (tech && sel[0].tech) {
+      tech.textContent = this.techStatus(sel[0]);
+      const repair = document.querySelector('#selpanel .repairbar i');
+      if (repair) repair.style.width = (this.techView(sel[0]).progress * 100).toFixed(1) + '%';
+    }
     let hp = 0, max = 0;
     for (const e of sel) { hp += e.hp; max += e.maxHp; }
     const experience = document.querySelector('#selpanel .sp-experience');
@@ -328,17 +380,26 @@ export class UI {
       c.strokeStyle = '#332a13'; c.lineWidth = 1; c.stroke();
     }
     for (const b of g.buildings) {
-      if (b.dead || !(b.team === g.player || b.seen || g.spectate)) continue;
+      if (b.dead || b.def.tech || !(b.team === g.player || b.seen || g.spectate)) continue;
       c.fillStyle = TEAMS[b.team].css;
       const r = b.rect;
       c.fillRect(r.x0 * k, r.z0 * k, Math.max(3, (r.x1 - r.x0) * k), Math.max(3, (r.z1 - r.z0) * k));
       c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1;
       c.strokeRect(r.x0 * k, r.z0 * k, Math.max(3, (r.x1 - r.x0) * k), Math.max(3, (r.z1 - r.z0) * k));
     }
+    // Tech structures: a diamond in the owner's colour (as last seen), white while in ruins.
+    for (const b of g.techSites.items) {
+      if (!(b.seen || g.spectate)) continue;
+      const v = this.techView(b), x = b.x * k, z = b.z * k, r = 5.5;
+      c.fillStyle = v.team ? TEAMS[v.team].css : '#e8ecef';
+      c.beginPath(); c.moveTo(x, z - r); c.lineTo(x + r, z); c.lineTo(x, z + r); c.lineTo(x - r, z); c.closePath(); c.fill();
+      c.strokeStyle = '#111'; c.lineWidth = 1.5; c.stroke();
+      c.fillStyle = '#111'; c.fillRect(x - 1.2, z - 1.2, 2.4, 2.4);
+    }
     for (const u of g.units) {
       if (u.dead || !g.isVisibleEntity(u)) continue;
       c.fillStyle = TEAMS[u.team].css;
-      const s = u.radius > 1.1 ? 3 : 2;
+      const s = u.radius > 2 ? 4 : u.radius > 1.1 ? 3 : 2;
       c.fillRect(u.x * k - s / 2, u.z * k - s / 2, s, s);
     }
     // alertas
@@ -371,7 +432,7 @@ export class UI {
     const c = this.ctx, inp = this.input, g = this.game;
     if (e.dead || !e.mesh.visible) return;
     const own = e.team === g.player;
-    const col = own ? '#5cf08a' : '#ff5a50';
+    const col = own ? '#5cf08a' : e.team ? '#ff5a50' : '#d9dde2';
     c.lineWidth = mode === 'hover' ? 1.5 : 2;
     c.strokeStyle = mode === 'hover' ? 'rgba(255,255,255,0.8)' : col;
     let bx, by, bw;
@@ -449,6 +510,16 @@ export class UI {
       const text = `Caja · +${crate.amount} $`, width = c.measureText(text).width;
       c.fillStyle = 'rgba(0,0,0,.75)'; c.fillRect(p.x - width / 2 - 5, p.y - 17, width + 10, 20);
       c.fillStyle = '#ffd36b'; c.fillText(text, p.x, p.y);
+    }
+    for (const b of g.techSites.items) {
+      if (!g.techSites.inSight(b)) continue;
+      const p = inp.project(b.x, b.def.height + 2.2, b.z);
+      if (p.z < -1 || p.z > 1) continue;
+      const v = this.techView(b);
+      const state = v.state === 'ruin' ? 'en ruinas' : v.state === 'repairing' ? `reparando ${Math.floor(v.progress * 100)} %` : 'operativa';
+      const text = `${b.def.name} · ${state}`, width = c.measureText(text).width;
+      c.fillStyle = 'rgba(0,0,0,.75)'; c.fillRect(p.x - width / 2 - 5, p.y - 17, width + 10, 20);
+      c.fillStyle = v.team ? TEAMS[v.team].css : '#e8ecef'; c.fillText(text, p.x, p.y);
     }
     c.restore();
     // puntos de reunión

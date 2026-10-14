@@ -252,7 +252,9 @@ export class FX {
     att.mesh.position.set(att.x, 0, att.z);
     if (att.kind === 'unit') att.mesh.rotation.y = att.heading;
     if (att.parts.turret) att.parts.turret.rotation.y = aim - att.mesh.rotation.y;
-    const muzzle = att.parts.muzzle;
+    // Twin guns take turns.
+    const twins = att.parts.muzzles;
+    const muzzle = twins ? twins[att.shot = ((att.shot ?? -1) + 1) % twins.length] : att.parts.muzzle;
     muzzle.updateWorldMatrix(true, false);
     const e = muzzle.matrixWorld.elements;
     const mx = e[12], my = e[13], mz = e[14];

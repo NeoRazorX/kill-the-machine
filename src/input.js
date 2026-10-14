@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SIZE, CELL, N, PLAYER, other, canRepair, buildingFront } from './config.js';
+import { SIZE, CELL, N, PLAYER, other, canRepair, canCapture, buildingFront } from './config.js';
 import { buildBuildingModel } from './models.js';
 import { concreteTexture, CONCRETE_TILE, SLAB_MARGIN } from './foundations.js';
 import { nearestFreeCell } from './pathfinding.js';
@@ -197,7 +197,16 @@ export class Input {
       return;
     }
     const hit = this.pickEntity(cx, cy);
-    if (hit && hit.team !== this.player) {
+    // Right click on a tech structure that is not ours: engineers go in to capture it.
+    const engineers = hit ? units.filter((u) => canCapture(u, hit)) : [];
+    if (engineers.length) {
+      engineers.forEach((u) => u.cmdCapture(hit));
+      g.fx.marker(hit.x, hit.z, 'rally');
+      units = units.filter((u) => !engineers.includes(u));
+      if (!units.length) { g.audio.play('order'); return; }
+    }
+    // Neutral ruins cannot be attacked: a click on them is a move order.
+    if (hit && hit.team && hit.team !== this.player) {
       for (const u of units) u.cmdAttack(hit);
       g.fx.marker(hit.x, hit.z, 'attack');
       g.audio.play('attack');
@@ -459,9 +468,10 @@ export class Input {
 
     let cur = 'default';
     if (this.placing || this.attackMode) cur = 'crosshair';
-    else if (this.hover && this.hover.team !== this.player && this.selUnits().some((u) => u.def.weapon)) cur = 'crosshair';
+    else if (this.hover && this.selUnits().some((u) => canCapture(u, this.hover))) cur = 'copy';
+    else if (this.hover && this.hover.team && this.hover.team !== this.player && this.selUnits().some((u) => u.def.weapon)) cur = 'crosshair';
     else if (this.hover && this.hover.team === this.player && this.hover.hp < this.hover.maxHp && this.selUnits().some((u) => canRepair(u, this.hover))) cur = 'cell';
-    else if (this.hover && this.hover.team === this.player) cur = 'pointer';
+    else if (this.hover && (this.hover.team === this.player || this.hover.def.tech)) cur = 'pointer';
     this.dom.style.cursor = cur;
   }
 }

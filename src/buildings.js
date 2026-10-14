@@ -59,8 +59,9 @@ export class Building {
       if (this.sellT >= 1.2) g.removeBuilding(this, 'sold');
       return;
     }
-    const low = g.lowPower(this.team);
-    if (def.produces) this.updateQueue(dt, low);
+    const low = !!this.team && g.lowPower(this.team);
+    // A tech factory only produces once repaired.
+    if (def.produces && (!this.tech || this.tech.state === 'online')) this.updateQueue(dt, low);
     if (def.weapon) this.updateTurret(dt, low);
 
     // animaciones decorativas
@@ -69,9 +70,9 @@ export class Building {
     if (p.ring) { p.ring.rotation.y += dt * 1.8; }
     if (p.rings) p.rings.forEach((r, i) => { r.rotation.y += dt * (1.5 + i * 0.7); });
 
-    // humo / fuego al estar dañado
+    // humo / fuego al estar dañado; las ruinas sin dueño ya no arden
     const frac = this.hp / this.maxHp;
-    if (frac < 0.55) {
+    if (frac < 0.55 && this.team) {
       this.fxT -= dt;
       if (this.fxT <= 0) {
         this.fxT = frac < 0.28 ? 0.12 : 0.35;
@@ -103,7 +104,8 @@ export class Building {
   updateTurret(dt, low) {
     const g = this.game, w = this.def.weapon, p = this.parts;
     this.cooldown -= dt;
-    if (this.target && (this.target.dead || g.distTo(this, this.target) > w.range + 1)) this.target = null;
+    const t = this.target;
+    if (t && (t.dead || !t.team || t.team === this.team || g.distTo(this, t) > w.range + 1)) this.target = null;
     this.scanT -= dt;
     if (this.scanT <= 0) {
       this.scanT = 0.3 + Math.random() * 0.2;

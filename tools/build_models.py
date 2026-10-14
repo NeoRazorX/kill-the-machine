@@ -3,9 +3,11 @@ Coordinates in helpers match the game: +Y up, +Z forward. Blender stores +Z up.
 No external textures. Static parts are joined; animated pivots remain independent.
 """
 import bpy
+import bmesh
 import math
+import random
 from pathlib import Path
-from mathutils import Vector
+from mathutils import Matrix, Vector
 import sys
 
 OUT = Path(__file__).resolve().parents[1] / 'assets' / 'models'
@@ -24,6 +26,23 @@ RED = '#ff3e31'
 ORANGE = '#ff921f'
 TEAL = '#46e6bc'
 WHITE = '#d8dcdc'
+# Neutral, weathered pre-war palette for the capturable tech structures.
+CONCRETE = '#8b8a82'
+CONCRETE_D = '#6f6e67'
+CONCRETE_L = '#a4a297'
+RUST = '#8c5a3b'
+RUST_D = '#5b4234'
+IRON = '#4e5351'
+HAZARD = '#c9a646'
+SOOT = '#24221f'
+DOOR = '#6c6a62'
+CRANE = '#b48f3e'
+COPPER = '#b06f3d'
+CANVAS = '#a69f87'
+PRIMER = '#a39a84'
+GUNMETAL = '#555b57'
+SHEET = '#868d83'
+VEST = '#e98a2b'
 
 
 def xyz(v):
@@ -262,7 +281,7 @@ def torus(name, radius, tube, pos, tint, axis='y'):
     return finish(obj, tint)
 
 
-def beam(name, a, b, width, tint):
+def beam(name, a, b, width, tint, bevel=None):
     a, b = Vector(xyz(a)), Vector(xyz(b))
     bpy.ops.mesh.primitive_cube_add(size=1, location=(a+b)/2)
     obj = bpy.context.object
@@ -270,7 +289,7 @@ def beam(name, a, b, width, tint):
     obj.scale = (width, width, (b-a).length)
     obj.rotation_euler = (b-a).to_track_quat('Z', 'Y').to_euler()
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-    return finish(obj, tint, min(.025, width*.15))
+    return finish(obj, tint, min(.025, width*.15) if bevel is None else bevel)
 
 
 def tracked_chassis(machine=False):
@@ -284,9 +303,10 @@ def tracked_chassis(machine=False):
     return objects
 
 
-def infantry(machine=False, heavy=False, medic=False):
+def infantry(machine=False, heavy=False, medic=False, engineer=False):
     reset()
-    id = 'm_sentinel' if machine else 'h_medic' if medic else 'h_rocket' if heavy else 'h_rifle'
+    id = ('m_sentinel' if machine else 'h_medic' if medic else 'h_engineer' if engineer
+          else 'h_rocket' if heavy else 'h_rifle')
     hull, edge, base, accent = (MACHINE,MPLATE,BLACK,RED) if machine else (OLIVE,LIGHT,DARK,BLUE)
     hip = 1.16 if machine else .72
     body_y = 1.65 if machine else 1.1
@@ -301,9 +321,24 @@ def infantry(machine=False, heavy=False, medic=False):
         merge('Leg armor',objects,pivot)
     body = empty('body',(0,0,0))
     objects = [armor('Torso',.91 if machine else .66,.57 if machine else .43,body_y-.33,body_y+.34,.14,(0,0),hull),
-               box('Chest plate',(.66 if machine else .49,.29,.1),(0,body_y+.08,.28 if machine else .23),edge),
-               box('Identification',(.55 if machine else .35,.07,.03),(0,body_y+.14,.34 if machine else .295),accent,.005),
-               box('Backpack',(.51,.52,.25),(0,body_y,-.35),WHITE if medic else base,.04)]
+               box('Chest plate',(.66 if machine else .49,.29,.1),(0,body_y+.08,.28 if machine else .23),VEST if engineer else edge),
+               box('Identification',(.55 if machine else .35,.07,.03),(0,body_y+.14,.34 if machine else .295),accent,.005)]
+    if engineer:
+        # High-visibility vest, tool belt and a heavy tool pack with a cable reel.
+        objects += [box('Reflective stripe',(.5,.05,.03),(0,body_y-.02,.285),WHITE,.004),
+                    box('Vest side',(.06,.42,.36),(-.335,body_y-.02,0),VEST,.01),
+                    box('Vest side',(.06,.42,.36),(.335,body_y-.02,0),VEST,.01),
+                    box('Tool belt',(.72,.1,.5),(0,body_y-.3,0),DARK,.02),
+                    box('Belt pouch',(.15,.17,.11),(-.2,body_y-.36,.25),STEEL,.02),
+                    box('Belt pouch',(.13,.15,.1),(.21,body_y-.35,.25),YELLOW,.02),
+                    box('Tool pack',(.58,.6,.32),(0,body_y-.02,-.38),DARK,.05),
+                    box('Pack flap',(.6,.1,.34),(0,body_y+.26,-.38),STEEL,.02),
+                    box('Pack stripe',(.6,.06,.03),(0,body_y-.1,-.55),VEST,.005),
+                    cyl('Cable reel',.2,.44,(0,body_y+.47,-.38),DARK,'x',12),
+                    cyl('Cable coil',.15,.36,(0,body_y+.47,-.38),VEST,'x',12),
+                    cyl('Pack antenna',.018,.55,(.22,body_y+.55,-.48),STEEL,vertices=6)]
+    else:
+        objects.append(box('Backpack',(.51,.52,.25),(0,body_y,-.35),WHITE if medic else base,.04))
     if medic:
         # Cruz roja en mochila y pecho; brazalete blanco.
         objects += [box('Cross bar',(.3,.09,.02),(0,body_y,-.48),RED,.005),
@@ -314,6 +349,13 @@ def infantry(machine=False, heavy=False, medic=False):
     if machine:
         objects += [armor('Sensor head',.65,.5,2.2,2.61,.22,(0,0),base),
                     box('Visor',(.45,.075,.03),(0,2.43,.25),RED,.005)]
+    elif engineer:
+        objects += [box('Face',(.28,.26,.25),(0,head_y,.035),'#d7a779',.055),
+                    armor('Hard hat',.44,.45,head_y+.03,head_y+.2,.16,(0,0),YELLOW),
+                    box('Hat brim',(.5,.035,.54),(0,head_y+.045,.03),YELLOW,.01),
+                    box('Hat ridge',(.08,.04,.36),(0,head_y+.205,0),YELLOW,.01),
+                    box('Head lamp',(.1,.07,.04),(0,head_y+.12,.235),GLASS,.01),
+                    box('Visor',(.3,.075,.03),(0,head_y-.02,.17),GLASS,.005)]
     else:
         objects += [box('Face',(.28,.26,.25),(0,head_y,.035),'#d7a779',.055),
                     armor('Helmet',.44,.43,head_y+.01,head_y+.18,.11,(0,0),hull),
@@ -331,6 +373,15 @@ def infantry(machine=False, heavy=False, medic=False):
                     box('Spray body',(.14,.14,.4),(gun_x,gun_y,.45),WHITE),
                     cyl('Spray nozzle',.045,.18,(gun_x,gun_y,.73),STEEL,'z',8)]
         muzzle_z = .83
+    elif engineer:
+        # Unarmed: a heavy wrench in the right hand, a diagnostic tablet in the left.
+        objects += [beam('Wrench handle',(gun_x,body_y-.12,.3),(gun_x,body_y+.32,.56),.07,STEEL),
+                    box('Wrench jaw',(.09,.1,.24),(gun_x,body_y+.37,.6),STEEL,.015),
+                    box('Wrench jaw',(.09,.08,.11),(gun_x,body_y+.45,.66),STEEL,.015),
+                    box('Wrench grip',(.1,.16,.1),(gun_x,body_y-.08,.32),YELLOW,.02),
+                    tbox('Tablet',(.26,.04,.2),(-shoulder,body_y-.05,.42),DARK,(.7,0,0),.012),
+                    tbox('Tablet screen',(.2,.012,.14),(-shoulder,body_y-.03,.43),GLASS,(.7,0,0),.004)]
+        gun_y, muzzle_z = body_y+.42, .7
     elif heavy:
         objects += [cyl('Rocket launcher',.14,1.27,(gun_x,gun_y,.32),base,'z',8),
                     cyl('Rocket tube lip',.18,.12,(gun_x,gun_y,.93),edge,'z',8),
@@ -961,6 +1012,991 @@ def cash_crate():
     save('prop_cash_crate')
 
 
+def machine_engineer():
+    reset()
+    bob = empty('bob',(0,1.12,0))
+    objects = [gem('Infiltrator pod',(.4,.28,.5),(0,1.13,-.06),MACHINE),
+               armor('Dorsal plate',.6,.78,1.24,1.42,.22,(0,-.1),MPLATE),
+               box('Optic band',(.34,.06,.05),(0,1.2,.4),ORANGE,.008),
+               cyl('Probe mount',.11,.2,(0,1.05,.42),BLACK,'z',8),
+               beam('Hacking probe',(0,1.05,.5),(0,.98,.98),.06,STEEL),
+               cone('Probe tip',.05,.005,.16,(0,.97,1.04),ORANGE,6),
+               torus('Probe coil',.08,.025,(0,1.02,.74),ORANGE,'z')]
+    objects[-2].rotation_euler.x = math.pi/2
+    xform(objects[-2])
+    for s in (-1,1):
+        shoulder, elbow, wrist = (s*.36,1.1,.12), (s*.52,.92,.42), (s*.3,.84,.72)
+        objects += [cyl('Arm socket',.1,.14,shoulder,BLACK,'x',8),
+                    beam('Upper manipulator',shoulder,elbow,.09,MPLATE),
+                    gem('Elbow servo',(.075,.075,.075),elbow,MACHINE),
+                    beam('Lower manipulator',elbow,wrist,.07,STEEL),
+                    gem('Wrist servo',(.06,.06,.06),wrist,ORANGE),
+                    beam('Claw finger',wrist,(s*.2,.8,.9),.04,MPLATE),
+                    beam('Claw finger',wrist,(s*.38,.78,.88),.04,MPLATE),
+                    cyl('Thruster',.13,.14,(s*.3,.95,-.32),BLACK,vertices=8),
+                    beam('Antenna',(s*.14,1.38,-.32),(s*.22,1.62,-.5),.025,MPLATE)]
+    merge('Infiltrator shell',objects,bob)
+    ring = empty('ring',(0,-.26,0),bob)
+    objects = [torus('Lift ring',.34,.035,(0,.86,0),ORANGE)]
+    for a in (0,math.pi):
+        objects.append(box('Ring tab',(.09,.08,.14),(math.sin(a)*.34,.86,math.cos(a)*.34),MPLATE))
+    merge('Lift assembly',objects,ring)
+    empty('muzzle',(0,-.15,.08+1.0),bob)
+    save('m_engineer')
+
+
+# ---------------------------------------------------------------- Tech structures
+# Neutral pre-war sites, 4x4 cells (8x8 units). Each has a static foundation, an `intact`
+# and a `wreck` pivot on the ground (the game grows intact.scale.y while repairing), and a
+# `beacon` lamp mesh with its own material, recoloured per owner at runtime.
+SLAB = .24
+PLANES = {'xz': lambda u,v,w: (u,w,v), 'zx': lambda u,v,w: (v,w,u),
+          'xy': lambda u,v,w: (u,v,w), 'zy': lambda u,v,w: (w,v,u)}
+
+
+def xform(obj, rot=(0,0,0), pivot=(0,0,0), move=(0,0,0)):
+    # Rotate about a game-space pivot (roll z, pitch x, then yaw y) and translate; baked into the mesh.
+    R = Matrix.Rotation(rot[1],4,'Z') @ Matrix.Rotation(rot[0],4,'X') @ Matrix.Rotation(-rot[2],4,'Y')
+    p = Vector(xyz(pivot))
+    M = Matrix.Translation(p + Vector(xyz(move))) @ R @ Matrix.Translation(-p) @ obj.matrix_basis
+    obj.data.transform(M)
+    obj.matrix_basis = Matrix.Identity(4)
+    return obj
+
+
+def discard(objs):
+    for obj in objs:
+        bpy.data.objects.remove(obj)
+
+
+def group(objs, rot=(0,0,0), pivot=(0,0,0), move=(0,0,0)):
+    for obj in objs:
+        xform(obj, rot, pivot, move)
+    return objs
+
+
+def solid(name, verts, faces, tint, bevel=0):
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata([xyz(v) for v in verts], [], faces)
+    mesh.update()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    return finish(obj, tint, bevel)
+
+
+def prism(name, pts, a, b, tint, plane='xz', bevel=0):
+    # Extrude a 2D outline: 'xz' top-down (u=x, v=z, along y), 'zx' (u=z, v=x), 'xy' facing +Z, 'zy' facing +X.
+    f, n = PLANES[plane], len(pts)
+    verts = [f(u,v,a) for u,v in pts] + [f(u,v,b) for u,v in pts]
+    faces = [tuple(range(n)), tuple(range(n,2*n))] + [(i,(i+1)%n,(i+1)%n+n,i+n) for i in range(n)]
+    return solid(name, verts, faces, tint, bevel)
+
+
+def tbox(name, size, pos, tint, rot=(0,0,0), bevel=.03):
+    return xform(box(name, size, pos, tint, bevel), rot, pos)
+
+
+def pipe(name, a, b, r, tint, vertices=10):
+    a, b = Vector(xyz(a)), Vector(xyz(b))
+    bpy.ops.mesh.primitive_cylinder_add(vertices=vertices, radius=r, depth=(b-a).length, location=(a+b)/2)
+    obj = bpy.context.object
+    obj.name = name
+    obj.rotation_euler = (b-a).to_track_quat('Z', 'Y').to_euler()
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    return finish(obj, tint, .015)
+
+
+def ellipsoid(name, size, pos, tint, segments=16, rings=9):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=segments, ring_count=rings, radius=1, location=xyz(pos))
+    obj = bpy.context.object
+    obj.name = name
+    obj.scale = (size[0], size[2], size[1])
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    return finish(obj, tint)
+
+
+def bowl(name, profile, tint, thickness=.08, segments=16, arc=math.tau, start=0):
+    # Solid dish around +Y at the origin; profile is [(radius, y), ...] from the centre outward.
+    full = arc >= math.tau - 1e-6
+    n = segments if full else segments + 1
+    rings = profile[1:]
+    verts = []
+    for off in (0, thickness):
+        verts.append((0, profile[0][1] - off, 0))
+        for r, y in rings:
+            for i in range(n):
+                a = start + arc*i/segments
+                verts.append((math.cos(a)*r, y - off, math.sin(a)*r))
+    L = len(verts)//2
+    idx = lambda k, i: 1 + k*n + (i % n)
+    faces = []
+    for i in range(segments):
+        j = i + 1
+        faces += [(0, idx(0,i), idx(0,j)), (L, L+idx(0,j), L+idx(0,i))]
+        for k in range(len(rings)-1):
+            faces += [(idx(k,i), idx(k+1,i), idx(k+1,j), idx(k,j)),
+                      (L+idx(k,i), L+idx(k,j), L+idx(k+1,j), L+idx(k+1,i))]
+        k = len(rings) - 1
+        faces.append((idx(k,i), L+idx(k,i), L+idx(k,j), idx(k,j)))
+    if not full:
+        for i in (0, n-1):
+            chain = [0] + [idx(k,i) for k in range(len(rings))]
+            for a, b in zip(chain, chain[1:]):
+                faces.append((a, b, L+b, L+a))
+    return solid(name, verts, faces, tint)
+
+
+def dish_profile(radius, depth, rings=4):
+    return [(radius*k/rings, depth*(k/rings)**2) for k in range(rings+1)]
+
+
+def arch(name, x0, x1, zc, hw, h, y0, t, th0, th1, tint, segs=None):
+    # Semi-elliptic shell band along X (hangar vaults and ribs); theta 0 = front foot, pi = rear foot.
+    segs = segs or max(2, round((th1-th0)/math.pi*14))
+    ring = []
+    for k in range(segs+1):
+        th = th0 + (th1-th0)*k/segs
+        ring.append(((zc+hw*math.cos(th), y0+h*math.sin(th)), (zc+(hw-t)*math.cos(th), y0+(h-t)*math.sin(th))))
+    verts = []
+    for x in (x0, x1):
+        for (zo,yo),(zi,yi) in ring:
+            verts += [(x,yo,zo), (x,yi,zi)]
+    m = 2*(segs+1)
+    faces = []
+    for k in range(segs):
+        o0, i0, o1, i1 = 2*k, 2*k+1, 2*k+2, 2*k+3
+        faces += [(o0,o1,o1+m,o0+m), (i0,i0+m,i1+m,i1), (o0,i0,i1,o1), (o0+m,o1+m,i1+m,i0+m)]
+    e = 2*segs
+    faces += [(0,m,m+1,1), (e,e+1,e+1+m,e+m)]
+    return solid(name, verts, faces, tint)
+
+
+def truss(cx, cz, y0, y1, r0, r1, sides, levels, leg, brace, tint, btint, panels=None, rot=math.pi/4, cross=True):
+    # Tapered lattice tower; `panels` selects which storeys to build (for broken stumps).
+    def corner(j, t):
+        r, a = r0 + (r1-r0)*t, rot + j*math.tau/sides
+        return (cx + math.cos(a)*r, y0 + (y1-y0)*t, cz + math.sin(a)*r)
+    out = []
+    for p in (range(levels) if panels is None else panels):
+        t0, t1 = p/levels, (p+1)/levels
+        for j in range(sides):
+            k = (j+1) % sides
+            out += [beam('Truss leg', corner(j,t0), corner(j,t1), leg, tint, 0),
+                    beam('Truss rung', corner(j,t1), corner(k,t1), brace, btint, 0),
+                    beam('Truss brace', corner(j,t0), corner(k,t1), brace*.75, btint, 0)]
+            if cross:
+                out.append(beam('Truss brace', corner(k,t0), corner(j,t1), brace*.75, btint, 0))
+    return out
+
+
+def blob(x, z, r, rnd, n=9):
+    return [(x + math.cos(i*math.tau/n)*r*rnd.uniform(.6,1.1), z + math.sin(i*math.tau/n)*r*rnd.uniform(.6,1.1))
+            for i in range(n)]
+
+
+def scorch(x, z, r, seed, y=SLAB, tint=SOOT):
+    return prism('Scorch mark', blob(x, z, r, random.Random(seed), 11), y, y+.014, tint)
+
+
+def hazard(u0, u1, v, w, width, plane='xz', name='Hazard stripes'):
+    # Faded yellow/black diagonal band on a surface (see prism planes); w is the surface level.
+    out = [prism(name, [(u0,v-width/2),(u1,v-width/2),(u1,v+width/2),(u0,v+width/2)], w, w+.02, SOOT, plane)]
+    step, h = width*1.15, width*.43
+    u = u0 + .04
+    while u + step*.5 + width*.9 <= u1 - .03:
+        out.append(prism(name, [(u+width*.9,v-h),(u+width*.9+step*.5,v-h),(u+step*.5,v+h),(u,v+h)],
+                         w+.012, w+.032, HAZARD, plane))
+        u += step
+    return out
+
+
+def rubble(cx, cz, spread, n, seed, tints, size=.35, y=SLAB):
+    rnd, out = random.Random(seed), []
+    for i in range(n):
+        s = size*rnd.uniform(.55,1.4)
+        x = max(-3.88+s, min(3.88-s, cx + rnd.uniform(-spread,spread)))
+        z = max(-3.88+s, min(3.88-s, cz + rnd.uniform(-spread,spread)*.8))
+        tint = tints[i % len(tints)]
+        if i % 3:
+            o = gem('Rubble',(s,s*rnd.uniform(.45,.8),s*rnd.uniform(.7,1.1)),(x,y+s*.25,z),tint)
+            out.append(xform(o,(0,rnd.uniform(0,3.1),rnd.uniform(-.3,.3)),(x,y,z)))
+        else:
+            out.append(tbox('Concrete shard',(s*1.7,s*.3,s*1.1),(x,y+s*.3,z),tint,
+                            (rnd.uniform(-.35,.35),rnd.uniform(0,3.1),rnd.uniform(-.35,.35)),.02))
+    return out
+
+
+def tech_slab(seed):
+    rnd = random.Random(seed)
+    objs = [box('Site slab',(7.8,.2,7.8),(0,.1,0),CONCRETE_D,.06)]
+    tones = (CONCRETE, '#84837b', '#918f86', '#7e7d75')
+    for i,(x,z) in enumerate(((-1.93,-1.93),(1.93,-1.93),(-1.93,1.93),(1.93,1.93))):
+        objs.append(box('Pour panel',(3.78,.05,3.78),(x,.215,z),tones[(i+seed)%4],.015))
+    for i in range(6):
+        x, z, a = rnd.uniform(-3.3,3.3), rnd.uniform(-3.3,3.3), rnd.uniform(0,math.pi)
+        for k in range(3):
+            a += rnd.uniform(-.8,.8)
+            nx, nz = max(-3.7,min(3.7,x+math.cos(a)*.4)), max(-3.7,min(3.7,z+math.sin(a)*.4))
+            dx, dz = (nz-z)*.045, (x-nx)*.045
+            objs.append(prism('Crack',[(x-dx,z-dz),(nx-dx*.4,nz-dz*.4),(nx+dx*.4,nz+dz*.4),(x+dx,z+dz)],SLAB-.01,SLAB+.004,SOOT))
+            x, z = nx, nz
+    for i in range(4):
+        objs.append(prism('Weather stain', blob(rnd.uniform(-3,3), rnd.uniform(-3,3), rnd.uniform(.35,.7), rnd), SLAB, SLAB+.006, '#74726b'))
+    objs += hazard(-3.72,-2.2,3.7,SLAB,.22) + hazard(2.2,3.72,3.7,SLAB,.22)
+    return objs
+
+
+def beacon_post(x, z, h=1.35):
+    top = SLAB + .3 + h
+    parts = [box('Beacon plinth',(.55,.3,.55),(x,SLAB+.15,z),CONCRETE_L,.04),
+             box('Plinth stripe',(.57,.07,.57),(x,SLAB+.22,z),HAZARD,.01),
+             cyl('Beacon mast',.065,h,(x,SLAB+.3+h/2,z),IRON,vertices=8),
+             cyl('Lamp seat',.21,.07,(x,top+.035,z),DARK,vertices=8),
+             cone('Lamp hood',.22,.1,.12,(x,top+.07+.32+.06,z),DARK,8)]
+    for i in range(3):
+        a = i*math.tau/3 + .5
+        parts.append(beam('Lamp cage',(x+math.cos(a)*.19,top+.07,z+math.sin(a)*.19),
+                          (x+math.cos(a)*.19,top+.4,z+math.sin(a)*.19),.03,DARK))
+    return parts, (x, top+.07, z)
+
+
+def beacon_lamp(x, y, z):
+    # Owner light: its own material and no vertex colours, so the runtime tint is not multiplied away.
+    obj = cyl('beacon', .16, .32, (x, y+.16, z), WHITE, vertices=8)
+    obj.data.color_attributes.remove(obj.data.color_attributes['Color'])
+    mat = bpy.data.materials.get('Beacon')
+    if not mat:
+        mat = bpy.data.materials.new('Beacon')
+        mat.use_nodes = True
+        mat.use_backface_culling = True
+        shader = mat.node_tree.nodes.get('Principled BSDF')
+        shader.inputs['Base Color'].default_value = color('#d4d8d6')
+        shader.inputs['Emission Color'].default_value = color('#d4d8d6')
+        shader.inputs['Emission Strength'].default_value = .8
+        shader.inputs['Roughness'].default_value = .35
+        shader.inputs['Metallic'].default_value = 0
+    obj.data.materials.clear()
+    obj.data.materials.append(mat)
+    obj.name = 'beacon'
+    obj.data.name = 'beacon'
+    return obj
+
+
+# --- Missile silo: armoured launch deck with two hexagonal blast doors, control bunker, stacks, mast.
+SILO_SHAFTS = ((-1.65,-1.3), (1.65,-1.3))
+
+
+def silo_door(side, R=1.06, g=.03):
+    h = R*math.sqrt(3)/2
+    pts = [(side*g,-h),(side*R/2,-h),(side*R,0),(side*R/2,h),(side*g,h)]
+    return [prism('Blast door', pts, 0, .14, DOOR)] + hazard(-h+.12, h-.12, side*.22, .14, .24, 'zx')
+
+
+def silo_mast(x, y, z):
+    parts = truss(x, z, y, y+2.75, .3, .12, 3, 4, .07, .04, IRON, STEEL)
+    parts += [cyl('Whip antenna',.025,.45,(x,y+2.97,z),STEEL,vertices=6),
+              beam('Antenna yard',(x-.45,y+2.3,z),(x+.45,y+2.3,z),.05,STEEL),
+              box('Panel antenna',(.12,.42,.08),(x-.45,y+2.1,z),CONCRETE_L,.01),
+              box('Panel antenna',(.12,.42,.08),(x+.45,y+2.1,z),CONCRETE_L,.01)]
+    d = bowl('Relay dish', dish_profile(.34,.13,2), CONCRETE_L, .04, 12)
+    parts.append(xform(d,(1.05,0,0),(0,0,0),(x,y+1.55,z+.2)))
+    return parts
+
+
+def silo_site():
+    base = tech_slab(1)
+    base.append(armor('Launch deck',7.2,4.8,SLAB,.8,.45,(0,-1.25),CONCRETE))
+    for cx,cz in SILO_SHAFTS:
+        base += [cyl('Shaft collar',1.22,.12,(cx,.86,cz),CONCRETE_L,vertices=6),
+                 cyl('Shaft void',1.0,.02,(cx,.925,cz),BLACK,vertices=6)]
+        for dz in (-1.1,1.1):
+            base.append(box('Door rail',(2.9,.06,.1),(cx,.83,cz+dz),STEEL,.01))
+    base += hazard(-3.0,3.0,.66,.8,.26)
+    for x in (-3.0,3.0):
+        base.append(box('Deck bollard',(.26,.3,.26),(x,.95,.66),HAZARD,.03))
+    lamp_parts, lamp = beacon_post(-3.4, 3.4)
+    base += lamp_parts
+
+    bx, bz = -.15, 2.6
+    intact = []
+    for cx,cz in SILO_SHAFTS:
+        for s in (-1,1):
+            intact += group(silo_door(s), move=(cx,.9,cz))
+            intact.append(box('Door drive',(.45,.32,.85),(cx+s*1.42,.97,cz),IRON))
+            intact.append(box('Drive piston',(.5,.1,.1),(cx+s*1.05,1.0,cz),STEEL,.01))
+    for x in (-3.05,3.05):
+        intact += [cyl('Stack collar',.38,.2,(x,.9,-3.05),CONCRETE_L),
+                   cyl('Vent stack',.3,2.5,(x,2.05,-3.05),RUST),
+                   torus('Stack band',.31,.045,(x,1.6,-3.05),RUST_D),
+                   torus('Stack band',.31,.045,(x,2.6,-3.05),RUST_D),
+                   cone('Vent cowl',.45,.22,.32,(x,3.45,-3.05),IRON),
+                   cyl('Cowl mouth',.2,.02,(x,3.62,-3.05),SOOT)]
+    intact += [armor('Control bunker',3.4,1.9,SLAB,1.6,.5,(bx,bz),CONCRETE),
+               armor('Bunker roof',2.95,1.45,1.6,1.8,.24,(bx,bz),CONCRETE_D),
+               box('Observation slit',(1.6,.18,.08),(bx-.35,1.22,3.37),'#5f8890',.01),
+               box('Slit brow',(1.9,.1,.22),(bx-.35,1.38,3.38),CONCRETE_L,.02),
+               box('Entry vestibule',(.9,1.05,.55),(1.1,.765,3.5),CONCRETE_L),
+               box('Bunker door',(.56,.8,.05),(1.1,.66,3.79),DOOR,.01),
+               cyl('Roof hatch',.26,.1,(.05,1.84,2.2),IRON),
+               box('Roof louvre',(.7,.22,.5),(.5,1.9,2.95),IRON,.02),
+               cyl('Dome collar',.68,.14,(-.85,1.85,2.5),IRON,vertices=16)]
+    dome = bowl('Tracking dome',[(.62*math.sin(p),.62*(1-math.cos(p))) for p in (0,.5,1.0,1.35,math.pi/2)],'#cfccc0',.05,16)
+    intact.append(xform(dome,(math.pi,0,0),(0,0,0),(-.85,2.54,2.5)))
+    intact += hazard(.68,1.52,1.18,3.775,.14,'xy')
+    for x in (-.35,.15):
+        intact.append(pipe('Command conduit',(x,.95,.4),(x,1.25,1.85),.07,STEEL))
+    intact += silo_mast(.85,1.8,2.25)
+
+    wreck = []
+    # Left shaft: doors blown clear, a scorched missile jammed in the open silo.
+    lcx, lcz = SILO_SHAFTS[0]
+    wreck += group(silo_door(-1), (.22,.8,.3), (0,0,0), (-2.55,1.0,.1))
+    wreck += group(silo_door(1), (-1.05,.35,.05), (0,0,0), (-2.6,1.06,1.75))
+    wreck.append(torus('Burnt rim',1.06,.06,(lcx,.93,lcz),SOOT))
+    for i in range(5):
+        a = i*math.tau/5 + .3
+        wreck.append(scorch(lcx+math.cos(a)*1.45, lcz+math.sin(a)*1.35, .42, 40+i, .8))
+    missile = [cyl('Missile body',.5,2.4,(0,1.25,0),'#bdb9ab',vertices=12),
+               cone('Missile nose',.5,.06,.85,(0,2.87,0),'#bdb9ab',12),
+               torus('Missile band',.51,.05,(0,2.1,0),SOOT),
+               box('Missile fin',(.1,.6,1.3),(0,.4,0),RUST_D,.02),
+               box('Missile fin',(1.3,.6,.1),(0,.4,0),RUST_D,.02)]
+    wreck += group(missile, (.12,0,-.28), (0,0,0), (lcx-.15,.16,lcz))
+    # Right shaft: one leaf shoved aside, the other torn up on its edge.
+    rcx, rcz = SILO_SHAFTS[1]
+    wreck += group(silo_door(-1), (0,0,.1), (0,0,0), (rcx-.35,.92,rcz))
+    wreck += group(silo_door(1), (0,0,-1.05), (1.06,0,0), (rcx,.92,rcz))
+    wreck.append(tbox('Bent drive',(.45,.32,.85),(rcx+1.42,.95,rcz),IRON,(.2,.3,.25)))
+    wreck.append(box('Door drive',(.45,.32,.85),(0,.97,-1.3),IRON))
+    # Bunker caved in.
+    wreck += [armor('Bunker ruin',3.4,1.9,SLAB,.85,.3,(bx,bz),CONCRETE),
+              tbox('Wall stump',(.45,1.25,1.5),(bx-1.5,.8,bz),CONCRETE,(0,0,.08)),
+              tbox('Wall stump',(1.3,.95,.42),(bx+.85,.72,bz-.72),CONCRETE,(.05,.1,-.06)),
+              tbox('Collapsed roof',(2.9,.24,1.5),(bx+.15,1.0,bz+.15),CONCRETE_D,(.24,.08,-.2)),
+              tbox('Roof shard',(1.1,.18,.9),(bx-1.2,.95,bz+.65),CONCRETE_D,(-.3,.5,.35)),
+              box('Vestibule stump',(.9,.5,.55),(1.1,.49,3.5),CONCRETE_L),
+              tbox('Fallen door',(.56,.05,.8),(1.6,.32,3.4),DOOR,(.1,.6,0),.01)]
+    shell = bowl('Broken dome',[(.62*math.sin(p),.62*(1-math.cos(p))) for p in (0,.5,1.0,1.35,math.pi/2)],'#b8b5a9',.05,16,3.6,.4)
+    wreck.append(xform(shell,(math.pi-.5,.3,.35),(0,0,0),(-1.15,1.25,2.75)))
+    wreck += rubble(bx,bz+.4,1.6,16,11,(CONCRETE,CONCRETE_L,CONCRETE_D),.28)
+    # Stacks: one snapped and fallen, one buckled.
+    wreck += [cyl('Stack collar',.38,.2,(-3.05,.9,-3.05),CONCRETE_L),
+              cyl('Stack stump',.3,.9,(-3.05,1.25,-3.05),RUST),
+              tbox('Torn edge',(.5,.2,.3),(-3.0,1.72,-3.1),RUST_D,(.4,.3,.5)),
+              cyl('Fallen stack',.3,1.6,(-2.0,1.12,-2.75),RUST,'x'),
+              xform(torus('Stack band',.31,.045,(-1.55,1.12,-2.75),RUST_D,'z'),(0,math.pi/2,0),(-1.55,1.12,-2.75))]
+    cowl = cone('Vent cowl',.45,.22,.32,(0,0,0),IRON)
+    wreck.append(xform(cowl,(0,0,1.4),(0,0,0),(-1.05,1.15,-2.75)))
+    bent = [cyl('Vent stack',.3,1.3,(3.05,1.45,-3.05),RUST), cyl('Stack collar',.38,.2,(3.05,.9,-3.05),CONCRETE_L)]
+    top = [cyl('Vent stack',.3,1.1,(3.05,2.65,-3.05),RUST), cone('Vent cowl',.45,.22,.32,(3.05,3.35,-3.05),IRON)]
+    wreck += bent + group(top,(.35,0,.55),(3.05,2.1,-3.05))
+    # Antenna mast toppled across the front.
+    mast = silo_mast(0,0,0)
+    wreck += group(mast,(1.45,1.2,0),(0,0,0),(.5,1.0,2.2))
+    wreck += [scorch(.0,.9,.9,77), scorch(2.5,2.0,.6,78), scorch(-1.0,-2.9,.7,79,.8)]
+    return base, intact, wreck, lamp
+
+
+# --- Ion cannon uplink: tapered lattice pylon, copper coils and a sky-facing focusing dish.
+ION_Z = -.6
+
+
+def ion_half(y):
+    return 1.5 + (.55-1.5)*(y-.75)/(5.6-.75)
+
+
+def ion_head(y):
+    parts = [cyl('Gimbal hub',.75,.35,(0,y+.15,0),DARK,vertices=12),
+             cone('Dish mount',.55,.25,.35,(0,y+.45,0),IRON,10)]
+    d = bowl('Focusing dish', dish_profile(2.35,.95), '#b9b5a6', .1, 16)
+    parts.append(xform(d, move=(0,y+.6,0)))
+    parts += [torus('Dish rim',2.35,.07,(0,y+1.55,0),IRON),
+              torus('Panel seam',1.55,.03,(0,y+.6+.95*(1.55/2.35)**2+.01,0),DARK),
+              torus('Panel seam',.8,.03,(0,y+.6+.95*(.8/2.35)**2+.01,0),DARK)]
+    focus = (0,y+2.35,0)
+    for i in range(3):
+        a = i*math.tau/3 + math.pi/2
+        parts.append(beam('Feed strut',(math.cos(a)*2.28,y+1.55,math.sin(a)*2.28),focus,.07,IRON))
+    parts += [cone('Emitter horn',.1,.24,.4,(0,y+2.25,0),DARK,10),
+              torus('Focus coil',.27,.06,(0,y+2.35,0),COPPER),
+              gem('Focus crystal',(.15,.2,.15),(0,y+2.6,0),TEAL)]
+    return parts
+
+
+def ion_site():
+    base = tech_slab(2)
+    base.append(armor('Pylon plinth',4.4,4.4,SLAB,.75,.35,(0,ION_Z),CONCRETE))
+    for sx in (-1,1):
+        for sz in (-1,1):
+            base.append(box('Leg footing',(.62,.14,.62),(sx*1.5,.8,ION_Z+sz*1.5),CONCRETE_L,.03))
+        base += [box('Capacitor pad',(1.5,.1,1.5),(sx*3.0,.29,-3.0),CONCRETE_L),
+                 tbox('Cable trench',(.36,.05,1.2),(sx*2.15,.26,-2.2),IRON,(0,sx*.75,0),.01)]
+    base += hazard(-1.7,1.7,1.25,.75,.24)
+    base.append(box('Hut pad',(2.3,.08,1.75),(2.5,.28,2.5),CONCRETE_L,.02))
+    lamp_parts, lamp = beacon_post(-3.4, 3.4)
+    base += lamp_parts
+
+    intact = truss(0,ION_Z,.75,5.6,1.5*math.sqrt(2),.55*math.sqrt(2),4,3,.24,.12,RUST_D,IRON)
+    intact.append(cyl('Ion core',.32,5.2,(0,.75+2.6,ION_Z),STEEL))
+    for y in (2.9,3.9,4.9):
+        a = ion_half(y)
+        r = a*math.sqrt(2) + .22
+        intact.append(torus('Coil ring',r,.12,(0,y,ION_Z),COPPER))
+        for k in range(4):
+            ang = math.pi/4 + k*math.pi/2
+            intact.append(beam('Coil standoff',(math.cos(ang)*a*math.sqrt(2),y,ION_Z+math.sin(ang)*a*math.sqrt(2)),
+                               (math.cos(ang)*r,y,ION_Z+math.sin(ang)*r),.07,'#cfd3c8'))
+    intact += group(ion_head(5.6), move=(0,0,ION_Z))
+    for sx in (-1,1):
+        x, z = sx*3.0, -3.0
+        intact += [cyl('Capacitor drum',.55,1.6,(x,1.14,z),'#9b998c',12),
+                   torus('Capacitor band',.57,.05,(x,.75,z),COPPER),
+                   torus('Capacitor band',.57,.05,(x,1.5,z),COPPER),
+                   cone('Drum cap',.55,.28,.22,(x,2.05,z),IRON,12),
+                   cyl('Insulator',.09,.36,(x,2.34,z),'#cfd3c8',8),
+                   torus('Insulator skirt',.13,.035,(x,2.3,z),'#cfd3c8'),
+                   pipe('Power conduit',(sx*2.55,.55,-2.55),(sx*1.6,.95,ION_Z-1.6),.11,STEEL),
+                   beam('Feed cable',(x,2.52,z),(sx*1.25,2.37,ION_Z-1.25),.045,DARK)]
+    hx, hz = 2.5, 2.5
+    intact += [box('Control hut',(1.9,1.3,1.4),(hx,.97,hz),CONCRETE_L,.06),
+               box('Hut roof',(2.1,.14,1.6),(hx,1.69,hz),'#686a64'),
+               box('Hut window',(.9,.32,.04),(hx-.3,1.2,hz+.71),GLASS),
+               box('Hut door',(.42,.8,.04),(hx+.55,.72,hz+.71),DOOR),
+               box('Roof unit',(.6,.3,.5),(hx+.4,1.91,hz-.2),IRON),
+               cyl('Hut antenna',.03,1.0,(hx-.75,2.26,hz-.45),STEEL,vertices=6),
+               pipe('Control line',(hx-.7,.5,hz-.75),(1.0,.9,ION_Z+1.5),.08,DARK)]
+
+    wreck = truss(0,ION_Z,.75,5.6,1.5*math.sqrt(2),.55*math.sqrt(2),4,3,.24,.12,RUST_D,IRON,panels=[0])
+    a1 = ion_half(2.37)
+    for sx, sz, bend in ((-1,-1,(-.2,3.5,.1)), (1,-1,(.5,3.2,-.4)), (-1,1,(-.9,2.9,.4))):
+        p0 = (sx*a1, 2.37, ION_Z+sz*a1)
+        wreck.append(beam('Bent leg', p0, (p0[0]+bend[0], bend[1], p0[2]+bend[2]), .22, RUST_D))
+    wreck += [cyl('Core stump',.32,2.0,(0,1.75,ION_Z),STEEL),
+              tbox('Core shard',(.4,.5,.3),(.1,2.85,ION_Z),STEEL,(.3,.4,.5))]
+    # Upper storey and focusing head lie across the front of the pad.
+    top = truss(0,0,0,1.62,ion_half(3.98)*math.sqrt(2),.55*math.sqrt(2),4,1,.24,.12,RUST_D,IRON)
+    top += [cyl('Gimbal hub',.6,.3,(0,1.78,0),IRON,vertices=12), torus('Coil ring',ion_half(4.9)*math.sqrt(2)+.22,.12,(0,.92,0),COPPER)]
+    wreck += group(top,(1.4,-.75,.0),(0,0,0),(-.9,1.15,1.1))
+    # The dish slumped onto the broken pylon, a wedge torn out of it.
+    dish = [bowl('Broken dish', dish_profile(2.35,.95), '#b3afa0', .1, 16, 4.7, 2.2),
+            xform(arch('Torn rim',-.04,.04,0,2.39,2.39,0,.09,.7,3.5,IRON),(0,0,math.pi/2),(0,0,0),(0,.95,0))]
+    wreck += group(dish,(.55,0,-.45),(0,0,0),(.55,2.05,-.95))
+    wreck += [xform(torus('Fallen coil',ion_half(2.9)*math.sqrt(2)+.22,.12,(0,.88,ION_Z),COPPER),(.1,0,-.07),(0,.88,ION_Z)),
+              xform(torus('Fallen coil',1.1,.12,(0,0,0),COPPER,'z'),(0,.5,.35),(0,0,0),(-2.35,1.27,-1.2))]
+    # Capacitors: one toppled, one standing burnt out.
+    wreck += [cyl('Capacitor drum',.55,1.6,(-2.55,.85,-3.1),'#7e7c72','x',12),
+              xform(torus('Capacitor band',.57,.05,(-3.0,.85,-3.1),COPPER,'z'),(0,math.pi/2,0),(-3.0,.85,-3.1)),
+              cyl('Capacitor drum',.55,1.25,(3.0,.96,-3.0),'#7e7c72',12),
+              tbox('Split cap',(.9,.12,.9),(3.0,1.62,-3.0),IRON,(.35,.2,-.25)),
+              scorch(3.0,-3.0,.95,50,.34)]
+    wreck += [box('Hut ruin',(1.9,.65,1.4),(2.5,.65,2.5),CONCRETE_L,.06),
+              tbox('Hut wall',(.2,1.2,1.4),(1.65,.9,2.5),CONCRETE_L,(0,0,.1)),
+              tbox('Caved roof',(2.1,.14,1.6),(2.6,1.05,2.4),DARK,(.25,.15,-.3))]
+    wreck += rubble(.4,-.2,2.2,14,21,(CONCRETE,RUST_D,IRON,CONCRETE_L),.3)
+    wreck += [scorch(-.3,-.1,1.2,51,.75), scorch(-1.8,1.9,.8,52)]
+    return base, intact, wreck, lamp
+
+
+# --- Mammoth tank plant: armoured hangar, wide blast door, gantry crane holding a twin-gun turret.
+MAMMOTH_Z = -1.2
+
+
+def mammoth_turret(y, z):
+    parts = [armor('Mammoth turret',2.2,2.3,y,y+.65,.6,(0,z),GUNMETAL),
+             cyl('Commander cupola',.3,.16,(-.5,y+.72,z-.4),IRON),
+             box('Turret vision block',(.5,.12,.2),(.4,y+.68,z+.35),DARK,.02)]
+    for x in (-.42,.42):
+        parts += [cyl('Gun sleeve',.22,.5,(x,y+.3,z+1.2),GUNMETAL,'z'),
+                  cyl('Twin cannon',.13,2.3,(x,y+.3,z+2.3),IRON,'z'),
+                  box('Muzzle brake',(.32,.28,.34),(x,y+.3,z+3.4),DARK,.03)]
+    return parts
+
+
+def mammoth_site():
+    hz = MAMMOTH_Z
+    base = tech_slab(3)
+    base += [box('Vehicle apron',(5.7,.04,2.35),(0,.26,2.55),CONCRETE_L,.02),
+             box('Hangar floor',(7.0,.03,4.6),(0,.255,hz),'#5d5c56',.01)]
+    for x in (-1.55,-.85,.85,1.55):
+        base.append(box('Track scuffs',(.36,.012,2.3),(x,.285,2.55),'#5e5d57',0))
+    for sx in (-1,1):
+        base += hazard(1.45,3.65,sx*2.6,.28,.26,'zx')
+        base.append(box('Crane rail',(.34,.06,4.8),(sx*3.7,.27,hz),STEEL,.01))
+    lamp_parts, lamp = beacon_post(-3.45, 3.45)
+    base += lamp_parts
+
+    intact = [armor('Hangar shell',7.2,4.8,SLAB,3.3,.5,(0,hz),CONCRETE),
+              armor('Roof armor',6.9,4.5,3.3,3.75,.9,(0,hz),IRON),
+              box('Assembly hatch',(2.4,.03,1.5),(0,3.765,-1.3),BLACK,0)]
+    intact += hazard(-1.35,1.35,-.42,3.75,.2) + hazard(-1.35,1.35,-2.18,3.75,.2)
+    for sx in (-1,1):
+        intact += hazard(-2.08,-.52,sx*1.33,3.75,.2,'zx')
+        intact += [box('Roof rib',(.3,.2,3.4),(sx*2.25,3.83,hz),RUST_D),
+                   box('Roof vent',(.8,.25,.6),(sx*2.25,3.95,hz+.9),IRON,.02),
+                   box('Gate pillar',(.6,3.35,.75),(sx*2.75,SLAB+1.675,1.4),CONCRETE_L)]
+        for i, y in enumerate((.5,.85,1.2,1.55,1.9,2.25,2.6,2.95)):
+            intact.append(box('Pillar marking',(.62,.34,.04),(sx*2.75,y,1.785),HAZARD if i%2 else SOOT,.005))
+        for z in (-3.3,.9):
+            intact += [box('Crane leg',(.22,4.95,.3),(sx*3.7,SLAB+2.475,z),CRANE),
+                       beam('Knee brace',(sx*3.7,4.3,z),(sx*3.7,5.05,z-.75 if z>0 else z+.75),.12,CRANE)]
+        intact.append(box('Crane runway',(.3,.3,4.7),(sx*3.7,5.2,hz),CRANE))
+    intact += [box('Gate lintel',(6.1,.65,.8),(0,3.45,1.4),RUST_D),
+               box('Blast door',(4.9,2.88,.16),(0,SLAB+1.44,1.3),DOOR),
+               box('Door seam',(.04,2.8,.03),(0,1.68,1.39),BLACK,0)]
+    intact += hazard(-2.9,2.9,3.45,1.8,.34,'xy') + hazard(-2.4,2.4,.52,1.38,.26,'xy')
+    for x in (-1.63,-.82,.82,1.63):
+        intact.append(box('Door rib',(.12,2.2,.06),(x,1.95,1.4),IRON,.01))
+    for z in (-1.48,-1.02):
+        intact.append(box('Crane bridge',(7.68,.36,.22),(0,5.45,z),CRANE))
+    intact += [box('Crane trolley',(1.0,.3,.95),(.1,5.78,-1.25),IRON),
+               box('Hoist drum',(.7,.2,.5),(.1,5.53,-1.25),DARK)]
+    intact += hazard(-3.6,3.6,5.45,-.91,.2,'xy')
+    for x in (-.35,.55):
+        for z in (-1.5,-1.0):
+            intact.append(beam('Hoist cable',(x,5.4,z),(x*1.6,4.62,z-.2),.03,DARK))
+    intact += mammoth_turret(4.0,-1.4)
+    for x in (1.7,2.55):
+        intact += [cyl('Exhaust stack',.27,1.8,(x,4.6,-2.65),RUST),
+                   torus('Stack band',.28,.045,(x,4.4,-2.65),RUST_D),
+                   torus('Stack lip',.29,.06,(x,5.5,-2.65),SOOT),
+                   cyl('Stack mouth',.22,.02,(x,5.5,-2.65),SOOT)]
+
+    wreck = [armor('Shell stump',7.2,4.8,SLAB,1.25,.2,(0,hz),CONCRETE),
+             box('Exposed floor',(6.4,.04,4.0),(0,1.26,hz),'#45443f',.01),
+             tbox('Rear wall fragment',(2.7,2.7,.5),(-2.0,1.6,-3.35),CONCRETE,(0,0,.04)),
+             tbox('Rear wall fragment',(1.6,1.9,.5),(1.6,1.3,-3.35),CONCRETE,(0,0,-.06)),
+             tbox('Side wall fragment',(.5,2.1,2.3),(3.35,1.3,-2.1),CONCRETE,(0,0,-.08)),
+             tbox('Side wall fragment',(.5,1.7,1.5),(-3.35,1.1,-.3),CONCRETE,(0,0,.1)),
+             box('Pillar stump',(.6,2.4,.75),(-2.75,SLAB+1.2,1.4),CONCRETE_L),
+             box('Pillar stump',(.6,.9,.75),(2.75,SLAB+.45,1.4),CONCRETE_L),
+             tbox('Fallen pillar',(.6,2.6,.75),(1.15,.6,1.45),CONCRETE_L,(.1,.15,1.48)),
+             tbox('Fallen lintel',(4.6,.6,.75),(-.6,1.5,1.85),RUST_D,(0,.18,-.42)),
+             tbox('Torn blast door',(4.6,2.6,.16),(.3,.7,2.3),DOOR,(-1.3,.1,.05)),
+             tbox('Roof plate',(3.0,.3,2.3),(-1.6,1.95,-1.7),IRON,(.35,.2,.3)),
+             tbox('Roof plate',(1.6,.3,1.9),(2.4,1.75,-1.4),IRON,(-.2,-.2,-.55)),
+             tbox('Bent roof rib',(.3,.2,3.0),(-2.3,2.35,-1.9),RUST_D,(.5,.1,-.2))]
+    for i, y in enumerate((.5,.85,1.2,1.55,1.9,2.25)):
+        wreck.append(box('Pillar marking',(.62,.34,.04),(-2.75,y,1.785),HAZARD if i%2 else SOOT,.005))
+    door = hazard(-2.2,2.2,-.95,.08,.26,'xy') + [box('Door rib',(.12,2.2,.06),(x,0,.1),IRON,.01) for x in (-1.63,-.82,.82,1.63)]
+    wreck += group(door,(-1.3,.1,.05),(0,0,0),(.3,.7,2.3))
+    # Crane: one rear leg still standing, the bridge slewed across the back wall.
+    wreck += [box('Crane leg',(.22,4.95,.3),(-3.7,SLAB+2.475,-3.3),CRANE),
+              tbox('Buckled crane leg',(.22,2.6,.3),(3.7,1.54,-3.3),CRANE,(0,0,.06)),
+              tbox('Crane leg stub',(.22,1.3,.3),(-3.7,.89,.9),CRANE,(0,0,.1)),
+              tbox('Crane leg stub',(.22,.8,.3),(3.7,.64,.9),CRANE,(0,0,-.12)),
+              beam('Hanging runway',(-3.7,5.1,-3.3),(-3.7,.9,1.0),.3,CRANE),
+              beam('Fallen bridge',(-3.55,4.95,-3.0),(3.3,.6,-2.5),.36,CRANE),
+              beam('Fallen leg',(-3.4,.4,1.75),(-1.4,.35,3.5),.24,CRANE),
+              tbox('Crane trolley',(1.0,.3,.95),(2.95,.45,2.95),IRON,(.2,.5,.15))]
+    # The turret dropped through the roof into the hall, one cannon bent.
+    turret = mammoth_turret(0,0)
+    discard(turret[6:])
+    turret = turret[:6] + [beam('Bent cannon',(.42,.3,1.4),(.6,.4,2.6),.24,IRON), beam('Bent cannon',(.6,.4,2.6),(1.2,.15,3.4),.24,IRON)]
+    wreck += group(turret,(.12,-.65,-.18),(0,0,0),(.4,1.35,-1.35))
+    wreck += [tbox('Fallen stack',(.54,1.7,.54),(.2,2.0,-3.05),RUST,(0,.3,1.25)),
+              cyl('Stack stump',.27,.8,(2.55,1.65,-2.65),RUST)]
+    wreck += rubble(0,hz+.4,2.6,14,31,(CONCRETE,CONCRETE_L,IRON),.34,1.25)
+    wreck += rubble(0,2.3,2.4,6,32,(CONCRETE,CONCRETE_L),.28)
+    wreck += [scorch(-1.0,2.3,.8,60), scorch(1.9,3.1,.6,61)]
+    return base, intact, wreck, lamp
+
+
+# --- Juggernaut walker plant: open assembly scaffold around a half-built giant leg and hip frame.
+JUG_COLS = [(sx*3.25, z) for sx in (-1,1) for z in (-3.15,1.75)]
+
+
+def jug_leg(lx):
+    # Foot, shin, knee and thigh of the walker, knee forward, in assembly position.
+    parts = [armor('Mech foot',1.6,2.3,.3,1.0,.5,(lx,.25),PRIMER),
+             box('Heel spur',(.6,.4,.5),(lx,.55,-1.05),GUNMETAL,.05),
+             cyl('Ankle joint',.42,1.1,(lx,1.15,.15),DARK,'x',12)]
+    for dx in (-.45,0,.45):
+        parts.append(tbox('Toe claw',(.3,.3,.6),(lx+dx,.48,1.55),GUNMETAL,(.35,0,0),.04))
+    parts.append(xform(armor('Mech shin',1.1,.95,0,2.55,.3,(0,0),PRIMER),(.24,0,0),(0,0,0),(lx,1.15,.15)))
+    parts += [cyl('Knee joint',.55,1.25,(lx,3.63,.76),DARK,'x',12),
+              tbox('Knee guard',(1.05,1.05,.25),(lx,3.75,1.32),PRIMER,(-.35,0,0),.05),
+              xform(armor('Mech thigh',1.3,1.05,0,2.6,.3,(0,0),PRIMER),(-.55,0,0),(0,0,0),(lx,3.63,.76))]
+    for dx in (-.62,.62):
+        parts += [pipe('Shin piston',(lx+dx,1.6,-.05),(lx+dx,3.3,.42),.08,STEEL),
+                  pipe('Thigh piston',(lx+dx*1.1,4.0,.35),(lx+dx*1.1,5.4,-.5),.09,STEEL)]
+    return parts
+
+
+def jug_hip():
+    parts = [armor('Hip frame',3.4,1.6,5.55,6.45,.35,(0,-.65),GUNMETAL),
+             cyl('Pelvis ring',.8,.22,(0,6.56,-.65),DARK,vertices=12),
+             cyl('Hip joint',.55,1.3,(-1.0,5.85,-.6),DARK,'x',12),
+             cyl('Empty socket',.55,.4,(1.25,5.85,-.6),BLACK,'x',12),
+             xform(torus('Socket flange',.6,.06,(1.05,5.85,-.6),HAZARD,'z'),(0,math.pi/2,0),(1.05,5.85,-.6))]
+    for i, (x, z) in enumerate(((.9,-.4),(1.15,-.75),(1.4,-.5))):
+        parts += [beam('Loose cable',(x,5.5,z),(x+.15,4.8,z+.1),.06,SOOT if i else RUST),
+                  beam('Loose cable',(x+.15,4.8,z+.1),(x-.05,4.25,z+.25),.06,SOOT if i else RUST)]
+    return parts
+
+
+def jug_site():
+    base = tech_slab(4)
+    base += [box('Assembly floor',(6.9,.06,5.7),(0,.27,-.65),'#4a4d49',.02),
+             box('Turntable',(3.0,.03,3.0),(-.6,.31,-.2),IRON,.01)]
+    base += hazard(-3.0,3.0,2.05,.3,.24)
+    for x,z in JUG_COLS:
+        base.append(box('Column footing',(.8,.16,.8),(x,.38,z),CONCRETE_L,.03))
+    lamp_parts, lamp = beacon_post(-3.45, 3.45)
+    base += lamp_parts
+
+    intact = []
+    for x,z in JUG_COLS:
+        intact.append(box('Scaffold column',(.42,6.74,.42),(x,3.83,z),RUST))
+    intact.append(box('Top girder',(6.92,.4,.36),(0,7.0,-3.15),RUST_D))
+    for sx in (-1,1):
+        intact.append(box('Top girder',(.36,.4,4.5),(sx*3.25,7.0,-.7),RUST_D))
+        for y0, y1 in ((.46,2.7),(2.7,5.2)):
+            intact += [beam('Side brace',(sx*3.25,y0,-3.15),(sx*3.25,y1,1.75),.14,RUST_D),
+                       beam('Side brace',(sx*3.25,y1,-3.15),(sx*3.25,y0,1.75),.14,RUST_D)]
+    for y0, y1 in ((.46,2.7),(2.7,5.2),(5.2,6.8)):
+        intact += [beam('Back brace',(-3.25,y0,-3.15),(3.25,y1,-3.15),.14,RUST_D),
+                   beam('Back brace',(3.25,y0,-3.15),(-3.25,y1,-3.15),.14,RUST_D)]
+    for y in (2.7,5.2):
+        intact += [box('Catwalk',(6.1,.08,.7),(0,y,-2.75),IRON,.01),
+                   beam('Handrail',(-3.0,y+.55,-2.4),(3.0,y+.55,-2.4),.05,HAZARD)]
+        for sx in (-1,1):
+            intact += [box('Catwalk',(.7,.08,4.4),(sx*2.85,y,-.7),IRON,.01),
+                       beam('Handrail',(sx*2.5,y+.55,-2.4),(sx*2.5,y+.55,1.5),.05,HAZARD)]
+            for z in (-2.4,-.5,1.5):
+                intact.append(beam('Rail post',(sx*2.5,y,z),(sx*2.5,y+.55,z),.04,HAZARD))
+    intact += [box('Gantry bridge',(6.92,.36,.4),(0,7.38,-.75),CRANE),
+               box('Gantry trolley',(.95,.3,.8),(-.3,7.71,-.75),IRON),
+               beam('Hoist cable',(-.55,7.2,-.75),(-.7,6.6,-.75),.04,DARK),
+               beam('Hoist cable',(-.05,7.2,-.75),(.1,6.6,-.75),.04,DARK),
+               box('Lifting beam',(1.6,.14,.2),(-.3,6.63,-.75),CRANE)]
+    intact += hazard(-3.2,3.2,7.38,-.55,.2,'xy')
+    # Jib arm on the front-right column swings a knee plate for the second leg.
+    jx, jy, jz = 3.25, 6.35, 1.75
+    intact += [cyl('Jib slewing ring',.32,.18,(jx,jy,jz),DARK,vertices=10),
+               beam('Jib boom',(jx,jy+.15,jz),(1.0,jy+.15,.75),.2,CRANE),
+               beam('Jib tie',(jx,jy+.75,jz),(1.4,jy+.2,.93),.06,DARK),
+               cyl('Jib mast',.08,.6,(jx,jy+.45,jz),CRANE,vertices=8),
+               beam('Jib cable',(1.1,jy+.05,.8),(1.1,4.95,.8),.03,DARK),
+               tbox('Hanging knee plate',(1.0,1.0,.22),(1.1,4.45,.8),PRIMER,(-.2,.5,0),.05)]
+    intact += jug_leg(-1.0) + jug_hip()
+    # Parts for the second leg wait on a cradle.
+    intact += [box('Parts cradle',(1.8,.45,1.0),(2.05,.5,.35),CRANE),
+               xform(armor('Spare shin',1.1,.95,0,2.55,.3,(0,0),PRIMER),(0,0,-math.pi/2),(0,0,0),(.85,1.27,.35))]
+
+    wreck = [box('Scaffold column',(.42,4.5,.42),(-3.25,2.71,-3.15),RUST),
+             tbox('Torn column top',(.42,.5,.42),(-3.22,5.1,-3.15),RUST,(.3,.2,.45)),
+             box('Scaffold column',(.42,2.6,.42),(3.25,1.76,-3.15),RUST),
+             box('Scaffold column',(.42,1.3,.42),(-3.25,1.11,1.75),RUST),
+             tbox('Column stub',(.42,.7,.42),(3.25,.8,1.75),RUST,(0,0,-.2)),
+             tbox('Fallen column',(.42,4.1,.42),(1.2,.62,-2.2),RUST,(0,.55,math.pi/2)),
+             tbox('Fallen column',(.42,4.4,.42),(-1.5,1.05,1.25),RUST,(.15,-.4,1.35)),
+             tbox('Fallen column',(.42,3.2,.42),(2.6,.55,.6),RUST,(math.pi/2,.15,0)),
+             tbox('Hanging catwalk',(6.0,.08,.7),(-.1,1.6,-2.75),DARK,(0,0,-.36),.01),
+             tbox('Fallen catwalk',(.7,.08,4.2),(-2.75,.5,-.7),DARK,(.12,0,.3),.01),
+             beam('Bent handrail',(-3.0,2.6,-2.45),(2.9,.45,-2.3),.05,HAZARD),
+             tbox('Fallen girder',(6.0,.4,.36),(.2,.5,2.55),RUST_D,(0,-.12,.06)),
+             beam('Hanging girder',(-3.25,4.8,-3.1),(-.8,.45,-1.6),.36,RUST_D),
+             beam('Back brace',(-3.25,.46,-3.15),(1.0,1.9,-3.15),.14,RUST_D),
+             beam('Back brace',(3.25,.46,-3.15),(1.5,2.2,-3.15),.14,RUST_D),
+             beam('Fallen gantry',(-3.4,4.4,-2.6),(3.0,.5,.1),.34,CRANE),
+             tbox('Gantry trolley',(.95,.3,.8),(3.1,.5,-.5),IRON,(.3,.6,.4))]
+    # The leg toppled backwards from its foot; the hip frame crashed down behind it.
+    leg = jug_leg(-1.0)
+    discard(leg[9:])
+    wreck += leg[:6]
+    wreck += group(leg[6:9], (-1.33,.25,0), (-1.0,1.15,.15))
+    wreck.append(xform(armor('Broken thigh',1.3,1.05,0,2.4,.3,(0,0),PRIMER),(0,.95,-1.45),(0,0,0),(1.8,1.0,-.9)))
+    hip = jug_hip()
+    discard(hip[4:])
+    wreck += group(hip[:4], (.18,.35,-.12), (0,6.0,-.6), (1.0,-4.85,-1.7))
+    wreck += [tbox('Parts cradle',(1.8,.45,1.0),(2.3,.5,1.0),CRANE,(0,.3,.25)),
+              tbox('Knee plate',(1.0,1.0,.22),(-.4,.42,2.9),PRIMER,(1.3,.4,0),.05)]
+    wreck += rubble(.2,-.6,2.4,18,41,(RUST_D,CONCRETE,GUNMETAL,PRIMER),.3,.3)
+    wreck += [scorch(-.6,-.3,1.3,62,.3), scorch(2.2,-2.4,.7,63,.3)]
+    return base, intact, wreck, lamp
+
+
+# --- Zeppelin hangar: ribbed vault along X (front clamshell retracted), bomber airship, mooring mast, gas tank.
+ZEP = dict(zc=-1.3, hw=2.35, h=3.85)
+ZEP_RIBS = (-3.62,-2.42,-1.21,0,1.21,2.42,3.62)
+MAST = (2.95, 2.75)
+
+
+def zep_airship(ax, ay, az):
+    parts = [ellipsoid('Airship envelope',(3.15,1.2,1.2),(ax,ay,az),CANVAS,18,10)]
+    for dx in (-1.6,0,1.6):
+        r = 1.2*math.sqrt(1-(dx/3.15)**2) + .015
+        parts.append(xform(torus('Envelope frame',r,.045,(ax+dx,ay,az),SHEET),(0,0,math.pi/2),(ax+dx,ay,az)))
+    parts.append(xform(cone('Nose cap',.35,.05,.3,(0,0,0),SHEET,10),(0,0,-math.pi/2),(0,0,0),(ax+3.05,ay,az)))
+    for k in range(4):
+        fin = prism('Tail fin',[(ax-3.35,.2),(ax-2.15,.35),(ax-2.8,1.25),(ax-3.4,1.2)],-.035,.035,'#8e876f','xy')
+        parts.append(xform(fin,(math.pi/4+k*math.pi/2,0,0),(0,0,0),(0,ay,az)))
+    parts += [armor('Gondola',2.0,.72,.6,.92,.16,(ax+.4,az),IRON),
+              box('Gondola windows',(1.3,.12,.04),(ax+.6,.82,az+.33),GLASS,.005),
+              box('Bomb bay',(.8,.06,.4),(ax+.1,.585,az),BLACK,.005)]
+    for sz in (-1,1):
+        parts += [pipe('Engine nacelle',(ax-1.0,1.5,az+sz*1.45),(ax-.25,1.5,az+sz*1.45),.18,IRON),
+                  beam('Nacelle strut',(ax-.6,1.5,az+sz*1.3),(ax-.6,1.85,az+sz*.95),.07,DARK),
+                  box('Propeller',(.04,.7,.1),(ax-1.05,1.5,az+sz*1.45),DARK,.01),
+                  box('Propeller',(.04,.1,.7),(ax-1.05,1.5,az+sz*1.45),DARK,.01)]
+    return parts
+
+
+def zep_mast(x, z, y0=SLAB+.18, panels=None):
+    parts = truss(x, z, y0, 5.85, .72, .26, 3, 5, .12, .06, RUST, IRON, panels, math.pi/2)
+    if panels is None or 4 in panels:
+        parts += [cyl('Mast platform',.5,.12,(x,5.9,z),DARK,vertices=10),
+                  torus('Platform rail',.48,.025,(x,6.2,z),STEEL),
+                  box('Mooring winch',(.3,.22,.3),(x+.15,6.07,z-.15),IRON,.02),
+                  torus('Mooring ring',.38,.07,(x,6.4,z),CRANE,'z'),
+                  cyl('Ring hub',.1,.18,(x,6.4,z),DARK,'z',8)]
+    return parts
+
+
+def zep_site():
+    zc, hw, h = ZEP['zc'], ZEP['hw'], ZEP['h']
+    base = tech_slab(5)
+    base += [box('Hangar floor',(7.3,.03,4.75),(0,.255,zc),'#585a54',.01),
+             box('Door track',(7.5,.06,.16),(0,.27,1.12),STEEL,.01),
+             cyl('Mast footing',.95,.18,(MAST[0],.33,MAST[1]),CONCRETE_L,vertices=6),
+             torus('Mooring circle',1.1,.035,(MAST[0]-.3,.25,MAST[1]-.1),HAZARD),
+             box('Tank footing',(1.8,.12,1.8),(-2.3,.3,2.45),CONCRETE_L,.03)]
+    base += hazard(-1.4,1.6,1.5,SLAB,.22)
+    lamp_parts, lamp = beacon_post(-3.5, 3.5)
+    base += lamp_parts
+
+    intact = [arch('Hangar shell',-3.62,3.62,zc,hw,h,SLAB,.1,1.05,math.pi,SHEET),
+              arch('Retracted door',-3.5,3.5,zc,hw+.1,h+.1,SLAB,.08,1.1,1.95,'#99a096'),
+              box('Ridge vent',(6.8,.16,.45),(0,SLAB+h+.12,zc+.02),IRON,.02)]
+    for x in ZEP_RIBS:
+        intact.append(arch('Hangar rib',x-.1,x+.1,zc,hw+.16,h+.16,SLAB,.3,0,math.pi,IRON))
+    for th in (1.35,1.65):
+        intact.append(arch('Door seam',-3.5,3.5,zc,hw+.13,h+.13,SLAB,.05,th,th+.04,'#5d635b',1))
+    wall = [(zc+hw*math.cos(t*math.pi/13), SLAB+h*math.sin(t*math.pi/13)) for t in range(14)]
+    intact.append(prism('End wall',wall,-3.6,-3.48,SHEET,'zy'))
+    intact += zep_airship(.2,2.05,zc)
+    intact += zep_mast(*MAST)
+    tx, tz = -2.3, 2.45
+    intact += [ellipsoid('Gas tank',(.9,.9,.9),(tx,1.5,tz),'#b6b2a3',16,10),
+               torus('Tank band',.91,.05,(tx,1.5,tz),HAZARD),
+               cyl('Tank valve',.12,.25,(tx,2.45,tz),IRON,vertices=8),
+               pipe('Gas line',(tx+.6,.55,tz-.5),(tx+1.0,.55,1.2),.08,STEEL)]
+    for sx in (-1,1):
+        for sz in (-1,1):
+            intact.append(beam('Tank leg',(tx+sx*.62,.36,tz+sz*.62),(tx+sx*.45,1.1,tz+sz*.45),.09,IRON))
+
+    wreck = [arch('Shell remnant',-3.62,-.6,zc,hw,h,SLAB,.1,2.15,math.pi,SHEET),
+             arch('Shell remnant',-.6,1.21,zc,hw,h,SLAB,.1,2.6,math.pi,SHEET),
+             prism('Broken end wall',[(zc+hw,SLAB),(zc+hw*math.cos(.5),SLAB+h*math.sin(.5)),(zc+.6,2.5),
+                                      (zc-.3,2.0),(zc-hw*math.cos(.75),SLAB+h*math.sin(.75)),(zc-hw,SLAB)],-3.6,-3.48,SHEET,'zy')]
+    for x, spans in zip(ZEP_RIBS, (((0,.5),(1.7,math.pi)), ((0,.8),(2.2,math.pi)), ((2.5,math.pi),),
+                                   ((0,.45),(2.0,math.pi)), (), ((0,1.0),(2.4,math.pi)), ((0,1.3),))):
+        for th0, th1 in spans:
+            wreck.append(arch('Broken rib',x-.1,x+.1,zc,hw+.16,h+.16,SLAB,.3,th0,th1,IRON))
+    wreck.append(xform(arch('Toppled rib',1.11,1.31,zc,hw+.16,h+.16,SLAB,.3,0,math.pi,IRON),(0,0,.75),(1.21,SLAB,zc)))
+    panel = arch('Fallen panel',0,1.6,0,hw,h,0,.1,1.3,2.0,SHEET)
+    wreck.append(xform(panel,(.0,.3,-.2),(0,0,0),(-2.6,-2.45,.2)))
+    wreck += [tbox('Fallen panel',(1.5,.08,1.1),(2.6,.5,-.2),SHEET,(.3,.4,.25),.01),
+              tbox('Fallen panel',(1.3,.08,1.0),(-1.6,.45,.6),SHEET,(-.25,-.3,.2),.01)]
+    # Deflated envelope draped over the floor, tail fin and one frame ring still showing.
+    env = ellipsoid('Deflated envelope',(3.0,.6,1.5),(.1,.68,zc),CANVAS,18,8)
+    for v in env.data.vertices:
+        x, up = v.co.x, v.co.z
+        v.co.z = max(-.42, up + .16*math.sin(x*2.1)*math.cos(v.co.y*1.9) - (.2 if x > 1.2 else 0))
+        v.co.y *= 1 + .12*math.sin(x*3.3)
+    wreck.append(env)
+    fin = prism('Tail fin',[(-3.0,.2),(-1.9,.35),(-2.5,1.25),(-3.05,1.2)],-.035,.035,'#8e876f','xy')
+    wreck.append(xform(fin,(.45,.2,0),(0,0,0),(0,.75,zc)))
+    wreck.append(xform(torus('Exposed frame',.95,.05,(0,0,0),SHEET),(0,0,math.pi/2-.35),(0,0,0),(1.2,.98,zc)))
+    wreck.append(tbox('Crushed gondola',(2.0,.32,.7),(.9,.5,zc+1.3),IRON,(.2,.4,.25)))
+    wreck.append(pipe('Engine nacelle',(-1.6,.42,zc-1.9),(-.9,.5,zc-1.6),.18,IRON))
+    # Mooring mast snapped above its first storey and fell onto the ruins.
+    wreck += zep_mast(*MAST, panels=[0])
+    top = zep_mast(0, 0, panels=[1,2,3,4])
+    wreck += group(top, (-1.28,.62,0), (0,1.5,0), (MAST[0],-.75,MAST[1]))
+    # Gas tank split open.
+    tx, tz = -2.3, 2.45
+    shell = bowl('Ruptured tank', [(.9*math.sin(p), .9*(1-math.cos(p))) for p in (0,.45,.9,1.25)], '#9a978b', .05, 16, 5.2, .8)
+    wreck.append(xform(shell,(.25,0,.15),(0,0,0),(tx,.45,tz)))
+    for i in range(5):
+        a = i*math.tau/5 + .4
+        wreck.append(tbox('Tank petal',(.5,.55,.05),(tx+math.cos(a)*1.0,1.15,tz+math.sin(a)*1.0),'#8f8c80',(-1.0,math.pi/2-a,0),.01))
+    wreck.append(tbox('Tank shard',(.7,.05,.6),(tx+.9,.3,tz+.3),'#9a978b',(.2,.8,.1),.01))
+    for sx in (-1,1):
+        wreck.append(beam('Tank leg',(tx+sx*.62,.36,tz+.62),(tx+sx*.45,1.1,tz+.45),.09,IRON))
+    wreck += [scorch(tx,tz,1.1,70,.36), scorch(.4,.4,.9,71)]
+    wreck += rubble(.5,-.8,2.6,12,51,(SHEET,IRON,CONCRETE),.26)
+    return base, intact, wreck, lamp
+
+
+TECH_SITES = {'silo': (silo_site, 5.0), 'ion': (ion_site, 8.5), 'mammoth': (mammoth_site, 6.0),
+              'juggernaut': (jug_site, 8.0), 'zeppelin': (zep_site, 7.0)}
+
+
+def check_fit(label, objs, height, half=3.95):
+    # Report any part leaving the 4x4-cell footprint, sinking below the ground or above the site height.
+    for obj in objs:
+        pts = [obj.matrix_basis @ v.co for v in obj.data.vertices]
+        lo = [min(p[i] for p in pts) for i in range(3)]
+        hi = [max(p[i] for p in pts) for i in range(3)]
+        if min(lo[0], lo[1]) < -half or max(hi[0], hi[1]) > half or lo[2] < -.03 or hi[2] > height:
+            print(f'FIT {label}: {obj.name} x {lo[0]:.2f}..{hi[0]:.2f} y {lo[2]:.2f}..{hi[2]:.2f} z {-hi[1]:.2f}..{-lo[1]:.2f}')
+
+
+def tech(kind):
+    reset()
+    build, height = TECH_SITES[kind]
+    base, intact, wreck, lamp = build()
+    for label, objs in (('base', base), ('intact', intact), ('wreck', wreck)):
+        check_fit(f't_{kind} {label}', objs, height)
+    merge('Site foundation', base)
+    merge('Intact structure', intact, empty('intact',(0,0,0)))
+    merge('Ruined structure', wreck, empty('wreck',(0,0,0)))
+    beacon_lamp(*lamp)
+    save('t_' + kind)
+
+
+# ---------------------------------------------------------------- Mammoth super-tank
+# Pre-war heavy tank either faction builds after capturing the Mammoth plant: the same weathered
+# olive-grey hull for both, only the identification accents follow the owner (BLUE / RED).
+HEAVY = '#5a5e52'
+HEAVY_L = '#727565'
+HEAVY_D = '#3b3e37'
+HEAVY_T = '#666a5b'
+
+
+def glacis(z):
+    # Height of the hull's front slope at z (from the bow edge up to the deck).
+    return .88 + (2.95 - z) * .585
+
+
+def rod(name, r, pos, length, tint, axis='y', n=8):
+    # Unbevelled n-gon cylinder: a cheaper cyl() for the many small round parts.
+    pts = [(r*math.cos(i*math.tau/n), r*math.sin(i*math.tau/n)) for i in range(n)]
+    x, y, z = pos
+    if axis == 'y':
+        return prism(name, [(x+u, z+v) for u,v in pts], y-length/2, y+length/2, tint, 'xz')
+    if axis == 'x':
+        return prism(name, [(z+u, y+v) for u,v in pts], x-length/2, x+length/2, tint, 'zy')
+    return prism(name, [(x+u, y+v) for u,v in pts], z-length/2, z+length/2, tint, 'xy')
+
+
+def mammoth(accent=BLUE):
+    reset()
+    hull = []
+    track = [(-2.55,0),(2.55,0),(2.98,.38),(2.98,.62),(2.72,.96),(-2.72,.96),(-2.98,.62),(-2.98,.38)]
+    for s in (-1,1):
+        # Double track unit: two belts with a dark gap, under one armoured pod.
+        for x0, x1 in ((1.05,1.56),(1.62,2.1)):
+            hull.append(prism('Track belt', track, s*x0, s*x1, SOOT, 'zy', .05))
+            for z, y in ((2.83,.8),(2.99,.5),(2.77,.17)):
+                for sz in (-1,1):
+                    hull.append(box('Track cleat',(x1-x0-.04,.07,.08),(s*(x0+x1)/2,y,sz*z),IRON,0))
+        hull.append(prism('Track gap', [(z*.985,y*.97+.015) for z,y in track], s*1.56, s*1.62, BLACK, 'zy'))
+        for z in (-2.05,-1.2,-.35,.5,1.35,2.2):
+            hull += [rod('Road wheel',.31,(s*2.12,.37,z),.05,IRON,'x'),
+                     rod('Wheel hub',.12,(s*2.15,.37,z),.04,HEAVY_D,'x',6)]
+        for z in (2.62,-2.62):
+            hull.append(rod('Sprocket hub',.25,(s*2.12,.55,z),.05,HEAVY_D,'x'))
+        pod = [(-2.78,.72),(2.68,.72),(2.92,.92),(2.32,1.46),(-2.42,1.46),(-2.86,1.0)]
+        hull.append(prism('Track pod', pod, s*1.0, s*2.1, HEAVY, 'zy', .05))
+        # Bolted side skirts with gaps showing the road wheels underneath.
+        for z0, z1 in ((-2.55,-1.3),(-1.24,.0),(.06,1.3),(1.36,2.5)):
+            hull.append(box('Side skirt',(.08,.56,z1-z0),(s*2.13,.97,(z0+z1)/2),HEAVY_L,.025))
+            for zb in (z0+.15, z1-.15):
+                hull.append(box('Skirt bolt',(.04,.06,.06),(s*2.17,1.15,zb),HEAVY_D,0))
+        for z in (-.62,.68):
+            hull.append(box('Team band',(.05,.16,1.1),(s*2.17,.98,z),accent,.01))
+        # Pod tops: faded hazard chevrons at the bow, lockers and a fuel drum at the stern.
+        lo, hi = sorted((s*1.08, s*2.02))
+        hull += hazard(lo, hi, 1.95, 1.46, .26)
+        hull += [box('Stowage locker',(.75,.32,.9),(s*1.56,1.62,-1.5),HEAVY_L,.04),
+                 box('Locker lid',(.79,.04,.94),(s*1.56,1.79,-1.5),HEAVY_D,.01),
+                 rod('Fuel drum',.24,(s*1.56,1.7,-2.3),.85,RUST_D,'x',10),
+                 box('Drum strap',(.06,.5,.18),(s*1.56,1.7,-2.3),SOOT,.01),
+                 box('Headlight recess',(.34,.22,.12),(s*1.56,1.2,2.62),HEAVY_D,.03),
+                 box('Headlight',(.24,.1,.04),(s*1.56,1.21,2.69),GLASS,.01),
+                 box('Tow hook',(.16,.14,.2),(s*1.56,.8,2.92),SOOT,.03),
+                 tbox('Rust streak',(.5,.02,.32),(s*1.6,1.465,.9),RUST,(0,.6*s,0),.005),
+                 tbox('Rust streak',(.35,.02,.25),(s*1.45,1.465,-.5),RUST_D,(0,-.4*s,0),.005)]
+    # Central hull with a steep glacis between the track pods.
+    hull.append(armor('Lower chassis',2.1,5.5,.42,1.0,.1,(0,0),HEAVY_D))
+    body = [(-2.8,.6),(2.62,.6),(2.95,.88),(1.72,1.6),(-2.55,1.6),(-2.86,1.3)]
+    hull.append(prism('Upper hull', body, -1.02, 1.02, HEAVY, 'zy', .05))
+    hull.append(box('Bow plate',(2.0,.36,.12),(0,.98,2.9),HEAVY_D,.03))
+    hull += hazard(-.95,.95,.98,2.96,.22,'xy')
+    pitch = math.atan(.585)
+    hull.append(tbox('Glacis identification',(.72,.04,.44),(0,glacis(2.3)+.025,2.3),accent,(pitch,0,0),.01))
+    for s in (-1,1):
+        for z in (2.05,2.55):
+            hull.append(tbox('Spare track link',(.42,.07,.2),(s*.62,glacis(z)+.035,z),SOOT,(pitch,0,0),.015))
+    hull += [box('Driver hatch',(.6,.08,.46),(-.45,1.63,1.35),HEAVY_D,.03),
+             box('Vision block',(.36,.09,.06),(-.45,1.66,1.6),GLASS,.005)]
+    # Engine deck: grilles between two soot-blackened exhaust stacks.
+    for x in (-.44,-.22,0,.22,.44):
+        hull.append(box('Engine grille',(.14,.03,.36),(x,1.615,-2.38),SOOT,.005))
+    for s in (-1,1):
+        hull += [rod('Exhaust stack',.18,(s*.85,2.07,-2.4),.95,RUST,n=10),
+                 rod('Stack band',.205,(s*.85,1.92,-2.4),.08,RUST_D,n=10),
+                 rod('Stack cap',.21,(s*.85,2.52,-2.4),.12,SOOT,n=10),
+                 rod('Stack mouth',.15,(s*.85,2.585,-2.4),.02,BLACK,n=10),
+                 box('Stack bracket',(.42,.24,.34),(s*.85,1.72,-2.4),HEAVY_D,.03)]
+    hull.append(box('Rear stencil',(.7,.18,.04),(0,1.0,-2.86),WHITE,.005))
+    merge('Chassis',hull)
+
+    zc = -.35
+    t = empty('turret',(0,1.6,zc))
+    b = empty('barrel',(0,.48,1.38),t)
+    turret = [cyl('Turret race',1.08,.14,(0,1.66,zc),IRON,vertices=16),
+              armor('Turret armor',2.5,2.75,1.72,2.48,.66,(0,zc-.12),HEAVY_T),
+              box('Rear bustle',(1.5,.5,.55),(0,2.05,zc-1.55),HEAVY_D,.06),
+              box('Mantlet',(1.62,.72,.42),(0,2.08,zc+1.2),HEAVY_L,.09),
+              cyl('Commander cupola',.34,.2,(-.48,2.58,zc-.42),HEAVY_D,vertices=12),
+              cyl('Cupola hatch',.27,.06,(-.48,2.71,zc-.42),HEAVY_L,vertices=12),
+              box('Cupola optic',(.24,.12,.08),(-.48,2.62,zc-.06),GLASS,.005),
+              box('Gunner sight',(.32,.22,.36),(.45,2.58,zc+.3),HEAVY_D,.03),
+              box('Sight lens',(.24,.12,.02),(.45,2.6,zc+.485),GLASS,.005),
+              box('Roof identification',(.8,.03,.46),(.3,2.495,zc-.7),accent,.01),
+              tbox('Turret scrape',(.6,.02,.18),(-.2,2.49,zc+.3),RUST_D,(0,.5,0),.005),
+              beam('Antenna',(.72,2.48,zc-1.1),(.78,3.15,zc-1.18),.035,SOOT),
+              cyl('Antenna base',.08,.08,(.72,2.52,zc-1.1),HEAVY_D,vertices=8)]
+    pz = zc-.05
+    for s in (-1,1):
+        # Side-mounted missile pods on short pylons, 2x2 tubes facing forward.
+        turret += [box('Pod pylon',(.4,.24,.7),(s*1.3,2.06,pz),HEAVY_D,.03),
+                   box('Missile pod',(.62,.66,1.4),(s*1.66,2.2,pz),HEAVY_L,.06),
+                   box('Pod face',(.56,.6,.04),(s*1.66,2.2,pz+.71),HEAVY_D,.01),
+                   box('Pod team band',(.64,.12,.3),(s*1.66,2.555,pz-.4),accent,.01),
+                   box('Pod team band',(.04,.14,.9),(s*1.975,2.3,pz-.1),accent,.01),
+                   box('Smoke discharger',(.22,.16,.3),(s*1.0,2.3,zc+.95),HEAVY_D,.02)]
+        for dx in (-.14,.14):
+            for dy in (-.15,.15):
+                p = (s*1.66+dx,2.2+dy,pz+.75)
+                turret += [rod('Missile tube',.1,(p[0],p[1],pz+.73),.06,SOOT,'z',6),
+                           xform(cone('Missile nose',.07,.0,.12,p,WHITE,8),(math.pi/2,0,0),p)]
+    merge('Turret armor',turret,t)
+    gy, gz = 2.08, zc+1.38
+    guns = [box('Gun yoke',(.66,.16,.26),(0,gy,gz+.5),HEAVY_D,.03)]
+    for x in (-.42,.42):
+        guns += [rod('Gun sleeve',.21,(x,gy,gz+.28),.6,HEAVY,'z',12),
+                 rod('Gun tube',.12,(x,gy,gz+1.35),1.62,IRON,'z',12),
+                 rod('Fume extractor',.17,(x,gy,gz+1.12),.34,HEAVY_D,'z',12),
+                 box('Muzzle brake',(.32,.28,.36),(x,gy,gz+2.29),SOOT,.035),
+                 box('Bore',(.14,.11,.012),(x,gy,gz+2.476),'#080d10',.006)]
+    merge('Twin cannon',guns,b)
+    for i, x in enumerate((-.42,.42)):
+        empty(f'muzzle_{i}',(x,0,2.48),b)
+    empty('muzzle',(-.42,0,2.48),b)
+    save('m_mammoth' if accent == RED else 'h_mammoth')
+
+
 BUILDERS = {
     'h_tank': tank, 'h_factory': factory,
     'h_rifle': lambda: infantry(), 'h_rocket': lambda: infantry(heavy=True),
@@ -976,6 +2012,10 @@ BUILDERS = {
     'h_barracks': lambda: barracks(), 'm_barracks': lambda: barracks(True),
     'm_factory': machine_factory, 'environment': environment, 'quarry': quarry,
     'prop_cash_crate': cash_crate,
+    'h_engineer': lambda: infantry(engineer=True), 'm_engineer': machine_engineer,
+    't_silo': lambda: tech('silo'), 't_ion': lambda: tech('ion'), 't_mammoth': lambda: tech('mammoth'),
+    't_juggernaut': lambda: tech('juggernaut'), 't_zeppelin': lambda: tech('zeppelin'),
+    'h_mammoth': lambda: mammoth(BLUE), 'm_mammoth': lambda: mammoth(RED),
 }
 if __name__ == '__main__':
     requested = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else list(BUILDERS)

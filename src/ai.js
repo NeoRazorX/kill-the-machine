@@ -1,4 +1,4 @@
-import { N, CELL, ROLE, other } from './config.js';
+import { N, CELL, ROLE, other, canCapture } from './config.js';
 
 const SECTOR = 32; // lado en unidades de mundo de cada zona que explora el explorador
 const SECTORS = N * CELL / SECTOR;
@@ -15,6 +15,7 @@ export class AI {
     const [ox, oz] = game.starts[team];
     this.corners = game.map.spawns.filter(([x, z]) => x !== ox || z !== oz).map(([x, z]) => ({ x: x * CELL, z: z * CELL }));
     this.known = new Set(); this.enemyBase = null;
+    this.engineer = null; this.techRetry = 0;
   }
 
   update(dt) {
@@ -28,10 +29,11 @@ export class AI {
     this.manageWaves(d);
     this.manageDefense();
     this.manageScout();
+    this.manageTech();
   }
 
   get hq() {
-    const l = this.g.teamBuildings(this.team);
+    const l = this.g.teamBuildings(this.team).filter((b) => !b.def.tech);
     return l.find((b) => b.def.role === 'hq') || l[0] || null;
   }
 
@@ -50,11 +52,13 @@ export class AI {
     const g = this.g;
     const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
     const sees = (x, z, pad) => eyes.some((e) => Math.hypot(e.x - x, e.z - z) <= e.def.sight + pad);
-    for (const b of this.known) if (b.dead) this.known.delete(b);
+    // Captured structures change hands, so a known target stops being one when it does.
+    for (const b of this.known) if (b.dead || b.team !== this.enemy) this.known.delete(b);
     for (const b of g.buildings) {
       if (b.team !== this.enemy || b.dead || this.known.has(b) || !sees(b.x, b.z, b.radius)) continue;
       this.known.add(b);
-      if (!this.enemyBase) {
+      // An enemy-held tech structure is a target, but says nothing about where the base is.
+      if (!this.enemyBase && !b.def.tech) {
         const corner = this.corners.find((c) => Math.hypot(c.x - b.x, c.z - b.z) < 60);
         this.enemyBase = corner ? { x: corner.x, z: corner.z } : { x: b.x, z: b.z };
       }
@@ -138,7 +142,7 @@ export class AI {
   manageUnits() {
     const g = this.g, team = this.team, T = g.teams[team];
     const st = this.stage();
-    const producers = g.buildings.filter((b) => b.team === team && !b.dead && b.complete && b.def.produces);
+    const producers = g.buildings.filter((b) => b.team === team && g.canProduceAt(b));
     for (const b of producers) if (st && !b.rally) b.rally = { x: st.x + (Math.random() - 0.5) * 10, z: st.z + (Math.random() - 0.5) * 10 };
     if (!producers.length) return;
 
@@ -167,6 +171,8 @@ export class AI {
       choices.push([R.tank, 0.28], [R.arty, 0.12]);
       if (fewHealers('factory', 'repair')) choices.push([R.repair, 0.08]);
     }
+    // A captured, repaired Mammoth factory turns out super-tanks alongside the regular army.
+    if (g.requirementsMet(team, R.mammoth)) choices.push([R.mammoth, 0.3]);
     let tot = choices.reduce((a, c) => a + c[1], 0), acc = 0;
     for (const [def, w] of choices) {
       acc += w / tot;
@@ -230,7 +236,10 @@ export class AI {
     const g = this.g, crates = g.cashCrates;
     if (this.scout?.dead) this.scout = null;
     const hunting = !this.enemyBase && this.corners.length > 0;
-    const looting = crates.items.some((c) => !c.collected) && (this.explored.size < SECTORS * SECTORS || crates.discoveredBy(this.team).length > 0);
+    // Everyone knows how many tech structures the map holds, so the scout keeps looking for them.
+    const unexplored = this.explored.size < SECTORS * SECTORS;
+    const missingTech = g.techSites.items.some((b) => !b.tech.found[this.team]);
+    const looting = (unexplored && (missingTech || crates.items.some((c) => !c.collected))) || crates.discoveredBy(this.team).length > 0;
     if (!hunting && !looting) { this.scout = null; return; }
     if (!this.scout) {
       // En fácil el explorador sale más tarde para dar ventaja al jugador.
@@ -275,6 +284,39 @@ export class AI {
     }
     this.scoutGoal = goal?.k ?? null;
     if (goal) s.cmdMove(goal.x, goal.z);
+  }
+
+  // ------------------------------------------------- estructuras tecnológicas
+  // Once its delay has passed, sends one engineer at a time with an escort to the nearest discovered
+  // structure that is not its own, whether in ruins or held by the enemy.
+  manageTech() {
+    const g = this.g, team = this.team, T = g.teams[team], hq = this.hq;
+    if (!hq || g.time < this.diff.techDelay) return;
+    if (this.engineer?.dead) { this.engineer = null; this.techRetry = g.time + 45; }
+    let goal = null, bd = 1e9;
+    for (const b of g.techSites.foundBy(team)) {
+      if (b.team === team) continue;
+      const d = Math.hypot(b.x - hq.x, b.z - hq.z);
+      if (d < bd) { bd = d; goal = b; }
+    }
+    if (!goal) return;
+    // An engineer that came out of the barracks reports for duty.
+    this.engineer ||= g.units.find((u) => u.team === team && !u.dead && u.def.engineer) || null;
+    const e = this.engineer, def = ROLE[team].engineer;
+    if (!e) {
+      if (g.time >= this.techRetry && g.hasRole(team, 'barracks') && !g.queuedCount(team, def.id) && T.credits >= def.cost) g.queueUnit(team, def.id);
+      return;
+    }
+    if (e.order.type === 'capture' && e.order.target === goal) return;
+    if (!canCapture(e, goal)) return;
+    e.cmdCapture(goal);
+    // The escort clears the way and stays behind to guard the site.
+    const escort = this.armyIdle().filter((u) => u.def.weapon)
+      .sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z)).slice(0, goal.team ? 6 : 3);
+    escort.forEach((u, i) => {
+      const a = (i / escort.length) * Math.PI * 2;
+      u.cmdMove(goal.x + Math.cos(a) * 9, goal.z + Math.sin(a) * 9, true);
+    });
   }
 
   sectorAt(x, z) {

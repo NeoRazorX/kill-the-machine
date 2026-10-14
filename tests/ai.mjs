@@ -35,6 +35,7 @@ function fixture(team, difficulty = 'normal', crateSeed = null, slots = { human:
     fx: { update: noop, spawn: noop, marker: noop, repairBeam: noop, fireWeapon: noop },
     audio: { play: noop, say: noop }, visuals: { updateOre: noop },
     cashCrates: { items: [], update: noop, discover: noop, discoveredBy: () => [] }, updateFog: noop, fogT: 0, oreT: 0,
+    techSites: { items: [], update: noop, discover: noop, foundBy: () => [] },
   });
   // Como en la partida real, las cajas se reparten antes de colocar las bases.
   if (crateSeed !== null) game.cashCrates = new CashCrates(game, crateSeed);

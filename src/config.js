@@ -19,9 +19,9 @@ export const TEAMS = {
 export const buildingFront = () => 1;
 
 export const DIFFICULTY = {
-  easy:   { label: 'Fácil',   income: 0.7, think: 1.3, firstWave: 360, waveGap: 150, minArmy: 6, scoutDelay: 150 },
-  normal: { label: 'Normal',  income: 0.9, think: 0.9, firstWave: 280, waveGap: 115, minArmy: 8, scoutDelay: 0 },
-  hard:   { label: 'Difícil', income: 1.2, think: 0.5, firstWave: 210, waveGap: 80,  minArmy: 10, scoutDelay: 0 },
+  easy:   { label: 'Fácil',   income: 0.7, think: 1.3, firstWave: 360, waveGap: 150, minArmy: 6, scoutDelay: 150, techDelay: 420 },
+  normal: { label: 'Normal',  income: 0.9, think: 0.9, firstWave: 280, waveGap: 115, minArmy: 8, scoutDelay: 0, techDelay: 200 },
+  hard:   { label: 'Difícil', income: 1.2, think: 0.5, firstWave: 210, waveGap: 80,  minArmy: 10, scoutDelay: 0, techDelay: 90 },
 };
 
 export const DEFS = {};
@@ -139,21 +139,63 @@ U({ id: 'm_harv', team: 'machine', role: 'harv', name: 'Recolector', cost: 700, 
     gatherRate: 28, unloadRate: 110, sight: 16,
     desc: 'Taladra mineral y lo transporta a la fundición.' });
 
+U({ id: 'h_engineer', team: 'human', role: 'engineer', name: 'Ingeniero', cost: 500, time: 10, producer: 'barracks',
+    hp: 50, speed: 4.6, radius: 0.7, cls: 'light', height: 1.9, sight: 16, engineer: true,
+    desc: 'Captura estructuras tecnológicas: entra en ellas y pasan a ser tuyas. Se consume al entrar. Desarmado.' });
+U({ id: 'm_engineer', team: 'machine', role: 'engineer', name: 'Infiltrador', cost: 500, time: 10, producer: 'barracks',
+    hp: 50, speed: 4.8, radius: 0.65, cls: 'light', height: 1.6, hover: true, sight: 16, engineer: true,
+    desc: 'Dron que se infiltra en estructuras tecnológicas y toma su control. Se consume al entrar. Desarmado.' });
+
+// ------------------------------------------------- estructuras tecnológicas
+// Pre-war sites in ruins, two drawn at random each match. They belong to nobody until an engineer
+// captures one; its owner then pays to repair it. They never count for victory, cannot be sold
+// and do not extend the build radius. ruin: fraction of health left in a ruin.
+export const TECH_SITE_COUNT = 2;
+const T = (o) => def({ kind: 'building', tech: true, team: null, role: 'tech', buildable: false, cost: 0, time: 0,
+  w: 4, h: 4, hp: 2400, power: 0, sight: 20, ruin: 0.3, repairCost: 2000, repairTime: 60, ...o });
+
+T({ id: 't_silo', name: 'Silo de misiles', height: 5,
+    desc: 'Silo de misiles abandonado. Su misil se activará en una próxima actualización.' });
+T({ id: 't_ion', name: 'Cañón de iones', height: 8.5,
+    desc: 'Enlace con un cañón de iones orbital. Su haz se activará en una próxima actualización.' });
+T({ id: 't_mammoth', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
+    desc: 'Planta de tanques pesados. Reparada, construye el supertanque Mamut (pestaña Vehículos).' });
+T({ id: 't_juggernaut', name: 'Fábrica Juggernaut', height: 8,
+    desc: 'Línea de montaje de caminantes. El Juggernaut de tres cañones llegará en una próxima actualización.' });
+T({ id: 't_zeppelin', name: 'Hangar de zepelines', height: 7,
+    desc: 'Hangar de dirigibles. El zepelín bombardero llegará en una próxima actualización.' });
+
+// Units of a pre-war design, built by whichever side holds the repaired factory. Each side has its own
+// copy with its colours. selfRepair: mends itself up to a fraction of its health once out of combat.
+const MAMMOTH = { role: 'mammoth', name: 'Tanque Mamut', cost: 2200, time: 40, producer: 'mammoth',
+  hp: 1100, speed: 3.4, turn: 1.6, radius: 2.1, cls: 'armor', height: 3.2, turret: true, turretTurn: 2.2, fireOnMove: true,
+  sight: 24, selfRepair: { rate: 6, upTo: 0.5, delay: 5 },
+  weapon: { range: 20, damage: 42, cd: 1, proj: 'shell', splash: 2.8, mult: { light: 0.8, armor: 1.15, building: 1.15 } },
+  desc: 'Supertanque de antes de la guerra: doble cañón y blindaje pesado. Fuera de combate se repara solo hasta la mitad de su vida.' };
+U({ ...MAMMOTH, id: 'h_mammoth', team: 'human' });
+U({ ...MAMMOTH, id: 'm_mammoth', team: 'machine' });
+
 // Índices auxiliares
 export const ROLE = { human: {}, machine: {} };
-for (const d of Object.values(DEFS)) ROLE[d.team][d.role] = d;
+for (const d of Object.values(DEFS)) if (d.team) ROLE[d.team][d.role] = d;
+export const TECH_IDS = Object.values(DEFS).filter((d) => d.tech).map((d) => d.id);
 
 export const STRUCT_ROLES = ['power', 'refinery', 'barracks', 'factory', 'turret'];
 export const UNIT_ROLES = {
-  barracks: ['inf1', 'inf2', 'medic'],
+  barracks: ['inf1', 'inf2', 'medic', 'engineer'],
   factory: ['tank', 'arty', 'repair', 'harv'],
 };
 
 export const ROLE_NAMES = {
   hq: 'Cuartel General', power: 'Energía', refinery: 'Refinería',
-  barracks: 'Cuartel', factory: 'Fábrica', turret: 'Torreta',
+  barracks: 'Cuartel', factory: 'Fábrica', turret: 'Torreta', tech: 'Estructura tecnológica',
+  mammoth: 'Fábrica Mamut reparada',
 };
 
 // Un médico cura lo que sale del cuartel; un reparador, lo que sale de la fábrica.
 export const canRepair = (healer, target) => !!healer.def.repair && healer !== target && !target.dead &&
   target.kind === 'unit' && target.team === healer.team && target.def.producer === healer.def.repair.targets;
+
+// Engineers take over tech structures that are not already theirs: ruins or enemy-held sites alike.
+export const canCapture = (unit, target) => !!unit.def.engineer && !unit.dead && !!target && !target.dead &&
+  !!target.def?.tech && target.team !== unit.team;

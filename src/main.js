@@ -112,7 +112,10 @@ function begin(spectate) {
   input = new Input(game, camera, renderer, sun);
   ui = new UI(game, input, camera);
   game.emit('toast', { text: game.map.name, kind: 'info' });
-  if (!spectate) game.emit('toast', { text: 'Se desconoce la posición enemiga: explora las otras esquinas', kind: 'warn' });
+  if (!spectate) {
+    game.emit('toast', { text: 'Se desconoce la posición enemiga: explora las otras esquinas', kind: 'warn' });
+    game.emit('toast', { text: 'Hay dos estructuras tecnológicas en ruinas: encuéntralas y captúralas con un ingeniero', kind: 'info' });
+  }
   window.__input = input; window.__ui = ui;
   const hq = game.teamBuildings(spectate ? 'human' : game.player, 'hq')[0];
   input.centerOn(hq.x, hq.z - (spectate ? 0 : 8));

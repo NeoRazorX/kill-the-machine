@@ -6,8 +6,8 @@ export const ENVIRONMENT_MODELS = ['env_tree', 'env_rock', 'env_ore', 'env_cliff
 export const MODEL_IDS = [...Object.keys(DEFS), ...ENVIRONMENT_MODELS, 'prop_cash_crate'];
 const templates = new Map();
 const instanceAssets = new Map();
-const animatedNodes = ['turret', 'barrel', 'muzzle', 'body', 'fill', 'bob', 'ring', 'drill', 'dish', 'crystal'];
-const groups = { legs: 'leg_', spider: 'spider_', rings: 'ring_' };
+const animatedNodes = ['turret', 'barrel', 'muzzle', 'body', 'fill', 'bob', 'ring', 'drill', 'dish', 'crystal', 'intact', 'wreck', 'beacon'];
+const groups = { legs: 'leg_', spider: 'spider_', rings: 'ring_', muzzles: 'muzzle_' };
 const requiredNodes = {
   h_rifle: ['body', 'leg_0', 'leg_1'], h_rocket: ['body', 'leg_0', 'leg_1'], h_medic: ['body', 'leg_0', 'leg_1', 'muzzle'],
   m_sentinel: ['body', 'leg_0', 'leg_1'],
@@ -16,12 +16,16 @@ const requiredNodes = {
   m_crusher: Array.from({length: 4}, (_,i) => `spider_${i}`),
   m_siege: Array.from({length: 6}, (_,i) => `spider_${i}`),
   h_hq: ['dish'], m_hq: ['crystal', 'ring'], m_power: ['ring_0', 'ring_1', 'ring_2'],
+  h_engineer: ['body', 'leg_0', 'leg_1'], m_engineer: ['bob', 'ring'],
+  h_mammoth: ['muzzle_0', 'muzzle_1'], m_mammoth: ['muzzle_0', 'muzzle_1'],
 };
 export const assetStatus = { loaded: [], failed: [], loadMs: 0, total: MODEL_IDS.length };
 
 function validate(id, scene) {
   const def = DEFS[id];
   const names = [...(requiredNodes[id] || [])];
+  // Tech structures swap a wrecked and an intact version and light a beacon in the owner's colour.
+  if (def?.tech) names.push('intact', 'wreck', 'beacon');
   if (def?.weapon) names.push('muzzle');
   if (def?.turret || (def?.kind === 'building' && def.weapon)) names.push('turret', 'barrel');
   for (const name of names) {

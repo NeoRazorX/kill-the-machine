@@ -34,6 +34,41 @@ las que solo ha visto el rival (en Fácil no sale hasta los 2 min 30 s).
 La distribución cambia al volver a jugar.
 Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 
+## Estructuras tecnológicas
+
+Cada partida coloca dos estructuras tecnológicas en ruinas, de tipos distintos sorteados entre
+cinco: **silo de misiles**, **cañón de iones**, **fábrica Mamut**, **fábrica Juggernaut** y
+**hangar de zepelines**. La fábrica Mamut ya funciona (ver abajo); las demás se capturan y se
+reparan, y sus armas y unidades llegarán en las siguientes fases. Se colocan después de sortear las esquinas, a la misma distancia a pie
+(medida con la holgura del vehículo más grande) de las dos bases y lejos de ambas. Nunca quedan
+sobre caminos, mineral ni cajas, y dejan un pasillo libre alrededor. Si con dos esquinas vecinas no hay sitio exactamente
+entre ambas, se admite poco más de margen; si aun así no basta, las dos estructuras se compensan
+y cada una favorece a un bando por la misma distancia. Con esquinas enfrentadas suelen ocupar las esquinas vacías.
+
+Hay que encontrarlas: aparecen en el minimapa con un rombo (blanco en ruinas, del color del
+dueño al capturarlas) y cada bando las descubre con su propia visión. Bajo la niebla se recuerda
+el último estado visto. Las ruinas no son de nadie y no se pueden atacar. El **ingeniero**
+(humanos) o el **infiltrador** (máquinas) sale del cuartel por 500 $: con clic derecho sobre la
+estructura, entra y la captura, y se consume al entrar. También puede arrebatársela al enemigo.
+La reparación empieza sola y se paga a medida que avanza, como la producción (2000 $ y 60 s,
+más lenta con poca energía). Se puede pausar desde el panel de la estructura. Si destruyen una estructura capturada,
+vuelve a quedar en ruinas, lista para otro ingeniero. No se pueden vender ni amplían el radio
+de construcción, y no cuentan para la victoria: quien pierde todos sus edificios pierde la partida.
+
+**Fábrica Mamut**: reparada, construye el **Tanque Mamut** (2200 $, 40 s) para su dueño. El
+tanque aparece en la pestaña Vehículos en cuanto se descubre la fábrica y se desbloquea al tenerla
+reparada. Es un supertanque de antes de la guerra, igual para los dos bandos salvo los colores.
+Tiene doble cañón con disparos alternos, 1100 de vida, el doble de tamaño que el tanque principal
+y es más lento. Fuera de combate (5 s sin recibir daño) se repara solo hasta la mitad de su vida.
+La fábrica admite punto de reunión. Si la capturan o la destruyen, se pierde lo que estuviera en cola.
+La IA mezcla Mamuts en su producción cuando tiene la fábrica reparada.
+
+La IA busca las estructuras con su explorador y, pasado un tiempo según la dificultad (7 min en
+Fácil, 3 min 20 s en Normal y 1 min 30 s en Difícil), envía un ingeniero escoltado a la más cercana
+que no sea suya. La escolta se queda guardándola.
+Pruebas de colocación justa en todas las parejas de esquinas, captura, reparación, vuelta a ruina,
+niebla e IA: `npm run test:tech`.
+
 ## Cantera de los Cuatro Vientos
 
 El mapa (192 × 192 celdas) tiene cuatro esquinas de salida idénticas: el terreno
@@ -129,6 +164,7 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 |---|---|
 | Seleccionar | clic · arrastrar caja · doble clic (mismo tipo) · Ctrl+A (todas) |
 | Mover / atacar / cosechar / curar | clic derecho (sobre un aliado herido: curar o reparar; en cuartel/fábrica: punto de reunión) |
+| Capturar | clic derecho con un ingeniero sobre una estructura tecnológica que no sea tuya |
 | Atacar-mover · Detener | `A` + clic · `S` |
 | Cámara | flechas o bordes · rueda / `Q` `E` zoom · botón central arrastra · `H` base · `Espacio` última alerta |
 | Grupos | `Ctrl+1-9` crear · `1-9` seleccionar (doble = centrar) |
@@ -154,7 +190,7 @@ esquinas vacías, deduce la última y ataca la base una vez descubierta.
 
 ## Estructura
 `src/config.js` definiciones · `map.js` terreno · `pathfinding.js` A* · `units.js` / `buildings.js` entidades ·
-`game.js` simulación · `ai.js` IA · `fx.js` efectos y proyectiles · `models.js` modelos procedurales ·
+`game.js` simulación · `tech-sites.js` estructuras tecnológicas · `ai.js` IA · `fx.js` efectos y proyectiles · `models.js` modelos procedurales ·
 `input.js` cámara y órdenes · `ui.js` interfaz y minimapa · `audio.js` sonido sintetizado.
 
 ## Pruebas de experiencia
