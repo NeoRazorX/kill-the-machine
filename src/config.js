@@ -173,6 +173,9 @@ T({ id: 't_mammoth', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
     desc: 'Planta de tanques pesados. Reparada, construye el supertanque Mamut (pestaña Vehículos).' });
 T({ id: 't_juggernaut', name: 'Fábrica Juggernaut', height: 8, produces: 'juggernaut',
     desc: 'Línea de montaje de caminantes. Reparada, construye el Juggernaut de tres cañones (pestaña Vehículos).' });
+T({ id: 't_mine', name: 'Mina de Tibero', height: 7,
+    income: { amount: 50, interval: 5 },
+    desc: 'Mina de tibero abandonada. Captúrala con un ingeniero y repárala para recibir 50 créditos cada 5 s. No consume energía ni necesita cosechadoras.' });
 
 // Units of a pre-war design, built by whichever side holds the repaired factory. Each side has its own
 // copy with its colours. selfRepair: mends itself up to a fraction of its health once out of combat.

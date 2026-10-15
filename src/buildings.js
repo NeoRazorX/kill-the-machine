@@ -69,6 +69,7 @@ export class Building {
     if (p.crystal) { p.crystal.rotation.y += dt * 1.5; p.crystal.position.y = p.crystalBase + Math.sin(g.time * 2) * 0.15; }
     if (p.ring) { p.ring.rotation.y += dt * 1.8; }
     if (p.rings) p.rings.forEach((r, i) => { r.rotation.y += dt * (1.5 + i * 0.7); });
+    if (p.drill && this.tech?.view?.state === 'online') p.drill.rotation.y += dt * 2;
 
     // humo / fuego al estar dañado; las ruinas sin dueño ya no arden
     const frac = this.hp / this.maxHp;

@@ -160,6 +160,7 @@ export class TechSites {
     for (const s of spots) {
       const b = g.placeBuilding(null, s.id, s.cx, s.cz, true);
       b.tech = { state: 'ruin', progress: 0, paid: 0, repairing: false, waiting: false, found: {}, announced: false,
+        incomeT: 0,
         view: { team: null, state: 'ruin', progress: 0 } };
       b.hp = b.maxHp * b.def.ruin;
       const beacon = b.parts.beacon;
@@ -219,6 +220,7 @@ export class TechSites {
     t.waiting = false;
     // A superweapon starts charging again for its new owner.
     t.charge = 0; t.announcedReady = false;
+    t.incomeT = 0;
     // Work in progress belonged to the old owner and is lost with the building.
     b.target = null; b.lastHit = -99; b.queue = []; b.rally = null;
     g.consumeUnit(unit);
@@ -246,7 +248,7 @@ export class TechSites {
     g.fx.bigExplosion(b.x, b.z, b.w * CELL, b.h * CELL, b.def.height);
     g.audio.play('bigexplosion', b.x, b.z);
     b.team = null; b.hp = b.maxHp * b.def.ruin; b.target = null; b.queue = []; b.rally = null;
-    Object.assign(t, { state: 'ruin', progress: 0, paid: 0, repairing: false, waiting: false, charge: 0, announcedReady: false });
+    Object.assign(t, { state: 'ruin', progress: 0, paid: 0, repairing: false, waiting: false, charge: 0, announcedReady: false, incomeT: 0 });
     g.recomputePower();
     this.refreshView(b, prev === g.player);
     if (prev === g.player && !g.spectate) g.emit('toast', { text: `${b.def.name} destruido: vuelve a estar en ruinas`, kind: 'warn' });
@@ -280,9 +282,22 @@ export class TechSites {
     }
   }
 
+  updateIncome(b, dt) {
+    const t = b.tech, income = b.def.income;
+    if (!income) return;
+    if (b.dead || !b.team || t.state !== 'online') { t.incomeT = 0; return; }
+    if (dt <= 0) return;
+    const elapsed = (t.incomeT || 0) + dt;
+    const payments = Math.floor((elapsed + 1e-9) / income.interval);
+    t.incomeT = Math.max(0, elapsed - payments * income.interval);
+    if (payments) this.game.addCredits(b.team, payments * income.amount);
+  }
+
   update(dt) {
     const g = this.game;
     for (const b of this.items) {
+      // A repair-completion frame earns nothing: the first full interval starts once online.
+      this.updateIncome(b, dt);
       this.updateRepair(b, dt);
       this.refreshView(b);
       if (!b.tech.announced && b.seen && !g.spectate) {

@@ -321,6 +321,12 @@ export class UI {
         if (sw.isReady(b)) return `${b.def.superweapon.title} LISTO · pulsa su botón en la barra lateral`;
         return `Cargando ${Math.floor(sw.progress(b) * 100)} % · ${clock(sw.remaining(b))}` + (g.lowPower(b.team) ? ' · SIN ENERGÍA' : '');
       }
+      if (b.def.income) {
+        if (!own && !g.spectate) return 'Operativa';
+        const income = b.def.income, amount = income.amount * g.teams[b.team].income;
+        return `Operativa · +${amount} $ cada ${income.interval} s · próximo ingreso en ${clock(income.interval - (b.tech.incomeT || 0))}`;
+      }
+      if (!b.def.produces) return 'Operativa';
       const unit = Object.values(DEFS).find((d) => d.producer === b.def.produces);
       return own ? `Operativa · construye el ${unit.name} desde Vehículos · clic derecho: punto de reunión` : 'Operativa';
     }

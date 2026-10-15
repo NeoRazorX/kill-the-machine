@@ -1,0 +1,42 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Mina de Tibero · prueba visual</title>
+<script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
+<style>
+body{margin:24px;background:#11171c;color:#e9efed;font:15px system-ui}h1{font-size:24px;margin-bottom:6px}
+p{color:#a8b9bf}main{display:flex;gap:16px;flex-wrap:wrap}article{border:1px solid #44525a;border-radius:8px;overflow:hidden}
+h2{font-size:17px;margin:14px 16px}canvas{display:block;width:390px;height:450px}pre{font:12px monospace}
+</style>
+<h1>Mina de Tibero</h1><p>Captura y reparación con ingenieros · ingreso base de 50 créditos cada 5 segundos · sin consumo de energía.</p>
+<main></main><pre id="results">RUNNING</pre>
+<script type="module">
+import * as THREE from 'three';
+import { preloadModels } from '../src/assets.js';
+import { Building } from '../src/buildings.js';
+import { TechSites } from '../src/tech-sites.js';
+import { DEFS } from '../src/config.js';
+const out = document.querySelector('#results'), results = [];
+try {
+  await preloadModels();
+  for (const [state,progress,label] of [['ruin',0,'En ruinas'],['repairing',.5,'Reparación al 50 %'],['online',1,'Reparada y operativa']]) {
+    const article = document.createElement('article'), title = document.createElement('h2');
+    title.textContent = label; article.append(title); document.querySelector('main').append(article);
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(0x1c292c);
+    scene.add(new THREE.HemisphereLight(0xd6e4ff,0x40483a,1.5));
+    const sun = new THREE.DirectionalLight(0xfff0d8,2.3); sun.position.set(-4,12,8); scene.add(sun);
+    const game = { scene, spectate:true, player:'human', time:0, lowPower:()=>false, isVisibleEntity:()=>true, fx:{smoke(){}} };
+    const b = new Building(game,DEFS.t_mine,state === 'ruin' ? null : 'human',0,0,true);
+    b.tech = { state,progress,view:{},found:{} }; b.hp *= .3+.7*progress;
+    b.parts.beacon.material = b.parts.beacon.material.clone();
+    const sites = new TechSites(game); sites.refreshView(b);
+    const yaw = b.parts.drill.rotation.y; b.update(.3);
+    if ((b.parts.drill.rotation.y !== yaw) !== (state === 'online')) throw new Error('Incorrect extraction animation');
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(16,16),new THREE.MeshStandardMaterial({color:0x3e5142,roughness:1}));
+    ground.rotation.x = -Math.PI/2; ground.position.set(4,-.015,4); scene.add(ground);
+    const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(390,450); article.append(renderer.domElement);
+    const camera = new THREE.PerspectiveCamera(38,390/450,.1,100);
+    camera.position.set(15,12,20); camera.lookAt(4,2.9,4); renderer.render(scene,camera);
+    if (renderer.getContext().getError()) throw new Error('Render error');
+    results.push(`PASS ${state}: model, ownership beacon and extraction animation`);
+  }
+  out.textContent = results.join('\n')+'\nALL PASSED';
+} catch(error) { out.textContent = results.join('\n')+'\nFAIL '+error.stack; }
+</script></html>

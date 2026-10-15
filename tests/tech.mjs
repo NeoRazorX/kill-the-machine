@@ -12,14 +12,15 @@ const { TechSites, chooseTechSites, walkDistances, fairTolerance, TECH_MIN_START
 const { N, CELL, SIZE, ROLE, DEFS, DIFFICULTY, START_CREDITS, TECH_IDS, TECH_SITE_COUNT, UNIT_ROLES, canCapture, other } = await import('../src/config.js');
 const { clearLine, findPath } = await import('../src/pathfinding.js');
 const { Superweapons, HQ_FLOOR } = await import('../src/superweapons.js');
+const { UI } = await import('../src/ui.js');
 
 const results = [];
 const assert = (ok, text) => { if (!ok) throw new Error(text); results.push(`PASS ${text}`); };
 const noop = () => {};
 
 // ------------------------------------------------------------- definitions
-assert(TECH_IDS.length === 4 && TECH_IDS.every((id) => DEFS[id].team === null && !DEFS[id].buildable && DEFS[id].w === 4 && DEFS[id].h === 4),
-  'four neutral, unbuildable 4×4 tech structures');
+assert(TECH_IDS.length === 5 && TECH_IDS.includes('t_mine') && TECH_IDS.every((id) => DEFS[id].team === null && !DEFS[id].buildable && DEFS[id].w === 4 && DEFS[id].h === 4),
+  'five neutral, unbuildable 4×4 tech structures, including the tibero mine');
 for (const team of ['human', 'machine']) {
   const e = ROLE[team].engineer;
   assert(e && e.engineer && !e.weapon && e.producer === 'barracks' && UNIT_ROLES.barracks.includes('engineer'), `${team}: unarmed engineer trained at the barracks`);
@@ -98,7 +99,7 @@ assert(!fairness.closest, `6 seeds × 6 corner pairs: fair (${JSON.stringify(fai
   assert(JSON.stringify(a) === JSON.stringify(b), 'same seed reproduces sites and types');
   const draws = new Set(), types = new Set();
   for (let k = 0; k < 12; k++) for (const s of chooseTechSites(map, starts, [], mulberry32(100 + k))) { draws.add(`${s.cx},${s.cz}`); types.add(s.id); }
-  assert(draws.size > 6 && types.size === TECH_IDS.length, 'new matches vary positions and draw all four types');
+  assert(draws.size > 6 && types.size === TECH_IDS.length, 'new matches vary positions and draw all five types');
 }
 
 // --------------------------------------------------------------- game rules
@@ -269,6 +270,77 @@ function forceSite(game, id) {
   game.techSites.items[0] = site;
   return site;
 }
+
+// ------------------------------------------------------------- Tibero mine
+for (const team of ['human', 'machine']) {
+  const { game } = fixture(), mine = forceSite(game, 't_mine');
+  const sites = game.techSites, T = game.teams[team], rival = other(team), income = mine.def.income;
+  const initial = T.credits;
+  sites.update(30);
+  assert(T.credits === initial, `${team}: neutral mine ruins generate no income`);
+  const engineer = game.spawnUnit(ROLE[team].engineer, team, beside(mine).x, beside(mine).z);
+  mine.tech.found[team] = true;
+  const mineAI = new AI(game, team, { ...DIFFICULTY.normal, techDelay: 0 });
+  mineAI.manageTech();
+  assert(engineer.order.type === 'capture' && engineer.order.target === mine, `${team}: AI assigns an engineer to a discovered mine`);
+  assert(sites.capture(mine, engineer) && engineer.dead && mine.tech.state === 'repairing', `${team}: engineer captures the mine and starts repairs`);
+  sites.update(mine.def.repairTime / 2);
+  assert(T.credits < initial && T.stats.earned === 0, `${team}: repairing the mine spends credits and generates none`);
+  sites.update(mine.def.repairTime / 2);
+  assert(mine.tech.state === 'online' && mine.tech.incomeT === 0 && T.stats.earned === 0, `${team}: finishing repairs starts a fresh income interval`);
+  assert(Math.abs(T.credits - (initial - mine.def.repairCost)) < 1e-6, `${team}: repairing the mine costs exactly its repair price`);
+  const credits = T.credits;
+  sites.update(income.interval - .1);
+  assert(T.credits === credits, `${team}: no premature mine payment`);
+  sites.update(.1);
+  assert(T.credits === credits + income.amount && T.stats.earned === income.amount, `${team}: a full interval credits the owner and earned-income statistics`);
+  sites.update(income.interval * 2.5);
+  assert(T.credits === credits + income.amount * 3 && Math.abs(mine.tech.incomeT - income.interval / 2) < 1e-6,
+    `${team}: long frames pay every completed interval and preserve the remainder`);
+  sites.update(income.interval / 2);
+  for (let i = 0; i < 50; i++) sites.update(.1);
+  assert(T.credits === credits + income.amount * 5, `${team}: small simulation steps pay exactly on schedule`);
+  const paused = T.credits;
+  game.paused = true; game.update(30); game.paused = false;
+  assert(T.credits === paused && mine.tech.incomeT < 1e-6, `${team}: paused games do not advance mine income`);
+  const power = T.power; T.power = { prod: 0, use: 100 };
+  sites.update(income.interval);
+  assert(T.credits === paused + income.amount, `${team}: self-powered mine keeps producing during a power shortage`);
+  T.power = power;
+  T.income = 1.2; const scaled = T.credits;
+  sites.update(income.interval); T.income = 1;
+  assert(T.credits === scaled + income.amount * 1.2, `${team}: mine income follows the normal economy multiplier`);
+  const ui = { game, techView: b => ({ ...b.tech, team: b.team }) };
+  const observer = game.player; game.player = team; game.spectate = false;
+  assert(UI.prototype.techStatus.call(ui, mine).includes(`+${income.amount} $`) && UI.prototype.techStatus.call(ui, mine).includes('0:05'),
+    `${team}: owner panel shows the payout and next-payment countdown`);
+  game.player = rival;
+  assert(UI.prototype.techStatus.call(ui, mine) === 'Operativa', `${team}: enemy panel does not leak the live income timer`);
+  game.player = observer; game.spectate = true;
+  sites.update(income.interval - 1);
+  const thief = game.spawnUnit(ROLE[rival].engineer, rival, beside(mine).x, beside(mine).z);
+  sites.capture(mine, thief);
+  const oldCredits = T.credits, newCredits = game.teams[rival].credits;
+  assert(mine.tech.incomeT === 0 && mine.tech.state === 'online', `${team}: enemy capture resets the timer without breaking the repaired mine`);
+  sites.update(income.interval - .1);
+  assert(game.teams[rival].credits === newCredits, `${team}: new owner waits a complete interval after capture`);
+  sites.update(.1);
+  assert(T.credits === oldCredits && game.teams[rival].credits === newCredits + income.amount, `${team}: capture transfers future income exclusively to the new owner`);
+  game.damage(mine, mine.hp + 1, team);
+  const destroyedCredits = game.teams[rival].credits;
+  sites.update(30);
+  assert(mine.team === null && mine.tech.state === 'ruin' && mine.tech.incomeT === 0 && game.teams[rival].credits === destroyedCredits,
+    `${team}: destruction leaves a capturable ruin and stops all mine income`);
+  const replacement = game.spawnUnit(ROLE[team].engineer, team, beside(mine).x, beside(mine).z);
+  sites.capture(mine, replacement); T.credits = 5000;
+  sites.update(mine.def.repairTime); const repairedCredits = T.credits;
+  sites.update(income.interval);
+  assert(mine.tech.state === 'online' && T.credits === repairedCredits + income.amount, `${team}: recapturing and repairing a wrecked mine resumes periodic income`);
+  const rotation = mine.parts.drill.rotation.y;
+  mine.update(.1);
+  assert(mine.parts.drill.rotation.y !== rotation, `${team}: repaired mine animates its extraction auger`);
+}
+
 {
   for (const team of ['human', 'machine']) {
     const m = ROLE[team].mammoth;
@@ -476,7 +548,7 @@ for (const id of ['h_arty', 'm_siege']) {
 const originalRandom = Math.random;
 try {
   for (const team of ['human', 'machine']) {
-    Math.random = mulberry32(41 + results.length);
+    Math.random = mulberry32(41 + (team === 'machine' ? 1 : 0));
     const { game } = fixture({ ai: { team } });
     const ai = game.ais[0], hq = game.teamBuildings(team, 'hq')[0];
     addStructure(game, team, 'power'); addStructure(game, team, 'barracks');
@@ -503,7 +575,7 @@ try {
   }
   for (const team of ['human', 'machine']) {
     // With a working Mammoth factory, the AI mixes super-tanks into its production.
-    Math.random = mulberry32(91 + results.length);
+    Math.random = mulberry32(91 + (team === 'machine' ? 1 : 0));
     const { game } = fixture({ ai: { team } });
     const ai = game.ais[0], site = game.placeBuilding(team, 't_mammoth', 60, 60, true);
     site.tech = { state: 'online', progress: 1, found: { [team]: true }, view: {} };
@@ -513,12 +585,13 @@ try {
     assert(game.queuedCount(team, ROLE[team].mammoth.id) + game.units.filter((u) => u.def === ROLE[team].mammoth).length > 0, `${team}: AI builds Mammoths`);
     const plant = game.placeBuilding(team, 't_juggernaut', 60, 80, true);
     plant.tech = { state: 'online', progress: 1, found: { [team]: true }, view: {} };
+    game.teams[team].credits = 20000;
     for (let i = 0; i < 80; i++) { ai.manageUnits(); game.update(0.5); }
     assert(game.queuedCount(team, ROLE[team].juggernaut.id) + game.units.filter((u) => u.def === ROLE[team].juggernaut).length > 0, `${team}: AI builds Juggernauts`);
   }
   for (const team of ['human', 'machine']) {
     // A ready superweapon is aimed at the enemy's most valuable known spot, never at home.
-    Math.random = mulberry32(13 + results.length);
+    Math.random = mulberry32(13 + (team === 'machine' ? 1 : 0));
     const { game } = fixture({ ai: { team } });
     const ai = game.ais[0], sw = game.superweapons, enemy = other(team);
     ai.update = function () { this.updateIntel(); this.manageSuperweapons(); };

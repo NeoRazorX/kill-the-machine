@@ -25,6 +25,7 @@ BLACK = '#161d27'
 RED = '#ff3e31'
 ORANGE = '#ff921f'
 TEAL = '#46e6bc'
+TIBERO = '#78de48'
 WHITE = '#d8dcdc'
 # Neutral, weathered pre-war palette for the capturable tech structures.
 CONCRETE = '#8b8a82'
@@ -80,7 +81,7 @@ def finish(obj, tint, bevel=0):
         mod.segments = 1
         bpy.ops.object.modifier_apply(modifier=mod.name)
     obj.data.materials.clear()
-    if tint in (RED, ORANGE, TEAL):
+    if tint in (RED, ORANGE, TEAL, TIBERO):
         name = 'Signal_' + tint[1:]
         mat = bpy.data.materials.get(name)
         if not mat:
@@ -1638,8 +1639,47 @@ def jug_site():
     return base, intact, wreck, lamp
 
 
+def mine_site():
+    base = tech_slab(5)
+    base += [cyl('Borehole',1.05,.05,(0,SLAB+.03,-.6),SOOT,vertices=16),
+             torus('Shaft collar',1.05,.16,(0,SLAB+.15,-.6),IRON),
+             box('Control pad',(2.1,.14,1.6),(-2.35,SLAB+.07,2.05),CONCRETE_L)]
+    for sx in (-1,1):
+        for sz in (-1,1):
+            base.append(box('Derrick footing',(.65,.28,.65),(sx*1.12,SLAB+.14,-.6+sz*1.12),CONCRETE_L))
+    # Exposed green crystals make this economic site readable even while in ruins.
+    for i,(x,z,h) in enumerate(((2.6,2.2,.75),(2.15,2.55,1.1),(2.9,2.75,.6),(2.55,1.65,.5))):
+        base.append(xform(gem('Tibero crystal',(.22,h,.24),(x,SLAB+h+.04,z),TIBERO),
+                          (0,i*.5,(i-1)*.12),(x,SLAB,z)))
+    lamp_parts, lamp = beacon_post(-3.35,3.35)
+    base += lamp_parts
+    intact = truss(0,-.6,.65,6.2,1.6,.58,4,4,.19,.1,RUST_D,IRON)
+    intact += [armor('Drill motor',1.5,1.4,6.15,6.65,.25,(0,-.6),PRIMER),
+               cyl('Motor cap',.4,.18,(0,6.74,-.6),IRON),
+               box('Control hut',(1.85,1.4,1.35),(-2.35,1.08,2.05),CONCRETE,.06),
+               box('Hut roof',(2.05,.15,1.5),(-2.35,1.86,2.05),SHEET),
+               box('Control door',(.62,1.12,.04),(-2.35,.96,2.75),DOOR,.01),
+               box('Status screen',(.5,.32,.06),(-1.78,1.2,2.75),TEAL,.01),
+               cyl('Processing tank',.65,2.3,(2.55,1.5,-.7),PRIMER,vertices=12),
+               cone('Tank cap',.65,.3,.4,(2.55,2.85,-.7),IRON,12),
+               pipe('Transfer pipe',(.4,1.0,-.6),(2.55,1.0,-.7),.18,IRON),
+               box('Hazard band',(1.52,.13,1.42),(0,6.34,-.6),HAZARD,.01)]
+    for y in (1.15,1.5,1.85):
+        intact.append(torus('Tank band',.66,.035,(2.55,y,-.7),IRON))
+    wreck = truss(0,-.6,.65,2.1,1.6,1.15,4,1,.19,.1,RUST_D,IRON)
+    wreck += [tbox('Fallen drill motor',(1.5,.7,1.4),(.2,.78,1.9),PRIMER,(.12,.4,.3)),
+              tbox('Broken pipe',(2.0,.23,.23),(1.7,.48,-1.4),RUST,(.1,.3,.1)),
+              box('Ruined hut wall',(1.85,.68,.25),(-2.35,.72,1.45),CONCRETE),
+              tbox('Hut roof debris',(1.8,.12,1.25),(-2.4,.53,2.25),SHEET,(.15,.2,.1)),
+              xform(cyl('Fallen processing tank',.62,1.8,(0,0,0),RUST,vertices=12),
+                    (math.pi/2,0,.12),(0,0,0),(2.55,.92,-.8))]
+    wreck += rubble(0,-.1,2.5,18,56,(CONCRETE,IRON,RUST_D,PRIMER),.26,.32)
+    wreck.append(scorch(0,-.6,1.6,55,.29))
+    return base, intact, wreck, lamp
+
+
 TECH_SITES = {'silo': (silo_site, 5.0), 'ion': (ion_site, 8.5), 'mammoth': (mammoth_site, 6.0),
-              'juggernaut': (jug_site, 8.0)}
+              'juggernaut': (jug_site, 8.0), 'mine': (mine_site, 7.0)}
 
 
 def check_fit(label, objs, height, half=3.95):
@@ -1659,7 +1699,14 @@ def tech(kind):
     for label, objs in (('base', base), ('intact', intact), ('wreck', wreck)):
         check_fit(f't_{kind} {label}', objs, height)
     merge('Site foundation', base)
-    merge('Intact structure', intact, empty('intact',(0,0,0)))
+    intact_node = empty('intact',(0,0,0))
+    merge('Intact structure', intact, intact_node)
+    if kind == 'mine':
+        auger = [cyl('Drill shaft',.18,5.3,(0,3.35,-.6),IRON)]
+        for y in (1.0,1.35,1.7,2.05):
+            auger.append(tbox('Auger flight',(.78,.1,.35),(0,y,-.6),STEEL,(0,y*2,.2)))
+        check_fit('t_mine drill',auger,height)
+        merge('Extraction auger',auger,empty('drill',(0,.65,-.6),intact_node))
     merge('Ruined structure', wreck, empty('wreck',(0,0,0)))
     beacon_lamp(*lamp)
     save('t_' + kind)
@@ -2813,6 +2860,7 @@ BUILDERS = {
     'h_engineer': lambda: infantry(engineer=True), 'm_engineer': machine_engineer,
     't_silo': lambda: tech('silo'), 't_ion': lambda: tech('ion'), 't_mammoth': lambda: tech('mammoth'),
     't_juggernaut': lambda: tech('juggernaut'),
+    't_mine': lambda: tech('mine'),
     'h_mammoth': lambda: mammoth(BLUE), 'm_mammoth': lambda: mammoth(RED),
     'h_juggernaut': lambda: juggernaut(BLUE), 'm_juggernaut': lambda: juggernaut(RED),
 }
