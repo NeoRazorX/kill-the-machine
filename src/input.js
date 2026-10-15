@@ -241,7 +241,7 @@ export class Input {
   }
 
   attackMoveAt(cx, cy) {
-    const gp = this.groundAt(cx, cy), units = this.selUnits().filter((u) => u.def.weapon || u.def.repair);
+    const gp = this.groundAt(cx, cy), units = this.selUnits().filter((u) => u.def.weapon || u.def.repair || u.def.radar);
     if (!gp || !units.length) return;
     this.orderMove(units, gp.x, gp.z, true);
     this.game.fx.marker(gp.x, gp.z, 'attack');
@@ -432,7 +432,7 @@ export class Input {
     if (code === 'KeyP') { if (this.ui) this.ui.togglePause(); return; }
     if (code === 'KeyM') { if (this.ui) this.ui.toggleMute(); return; }
     if (g.over) return;
-    if (code === 'KeyA' && !e.ctrlKey) { if (this.selUnits().some((u) => u.def.weapon || u.def.repair)) { this.attackMode = true; this.superTarget = null; this.cancelPlacement(); } return; }
+    if (code === 'KeyA' && !e.ctrlKey) { if (this.selUnits().some((u) => u.def.weapon || u.def.repair || u.def.radar)) { this.attackMode = true; this.superTarget = null; this.cancelPlacement(); } return; }
     if (code === 'KeyA' && e.ctrlKey) { e.preventDefault(); this.setSelection(g.units.filter((u) => u.team === this.player && !u.dead)); return; }
     if (code === 'KeyS') { for (const u of this.selUnits()) u.cmdStop(); g.audio.play('order'); return; }
     if (code === 'KeyH') { const hq = g.teamBuildings(this.player, 'hq')[0]; if (hq) { this.centerOn(hq.x, hq.z); } return; }

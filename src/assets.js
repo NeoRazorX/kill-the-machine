@@ -13,6 +13,7 @@ const requiredNodes = {
   m_sentinel: ['body', 'leg_0', 'leg_1'],
   h_harv: ['fill'], m_harv: ['fill', 'drill'], m_drone: ['bob', 'ring'], m_nanite: ['bob', 'ring', 'muzzle'],
   h_mech: ['muzzle'], m_welder: ['muzzle'],
+  h_radar: ['dish'], m_radar: ['dish'],
   m_crusher: Array.from({length: 4}, (_,i) => `spider_${i}`),
   m_siege: Array.from({length: 6}, (_,i) => `spider_${i}`),
   h_hq: ['dish'], m_hq: ['crystal', 'ring'], m_power: ['ring_0', 'ring_1', 'ring_2'],

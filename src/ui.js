@@ -286,6 +286,7 @@ export class UI {
       html += '</div>';
       const names = [...groups.values()].map((l) => l[0].def.name);
       html += `<div class="sp-sub">${sel.length === 1 ? names[0] : sel.length + ' unidades'}${sel[0].team !== g.player ? ' · enemigo' : ''}</div><div class="hpbar"><i></i></div>`;
+      if (sel.length === 1 && sel[0].def.radar) html += `<div class="sp-sub">Radio de detección: ${sel[0].def.sight} · Desarmado</div>`;
       if (sel.some(isCombatUnit)) html += '<div class="sp-experience"></div>';
       panel.innerHTML = html;
       panel.querySelectorAll('.chip').forEach((c) => {
@@ -431,6 +432,13 @@ export class UI {
     }
     for (const u of g.units) {
       if (u.dead || !g.isVisibleEntity(u)) continue;
+      if (u.selected && u.def.radar && (u.team === this.team || g.spectate)) {
+        c.save();
+        c.strokeStyle = TEAMS[u.team].css; c.lineWidth = 1;
+        c.setLineDash([4, 3]);
+        c.beginPath(); c.arc(u.x * k, u.z * k, u.def.sight * k, 0, Math.PI * 2); c.stroke();
+        c.restore();
+      }
       c.fillStyle = TEAMS[u.team].css;
       const s = u.radius > 2 ? 4 : u.radius > 1.1 ? 3 : 2;
       c.fillRect(u.x * k - s / 2, u.z * k - s / 2, s, s);

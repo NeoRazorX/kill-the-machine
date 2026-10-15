@@ -171,6 +171,8 @@ export class AI {
     if (g.hasRole(team, 'factory')) {
       choices.push([R.tank, 0.28], [R.arty, 0.12]);
       if (fewHealers('factory', 'repair')) choices.push([R.repair, 0.08]);
+      const radars = own('factory').filter((u) => u.def.radar).length + g.queuedCount(team, R.radar.id);
+      if (!radars) choices.push([R.radar, 0.08]);
     }
     // Captured, repaired tech factories turn out their super-units alongside the regular army.
     for (const role of ['mammoth', 'juggernaut']) if (g.requirementsMet(team, R[role])) choices.push([R[role], 0.3]);
@@ -246,7 +248,8 @@ export class AI {
       // En fácil el explorador sale más tarde para dar ventaja al jugador.
       if (g.time < this.diff.scoutDelay) return;
       const army = this.armyIdle().filter((u) => u.def.weapon);
-      this.scout = army.sort((a, b) => b.def.speed - a.def.speed)[0] || null;
+      const radar = g.units.find((u) => u.team === this.team && !u.dead && u.def.radar && u.order.type === 'idle');
+      this.scout = radar || army.sort((a, b) => b.def.speed - a.def.speed)[0] || null;
       this.scoutGoal = null; this.scoutCorner = null;
       if (!this.scout) return;
     }

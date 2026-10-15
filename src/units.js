@@ -62,7 +62,7 @@ export class Unit {
 
   // ------------------------------------------------------------- órdenes
   cmdMove(x, z, attackMove = false) {
-    if (this.def.harvester) attackMove = false;
+    if (this.def.harvester || (!this.def.weapon && !this.def.repair)) attackMove = false;
     this.order = { type: attackMove ? 'attackmove' : 'move', x, z };
     this.target = null;
     if (!this.pathTo(x, z)) this.becomeIdle();
@@ -551,6 +551,7 @@ export class Unit {
       p.ring.rotation.y += dt * 6;
     }
     if (p.drill && (this.moving || this.gathering)) p.drill.rotation.z += dt * 9;
+    if (p.dish) p.dish.rotation.y += dt * 1.8;
     if (p.fill) {
       const frac = clamp(this.load / this.def.capacity, 0, 1);
       p.fill.visible = frac > 0;

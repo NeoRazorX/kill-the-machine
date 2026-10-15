@@ -2762,7 +2762,40 @@ def drone():
     save('m_drone')
 
 
+def mobile_radar(machine=False):
+    reset()
+    hull, edge, base, accent = (MACHINE, MPLATE, BLACK, RED) if machine else (OLIVE, LIGHT, DARK, BLUE)
+    objects = [box('Six wheel chassis', (1.9,.32,3.2), (0,.68,0), base, .08)]
+    for s in (-1,1):
+        for z in (-1.1,0,1.1):
+            objects += [cyl('Tire',.44,.34,(s*.99,.44,z),base,'x'),
+                        cyl('Hub',.22,.035,(s*1.18,.44,z),STEEL,'x')]
+        objects.append(box('Recognition stripe',(.04,.18,1.65),(s*.97,1.13,-.45),accent,.008))
+    objects += [armor('Cab',1.75,1.05,.84,1.77,.28,(0,1.05),hull),
+                box('Windscreen',(1.35,.33,.06),(0,1.47,1.53),GLASS),
+                box('Front bumper',(1.85,.18,.18),(0,.76,1.68),base),
+                armor('Electronics housing',1.86,1.9,.84,1.45,.18,(0,-.48),edge),
+                box('Signal panel',(.65,.16,.05),(0,1.23,-1.44),accent,.01),
+                cyl('Mast base',.34,.18,(0,1.5,-.38),STEEL),
+                cyl('Mast',.12,.68,(0,1.91,-.38),STEEL),
+                box('Roof beacon',(.4,.1,.2),(0,1.85,1.05),accent,.015)]
+    for x in (-.55,.55):
+        for z in (-1.1,-.86,-.62):
+            objects.append(box('Cooling vent',(.28,.025,.08),(x,1.46,z),base,.005))
+    merge('Radar carrier', objects)
+    dish = empty('dish',(0,2.27,-.38))
+    reflector = bowl('Radar reflector',dish_profile(.96,.32),edge,.055,20)
+    xform(reflector,(1.08,0,0),(0,0,0),(0,2.56,-.38))
+    rotating = [reflector,
+                beam('Reflector support',(0,2.27,-.38),(0,2.55,-.38),.13,STEEL),
+                beam('Feed arm',(0,2.56,-.38),(0,2.88,.22),.07,STEEL),
+                cyl('Receiver',.1,.16,(0,2.88,.22),accent,'z')]
+    merge('Scanning antenna', rotating, dish)
+    save('m_radar' if machine else 'h_radar')
+
+
 BUILDERS = {
+    'h_radar': mobile_radar, 'm_radar': lambda: mobile_radar(True),
     'h_tank': tank, 'h_factory': factory,
     'h_rifle': lambda: infantry(), 'h_rocket': lambda: infantry(heavy=True),
     'm_sentinel': lambda: infantry(machine=True), 'h_arty': artillery,

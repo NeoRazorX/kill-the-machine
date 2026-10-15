@@ -139,6 +139,13 @@ U({ id: 'm_harv', team: 'machine', role: 'harv', name: 'Recolector', cost: 700, 
     gatherRate: 28, unloadRate: 110, sight: 16,
     desc: 'Taladra mineral y lo transporta a la fundición.' });
 
+// Mobile reconnaissance uses the same vision as fog, minimap and AI intelligence.
+for (const team of ['human', 'machine']) U({
+    id: team === 'human' ? 'h_radar' : 'm_radar', team, role: 'radar', name: 'Radar Móvil',
+    cost: 650, time: 16, producer: 'factory', hp: 180, speed: 5.8, turn: 2.8,
+    radius: 1.5, cls: 'armor', height: 3.6, sight: 64, radar: true,
+    desc: 'Vehículo de reconocimiento con radio de detección de 64: revela terreno y enemigos, incluso en movimiento. Desarmado.' });
+
 U({ id: 'h_engineer', team: 'human', role: 'engineer', name: 'Ingeniero', cost: 500, time: 10, producer: 'barracks',
     hp: 50, speed: 4.6, radius: 0.7, cls: 'light', height: 1.9, sight: 16, engineer: true,
     desc: 'Captura estructuras tecnológicas: entra en ellas y pasan a ser tuyas. Se consume al entrar. Desarmado.' });
@@ -196,7 +203,7 @@ export const TECH_IDS = Object.values(DEFS).filter((d) => d.tech).map((d) => d.i
 export const STRUCT_ROLES = ['power', 'refinery', 'barracks', 'factory', 'turret'];
 export const UNIT_ROLES = {
   barracks: ['inf1', 'inf2', 'medic', 'engineer'],
-  factory: ['tank', 'arty', 'repair', 'harv'],
+  factory: ['tank', 'arty', 'repair', 'radar', 'harv'],
 };
 
 export const ROLE_NAMES = {
