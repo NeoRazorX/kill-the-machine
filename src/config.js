@@ -176,6 +176,8 @@ T({ id: 't_juggernaut', name: 'Fábrica Juggernaut', height: 8, produces: 'jugge
 T({ id: 't_mine', name: 'Mina de Tibero', height: 7,
     income: { amount: 50, interval: 5 },
     desc: 'Mina de tibero abandonada. Captúrala con un ingeniero y repárala para recibir 50 créditos cada 5 s. No consume energía ni necesita cosechadoras.' });
+T({ id: 't_radar', name: 'Radar Estratégico', height: 8.2, power: -50, globalRadar: true,
+    desc: 'Estación de vigilancia abandonada. Captúrala y repárala para ver todo el mapa, incluidos enemigos, cajas y estructuras tecnológicas. Consume 50 de energía; la cobertura global se pierde sin energía o al perder el radar.' });
 
 // Units of a pre-war design, built by whichever side holds the repaired factory. Each side has its own
 // copy with its colours. selfRepair: mends itself up to a fraction of its health once out of combat.
@@ -222,3 +224,9 @@ export const canRepair = (healer, target) => !!healer.def.repair && healer !== t
 // Engineers take over tech structures that are not already theirs: ruins or enemy-held sites alike.
 export const canCapture = (unit, target) => !!unit.def.engineer && !unit.dead && !!target && !target.dead &&
   !!target.def?.tech && target.team !== unit.team;
+
+export const globalRadarActive = (entity) => !!entity.def.globalRadar && !entity.dead && !!entity.team &&
+  entity.complete && entity.tech?.state === 'online' && !entity.game.lowPower(entity.team);
+
+// All discovery systems share the same powered radar coverage, for either faction.
+export const visionRadius = (entity) => globalRadarActive(entity) ? SIZE * Math.SQRT2 : entity.def.sight;

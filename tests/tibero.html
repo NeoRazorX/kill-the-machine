@@ -15,6 +15,10 @@ import { TechSites } from '../src/tech-sites.js';
 import { DEFS } from '../src/config.js';
 const out = document.querySelector('#results'), results = [];
 try {
+  const def = DEFS[new URLSearchParams(location.search).get('model') || 't_mine'];
+  if (!def?.tech) throw new Error('Expected a technological structure');
+  document.title = def.name + ' · prueba visual'; document.querySelector('h1').textContent = def.name;
+  document.querySelector('body > p').textContent = def.desc;
   await preloadModels();
   for (const [state,progress,label] of [['ruin',0,'En ruinas'],['repairing',.5,'Reparación al 50 %'],['online',1,'Reparada y operativa']]) {
     const article = document.createElement('article'), title = document.createElement('h2');
@@ -23,19 +27,19 @@ try {
     scene.add(new THREE.HemisphereLight(0xd6e4ff,0x40483a,1.5));
     const sun = new THREE.DirectionalLight(0xfff0d8,2.3); sun.position.set(-4,12,8); scene.add(sun);
     const game = { scene, spectate:true, player:'human', time:0, lowPower:()=>false, isVisibleEntity:()=>true, fx:{smoke(){}} };
-    const b = new Building(game,DEFS.t_mine,state === 'ruin' ? null : 'human',0,0,true);
+    const b = new Building(game,def,state === 'ruin' ? null : 'human',0,0,true);
     b.tech = { state,progress,view:{},found:{} }; b.hp *= .3+.7*progress;
     b.parts.beacon.material = b.parts.beacon.material.clone();
     const sites = new TechSites(game); sites.refreshView(b);
-    const yaw = b.parts.drill.rotation.y; b.update(.3);
-    if ((b.parts.drill.rotation.y !== yaw) !== (state === 'online')) throw new Error('Incorrect extraction animation');
+    const moving = b.parts.drill || b.parts.dish, yaw = moving.rotation.y; b.update(.3);
+    if ((moving.rotation.y !== yaw) !== (state === 'online')) throw new Error('Incorrect operating animation');
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(16,16),new THREE.MeshStandardMaterial({color:0x3e5142,roughness:1}));
     ground.rotation.x = -Math.PI/2; ground.position.set(4,-.015,4); scene.add(ground);
     const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(390,450); article.append(renderer.domElement);
     const camera = new THREE.PerspectiveCamera(38,390/450,.1,100);
     camera.position.set(15,12,20); camera.lookAt(4,2.9,4); renderer.render(scene,camera);
     if (renderer.getContext().getError()) throw new Error('Render error');
-    results.push(`PASS ${state}: model, ownership beacon and extraction animation`);
+    results.push(`PASS ${state}: model, ownership beacon and operating animation`);
   }
   out.textContent = results.join('\n')+'\nALL PASSED';
 } catch(error) { out.textContent = results.join('\n')+'\nFAIL '+error.stack; }

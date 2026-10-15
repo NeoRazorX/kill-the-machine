@@ -1,4 +1,4 @@
-import { N, CELL, TEAMS, TECH_IDS, TECH_SITE_COUNT } from './config.js';
+import { N, CELL, TEAMS, TECH_IDS, TECH_SITE_COUNT, visionRadius } from './config.js';
 import { mulberry32, routeDistance } from './map.js';
 import { canOccupy } from './pathfinding.js';
 
@@ -177,7 +177,7 @@ export class TechSites {
       const t = b.tech;
       for (const e of [...g.units, ...g.buildings]) {
         if (e.dead || !e.team || t.found[e.team] || e === b) continue;
-        if (rectDist(e.x, e.z, b.rect) <= e.def.sight) t.found[e.team] = true;
+        if (rectDist(e.x, e.z, b.rect) <= visionRadius(e)) t.found[e.team] = true;
       }
     }
   }

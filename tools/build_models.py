@@ -1678,8 +1678,35 @@ def mine_site():
     return base, intact, wreck, lamp
 
 
+def radar_site():
+    base = tech_slab(6)
+    base += [armor('Radar footing',3.4,3.4,SLAB,.65,.3,(0,-.5),CONCRETE),
+             box('Control pad',(2.3,.1,1.9),(-2.3,.3,2.3),CONCRETE_L),
+             box('Generator pad',(1.6,.1,2.2),(2.65,.3,1.1),CONCRETE_L)]
+    lamp_parts, lamp = beacon_post(-3.35,3.35)
+    base += lamp_parts
+    intact = truss(0,-.5,.65,5.35,1.45,.65,4,3,.21,.1,IRON,RUST_D)
+    intact += [cyl('Antenna bearing',.6,.3,(0,5.45,-.5),STEEL,vertices=12),
+               box('Control cabin',(2.05,1.5,1.65),(-2.3,1.15,2.3),CONCRETE,.06),
+               box('Cabin roof',(2.25,.16,1.85),(-2.3,1.98,2.3),SHEET),
+               box('Control door',(.63,1.15,.04),(-2.65,1.0,3.14),DOOR,.01),
+               box('Observation window',(.65,.4,.04),(-1.8,1.45,3.14),GLASS,.01),
+               armor('Power converter',1.3,1.85,.4,1.7,.15,(2.65,1.1),PRIMER),
+               pipe('Signal conduit',(0,.76,-.5),(-1.8,.76,2.2),.1,IRON)]
+    for z in (.55,.8,1.05,1.3,1.55):
+        intact.append(box('Cooling grille',(1.05,.025,.1),(2.65,1.71,z),DARK,.005))
+    wreck = truss(0,-.5,.65,1.7,1.45,1.05,4,1,.21,.1,IRON,RUST_D)
+    wreck += [box('Ruined cabin wall',(2.05,.8,.25),(-2.3,.75,1.5),CONCRETE),
+              tbox('Cabin roof debris',(2.0,.12,1.6),(-2.3,.56,2.35),SHEET,(.1,.2,.15)),
+              tbox('Broken converter',(1.2,.8,1.7),(2.65,.8,1.1),RUST,(.1,-.15,.2))]
+    broken = bowl('Fallen radar reflector',dish_profile(1.65,.35),SHEET,.07,16,5.2,.5)
+    wreck.append(xform(broken,(.35,0,-.1),(0,0,0),(.1,.8,1.35)))
+    wreck += rubble(0,-.2,2.3,16,61,(CONCRETE,IRON,RUST_D,PRIMER),.25,.32)
+    return base, intact, wreck, lamp
+
+
 TECH_SITES = {'silo': (silo_site, 5.0), 'ion': (ion_site, 8.5), 'mammoth': (mammoth_site, 6.0),
-              'juggernaut': (jug_site, 8.0), 'mine': (mine_site, 7.0)}
+              'juggernaut': (jug_site, 8.0), 'mine': (mine_site, 7.0), 'radar': (radar_site, 8.2)}
 
 
 def check_fit(label, objs, height, half=3.95):
@@ -1707,6 +1734,16 @@ def tech(kind):
             auger.append(tbox('Auger flight',(.78,.1,.35),(0,y,-.6),STEEL,(0,y*2,.2)))
         check_fit('t_mine drill',auger,height)
         merge('Extraction auger',auger,empty('drill',(0,.65,-.6),intact_node))
+    if kind == 'radar':
+        reflector = bowl('Surveillance reflector',dish_profile(2.0,.48),CONCRETE_L,.065,24)
+        rim = torus('Reflector rim',2.0,.06,(0,.48,0),IRON)
+        head = group([reflector,rim],(1.05,0,0),(0,0,0),(0,5.75,-.5))
+        head += [beam('Elevation mount',(0,5.5,-.5),(0,5.9,-.4),.22,STEEL),
+                 beam('Receiver support',(-1.25,6.1,.8),(0,6.3,1.0),.075,IRON),
+                 beam('Receiver support',(1.25,6.1,.8),(0,6.3,1.0),.075,IRON),
+                 cyl('Receiver horn',.14,.28,(0,6.3,1.0),TEAL,'z',10)]
+        check_fit('t_radar dish',head,height)
+        merge('Scanning radar head',head,empty('dish',(0,5.5,-.5),intact_node))
     merge('Ruined structure', wreck, empty('wreck',(0,0,0)))
     beacon_lamp(*lamp)
     save('t_' + kind)
@@ -2861,6 +2898,7 @@ BUILDERS = {
     't_silo': lambda: tech('silo'), 't_ion': lambda: tech('ion'), 't_mammoth': lambda: tech('mammoth'),
     't_juggernaut': lambda: tech('juggernaut'),
     't_mine': lambda: tech('mine'),
+    't_radar': lambda: tech('radar'),
     'h_mammoth': lambda: mammoth(BLUE), 'm_mammoth': lambda: mammoth(RED),
     'h_juggernaut': lambda: juggernaut(BLUE), 'm_juggernaut': lambda: juggernaut(RED),
 }

@@ -37,7 +37,7 @@ Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 ## Estructuras tecnológicas
 
 Cada partida coloca dos estructuras tecnológicas en ruinas, de tipos distintos sorteados entre
-cinco: **silo de misiles**, **cañón de iones**, **fábrica Mamut**, **fábrica Juggernaut** y **mina de tibero**.
+seis: **silo de misiles**, **cañón de iones**, **fábrica Mamut**, **fábrica Juggernaut**, **mina de tibero** y **radar estratégico**.
 Se colocan después de sortear las esquinas, a la misma distancia a pie
 (medida con la holgura del vehículo más grande) de las dos bases y lejos de ambas. Nunca quedan
 sobre caminos, mineral ni cajas, y dejan un pasillo libre alrededor. Si con dos esquinas vecinas no hay sitio exactamente
@@ -60,6 +60,12 @@ funciona aunque falte energía en la base y no necesita cosechadoras. El panel m
 tiempo hasta el próximo pago. Al cambiar de dueño reinicia el contador; destruida, vuelve a ser una
 ruina sin ingresos hasta capturarla y repararla de nuevo.
 Vista de los tres estados: `tests/tibero.html`.
+
+**Radar Estratégico**: capturado y reparado, consume **50 de energía** y revela **todo el mapa**
+para su propietario: terreno, unidades enemigas, edificios, cajas y estructuras tecnológicas.
+La IA dispone de la misma información si lo controla. Sin energía, destruido o capturado por el
+enemigo, se pierde la cobertura global: el terreno queda explorado, pero las unidades fuera de
+la visión normal dejan de verse. El panel indica si está activo o sin energía.
 
 **Fábrica Mamut**: reparada, construye el **Tanque Mamut** (2200 $, 40 s) para su dueño. El
 tanque aparece en la pestaña Vehículos en cuanto se descubre la fábrica y se desbloquea al tenerla

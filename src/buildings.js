@@ -1,4 +1,4 @@
-import { CELL, SIZE, buildingFront } from './config.js';
+import { CELL, SIZE, buildingFront, globalRadarActive } from './config.js';
 import { buildBuildingModel } from './models.js';
 import { nextId, angleDiff } from './units.js';
 
@@ -65,7 +65,8 @@ export class Building {
     if (def.weapon) this.updateTurret(dt, low);
 
     // animaciones decorativas
-    if (p.dish) p.dish.rotation.y += dt * 1.2;
+    const scanning = !def.globalRadar || (!g.spectate && this.team !== g.player ? this.tech?.view?.state === 'online' : globalRadarActive(this));
+    if (p.dish && scanning) p.dish.rotation.y += dt * 1.2;
     if (p.crystal) { p.crystal.rotation.y += dt * 1.5; p.crystal.position.y = p.crystalBase + Math.sin(g.time * 2) * 0.15; }
     if (p.ring) { p.ring.rotation.y += dt * 1.8; }
     if (p.rings) p.rings.forEach((r, i) => { r.rotation.y += dt * (1.5 + i * 0.7); });

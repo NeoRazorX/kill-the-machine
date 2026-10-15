@@ -1,4 +1,4 @@
-import { N, CELL, ROLE, other, canCapture } from './config.js';
+import { N, CELL, ROLE, other, canCapture, visionRadius } from './config.js';
 
 const SECTOR = 32; // lado en unidades de mundo de cada zona que explora el explorador
 const SECTORS = N * CELL / SECTOR;
@@ -52,7 +52,7 @@ export class AI {
   updateIntel() {
     const g = this.g;
     const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
-    const sees = (x, z, pad) => eyes.some((e) => Math.hypot(e.x - x, e.z - z) <= e.def.sight + pad);
+    const sees = (x, z, pad) => eyes.some((e) => Math.hypot(e.x - x, e.z - z) <= visionRadius(e) + pad);
     // Captured structures change hands, so a known target stops being one when it does.
     for (const b of this.known) if (b.dead || b.team !== this.enemy) this.known.delete(b);
     for (const b of g.buildings) {
@@ -338,7 +338,7 @@ export class AI {
   superTarget(w) {
     const g = this.g, R = w.radius;
     const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
-    const seen = g.units.filter((u) => u.team === this.enemy && !u.dead && eyes.some((e) => Math.hypot(e.x - u.x, e.z - u.z) <= e.def.sight));
+    const seen = g.units.filter((u) => u.team === this.enemy && !u.dead && eyes.some((e) => Math.hypot(e.x - u.x, e.z - u.z) <= visionRadius(e)));
     const targets = [...[...this.known].filter((b) => !b.dead && b.team === this.enemy), ...seen];
     const worth = (e) => (e.def.role === 'hq' ? 1500 : e.def.tech ? 2000 : e.def.cost || 300) * (e.def.role === 'power' || e.def.role === 'refinery' ? 1.5 : 1);
     // Measured like the blast: to a building's walls, to a unit's centre.

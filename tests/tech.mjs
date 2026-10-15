@@ -7,9 +7,9 @@ const { Game } = await import('../src/game.js');
 const { GameMap, mulberry32 } = await import('../src/map.js');
 const { AI } = await import('../src/ai.js');
 const { preloadModels } = await import('../src/assets.js');
-const { generateCashCrates } = await import('../src/cash-crates.js');
+const { generateCashCrates, CashCrates } = await import('../src/cash-crates.js');
 const { TechSites, chooseTechSites, walkDistances, fairTolerance, TECH_MIN_START, TECH_MARGIN } = await import('../src/tech-sites.js');
-const { N, CELL, SIZE, ROLE, DEFS, DIFFICULTY, START_CREDITS, TECH_IDS, TECH_SITE_COUNT, UNIT_ROLES, canCapture, other } = await import('../src/config.js');
+const { N, CELL, SIZE, ROLE, DEFS, DIFFICULTY, START_CREDITS, TECH_IDS, TECH_SITE_COUNT, UNIT_ROLES, canCapture, other, globalRadarActive, visionRadius } = await import('../src/config.js');
 const { clearLine, findPath } = await import('../src/pathfinding.js');
 const { Superweapons, HQ_FLOOR } = await import('../src/superweapons.js');
 const { UI } = await import('../src/ui.js');
@@ -19,8 +19,8 @@ const assert = (ok, text) => { if (!ok) throw new Error(text); results.push(`PAS
 const noop = () => {};
 
 // ------------------------------------------------------------- definitions
-assert(TECH_IDS.length === 5 && TECH_IDS.includes('t_mine') && TECH_IDS.every((id) => DEFS[id].team === null && !DEFS[id].buildable && DEFS[id].w === 4 && DEFS[id].h === 4),
-  'five neutral, unbuildable 4×4 tech structures, including the tibero mine');
+assert(TECH_IDS.length === 6 && TECH_IDS.includes('t_mine') && TECH_IDS.includes('t_radar') && TECH_IDS.every((id) => DEFS[id].team === null && !DEFS[id].buildable && DEFS[id].w === 4 && DEFS[id].h === 4),
+  'six neutral, unbuildable 4×4 tech structures, including the mine and strategic radar');
 for (const team of ['human', 'machine']) {
   const e = ROLE[team].engineer;
   assert(e && e.engineer && !e.weapon && e.producer === 'barracks' && UNIT_ROLES.barracks.includes('engineer'), `${team}: unarmed engineer trained at the barracks`);
@@ -99,7 +99,7 @@ assert(!fairness.closest, `6 seeds × 6 corner pairs: fair (${JSON.stringify(fai
   assert(JSON.stringify(a) === JSON.stringify(b), 'same seed reproduces sites and types');
   const draws = new Set(), types = new Set();
   for (let k = 0; k < 12; k++) for (const s of chooseTechSites(map, starts, [], mulberry32(100 + k))) { draws.add(`${s.cx},${s.cz}`); types.add(s.id); }
-  assert(draws.size > 6 && types.size === TECH_IDS.length, 'new matches vary positions and draw all five types');
+  assert(draws.size > 6 && types.size === TECH_IDS.length, 'new matches vary positions and draw all six types');
 }
 
 // --------------------------------------------------------------- game rules
@@ -269,6 +269,67 @@ function forceSite(game, id) {
   site.tech = old.tech; site.hp = old.hp; site.parts.beacon.material = site.parts.beacon.material.clone();
   game.techSites.items[0] = site;
   return site;
+}
+
+// --------------------------------------------------------- Strategic radar
+for (const team of ['human', 'machine']) {
+  const { game } = fixture({ spectate: false }), radar = forceSite(game, 't_radar'), rival = other(team);
+  game.player = team;
+  Object.assign(game, {
+    fogData: new Uint8Array(N*N*4), fogImg: { data: new Uint8Array(N*N*4) }, fogTex: {},
+    fogCtx: { putImageData() {} }, updateFog: Game.prototype.updateFog,
+  });
+  const power = addStructure(game, team, 'power');
+  addStructure(game, rival, 'power');
+  const enemyHq = game.teamBuildings(rival, 'hq')[0];
+  const enemy = game.spawnUnit(ROLE[rival].tank, rival, enemyHq.x + 4, enemyHq.z - 4);
+  const crate = { x: enemyHq.x, z: enemyHq.z + 4, found: {}, seen: false, collected: false };
+  game.cashCrates = Object.assign(Object.create(CashCrates.prototype), { game, items: [crate] });
+  const ai = new AI(game, team, DIFFICULTY.normal);
+  game.rebuildHash(); game.updateFog(); ai.updateIntel(); game.cashCrates.discover();
+  assert(!globalRadarActive(radar) && !game.isVisibleEntity(enemy) && !ai.known.has(enemyHq) && !crate.found[team],
+    `${team}: neutral radar provides no remote vision or intelligence`);
+  const engineer = game.spawnUnit(ROLE[team].engineer, team, beside(radar).x, beside(radar).z);
+  game.techSites.capture(radar, engineer);
+  game.updateFog();
+  assert(!globalRadarActive(radar) && !game.visibleAt(enemy.x, enemy.z) && visionRadius(radar) === radar.def.sight,
+    `${team}: captured radar keeps local vision until repaired`);
+  game.techSites.update(radar.def.repairTime);
+  game.updateFog(); game.techSites.discover(); game.cashCrates.discover(); ai.updateIntel();
+  assert(globalRadarActive(radar) && game.teams[team].power.use === 50 && game.fog.every(v => v === 2),
+    `${team}: repaired powered radar reveals every map cell and consumes 50 energy`);
+  assert(game.isVisibleEntity(enemy) && game.techSites.items.every(b => b.tech.found[team]) && crate.found[team],
+    `${team}: full coverage reveals distant enemies, tech structures and crates`);
+  assert(ai.known.has(enemyHq) && ai.corners.length === 0 && ai.enemyBase,
+    `${team}: AI receives the same global building intelligence and explores all corners`);
+  assert(ai.superTarget(DEFS.t_ion.superweapon), `${team}: AI can aim at enemies discovered through the radar`);
+  const ui = { game, techView: b => ({ ...b.tech, team: b.team }) };
+  assert(UI.prototype.techStatus.call(ui, radar).includes('Radar activo'), `${team}: panel reports active global coverage`);
+  const yaw = radar.parts.dish.rotation.y;
+  radar.update(.1);
+  assert(radar.parts.dish.rotation.y !== yaw, `${team}: powered strategic radar rotates its antenna`);
+  for (let i=0;i<16;i++) {
+    radar.parts.dish.rotation.y = i*Math.PI/8;
+    const bounds = new THREE.Box3().setFromObject(radar.mesh), r = radar.rect;
+    assert(bounds.min.x >= r.x0 && bounds.max.x <= r.x1 && bounds.min.z >= r.z0 && bounds.max.z <= r.z1 && bounds.max.y <= radar.def.height+.16,
+      `${team}: scanning antenna fits the structure footprint (${i})`);
+  }
+  power.buildT = 0; game.recomputePower(); game.updateFog();
+  assert(!globalRadarActive(radar) && !game.isVisibleEntity(enemy) && game.fog.some(v => v === 1) && !game.fog.some(v => v === 0),
+    `${team}: power loss hides remote enemies but preserves the whole explored map`);
+  const stopped = radar.parts.dish.rotation.y; radar.update(.1);
+  assert(radar.parts.dish.rotation.y === stopped && UI.prototype.techStatus.call(ui, radar).includes('SIN ENERGÍA'),
+    `${team}: unpowered radar stops scanning and reports the power shortage`);
+  power.buildT = 1; game.recomputePower(); game.updateFog();
+  assert(globalRadarActive(radar) && game.isVisibleEntity(enemy), `${team}: restoring power resumes global vision`);
+  const thief = game.spawnUnit(ROLE[rival].engineer, rival, beside(radar).x, beside(radar).z);
+  game.techSites.capture(radar, thief); game.updateFog();
+  assert(!game.isVisibleEntity(enemy), `${team}: losing the radar removes the former owner's global coverage`);
+  game.player = rival; game.updateFog();
+  assert(globalRadarActive(radar) && game.fog.every(v => v === 2), `${team}: capture transfers global vision to the powered new owner`);
+  game.damage(radar,radar.hp+1,team); game.updateFog();
+  assert(radar.tech.state === 'ruin' && !globalRadarActive(radar) && game.fog.some(v => v === 1),
+    `${team}: destroying a radar restores neutral ruins and ends global coverage`);
 }
 
 // ------------------------------------------------------------- Tibero mine

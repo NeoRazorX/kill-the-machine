@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DEFS, ROLE, TEAMS, N, SIZE, CELL, STRUCT_ROLES, UNIT_ROLES, ROLE_NAMES, PLAYER } from './config.js';
+import { DEFS, ROLE, TEAMS, N, SIZE, CELL, STRUCT_ROLES, UNIT_ROLES, ROLE_NAMES, PLAYER, globalRadarActive } from './config.js';
 import { buildUnitModel, buildBuildingModel } from './models.js';
 import { isCombatUnit, experienceText } from './experience.js';
 
@@ -316,6 +316,10 @@ export class UI {
     const g = this.game, v = this.techView(b), own = v.team === g.player && !g.spectate;
     if (v.state === 'online') {
       const sw = g.superweapons;
+      if (b.def.globalRadar) {
+        if (!own && !g.spectate) return 'Operativa';
+        return globalRadarActive(b) ? 'Radar activo · visión de todo el mapa · ⚡ −50' : 'SIN ENERGÍA · cobertura global desactivada';
+      }
       if (b.def.superweapon) {
         if (!own) return 'Operativa';
         if (sw.isReady(b)) return `${b.def.superweapon.title} LISTO · pulsa su botón en la barra lateral`;

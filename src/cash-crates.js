@@ -1,4 +1,4 @@
-import { CELL, SIZE, DEFS } from './config.js';
+import { CELL, SIZE, DEFS, visionRadius } from './config.js';
 import { mulberry32 } from './map.js';
 import { canOccupy, clearLine, findPath } from './pathfinding.js';
 import { cloneModel } from './assets.js';
@@ -59,7 +59,7 @@ export class CashCrates {
     for (const crate of this.items) {
       if (crate.collected) continue;
       for (const b of g.buildings) {
-        if (!b.dead && !crate.found[b.team] && Math.hypot(b.x - crate.x, b.z - crate.z) <= b.def.sight) crate.found[b.team] = true;
+        if (!b.dead && b.team && !crate.found[b.team] && Math.hypot(b.x - crate.x, b.z - crate.z) <= visionRadius(b)) crate.found[b.team] = true;
       }
       for (const u of g.queryUnits(crate.x, crate.z, MAX_UNIT_SIGHT)) {
         if (!u.dead && !crate.found[u.team] && Math.hypot(u.x - crate.x, u.z - crate.z) <= u.def.sight) crate.found[u.team] = true;

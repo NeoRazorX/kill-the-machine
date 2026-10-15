@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, other } from './config.js';
+import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, other, visionRadius } from './config.js';
 import { GameMap, MapVisuals } from './map.js';
 import { THEMES } from './themes.js';
 import { Foundations } from './foundations.js';
@@ -136,7 +136,7 @@ export class Game {
         }
       };
       for (const u of this.units) if (u.team === this.player && !u.dead) mark(u, u.def.sight);
-      for (const b of this.buildings) if (b.team === this.player && !b.dead) mark(b, b.def.sight);
+      for (const b of this.buildings) if (b.team === this.player && !b.dead) mark(b, visionRadius(b));
     }
     const d = this.fogData, img = this.fogImg.data;
     if (!this.fogA) { this.fogA = new Float32Array(N * N); this.fogB = new Float32Array(N * N); }
