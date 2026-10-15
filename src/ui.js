@@ -288,12 +288,49 @@ export class UI {
       html += `<div class="sp-sub">${sel.length === 1 ? names[0] : sel.length + ' unidades'}${sel[0].team !== g.player ? ' · enemigo' : ''}</div><div class="hpbar"><i></i></div>`;
       if (sel.length === 1 && sel[0].def.radar) html += `<div class="sp-sub">Radio de detección: ${sel[0].def.sight} · Desarmado</div>`;
       if (sel.some(isCombatUnit)) html += '<div class="sp-experience"></div>';
+      if (!g.spectate && this.input.selUnits().length) {
+        html += '<fieldset class="unit-orders"><legend>Órdenes de movimiento</legend>';
+        if (this.input.movementUnits().length) html +=
+          '<div class="order-modes" role="radiogroup" aria-label="Modo de movimiento">' +
+          '<button type="button" role="radio" aria-checked="false" data-movement="move" title="Prioriza llegar al destino sin detenerse a combatir">Mover</button>' +
+          '<button type="button" role="radio" aria-checked="false" data-movement="attackmove" title="Avanza, se detiene a combatir y después continúa">Atacar-mover</button></div>' +
+          '<div class="movement-help sp-sub" aria-live="polite"></div>';
+        html += '<button type="button" class="unit-stop" title="Detener las unidades seleccionadas (S)">■ Detener</button></fieldset>';
+      }
       panel.innerHTML = html;
       panel.querySelectorAll('.chip').forEach((c) => {
         c.onclick = () => { const list = groups.get(c.dataset.id); this.input.setSelection(list); };
       });
+      panel.querySelectorAll('[data-movement]').forEach((button) => {
+        button.onclick = () => this.input.setMovementMode(button.dataset.movement === 'attackmove');
+        button.onkeydown = (event) => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault(); event.stopPropagation();
+          const attack = event.key === 'ArrowRight' || event.key === 'End';
+          this.input.setMovementMode(attack);
+          panel.querySelector(`[data-movement="${attack ? 'attackmove' : 'move'}"]`).focus();
+        };
+      });
+      const stop = panel.querySelector('.unit-stop');
+      if (stop) stop.onclick = () => this.input.stopSelected();
     }
     this.updateSelBars();
+  }
+
+  refreshMovementControls() {
+    const help = document.querySelector('#selpanel .movement-help');
+    if (!help) return;
+    const units = this.input.movementUnits();
+    const allAttack = units.length > 0 && units.every((u) => u.attackMoveDefault);
+    const allMove = units.length > 0 && units.every((u) => !u.attackMoveDefault);
+    document.querySelectorAll('#selpanel [data-movement]').forEach((button) => {
+      const checked = button.dataset.movement === 'attackmove' ? allAttack : allMove;
+      button.setAttribute('aria-checked', String(checked));
+      button.tabIndex = checked || (!allAttack && !allMove && button.dataset.movement === 'move') ? 0 : -1;
+    });
+    const text = allAttack ? 'Clic derecho: avanza combatiendo y retoma el destino.' :
+      allMove ? 'Clic derecho: prioriza llegar al destino.' : 'El grupo tiene modos distintos. Elige uno para unificarlos.';
+    if (help.textContent !== text) help.textContent = text;
   }
 
   // What the player knows about a tech structure: the live state if it is theirs, else the last one seen.
@@ -342,6 +379,7 @@ export class UI {
   }
 
   updateSelBars() {
+    this.refreshMovementControls();
     const sel = this.input.sel, bar = document.querySelector('#selpanel .hpbar i');
     if (!bar || !sel.length) return;
     const tech = document.querySelector('#selpanel .sp-tech');
@@ -397,7 +435,7 @@ export class UI {
       if (e.button === 0) { drag = true; this.input.centerOn(w.x, w.z); }
       else if (e.button === 2) {
         const units = this.input.selUnits();
-        if (units.length) { this.input.orderMove(units, w.x, w.z); this.game.fx.marker(w.x, w.z, 'move'); this.game.audio.play('order'); }
+        if (units.length) { this.input.orderMove(units, w.x, w.z); this.game.fx.marker(w.x, w.z, units.some((u) => u.attackMoveDefault) ? 'attack' : 'move'); this.game.audio.play('order'); }
       }
     });
     window.addEventListener('mousemove', (e) => { if (drag) { const w = toWorld(e); this.input.centerOn(w.x, w.z); } });

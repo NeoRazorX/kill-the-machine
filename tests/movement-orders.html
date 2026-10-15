@@ -1,0 +1,78 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Órdenes de movimiento · pruebas</title>
+<style>body{margin:16px;background:#11171c;color:#e5efed;font:13px monospace}iframe{width:100%;height:720px;border:1px solid #334047}pre{white-space:pre-wrap}</style>
+<iframe title="Partida con controles de movimiento"></iframe><pre id="results">RUNNING</pre>
+<script type="module">
+const frame = document.querySelector('iframe'), out = document.querySelector('#results'), lines = [];
+const check = (ok,text) => { if(!ok)throw new Error(text);lines.push('PASS '+text); };
+async function until(predicate){const end=performance.now()+20000;while(!predicate()){if(performance.now()>end)throw new Error('Startup timeout');await new Promise(r=>setTimeout(r,30));}}
+try {
+  frame.src='../?autostart=easy&seed=20260&map=desert';
+  await until(()=>frame.contentWindow.__game?.units.length);
+  const win=frame.contentWindow, doc=frame.contentDocument, g=win.__game, input=win.__input, ui=input.ui;
+  g.paused=true;g.ais=[];g.audio.play=()=>{};g.audio.say=()=>{};
+  const rifle=g.units.find(u=>u.team===g.player&&u.def.role==='inf1');
+  const tank=g.units.find(u=>u.team===g.player&&u.def.role==='tank');
+  const spare=g.units.find(u=>u!==rifle&&u.team===g.player&&u.def.role==='inf1');
+  const harvester=g.units.find(u=>u.team===g.player&&u.def.harvester);
+  const move=()=>doc.querySelector('[data-movement="move"]'), attack=()=>doc.querySelector('[data-movement="attackmove"]');
+  const checked=b=>b.getAttribute('aria-checked')==='true';
+  input.setSelection([rifle,tank],true);
+  check(move()&&attack()&&doc.querySelector('.unit-stop')&&checked(move()),'owned units expose movement modes and Stop, initially Move');
+  attack().click();
+  check(rifle.attackMoveDefault&&tank.attackMoveDefault&&checked(attack()),'button changes the selected group to attack-move');
+  const ground=input.groundAt, pick=input.pickEntity;
+  let goal;
+  for(let d=12;d<26&&!goal;d+=2)for(let a=0;a<Math.PI*2&&!goal;a+=.4){const x=rifle.x+Math.cos(a)*d,z=rifle.z+Math.sin(a)*d;if(g.canStand(x,z,2))goal={x,z};}
+  check(goal,'a reachable destination is available');
+  input.groundAt=()=>goal;input.pickEntity=()=>null;input.commandAt(0,0);
+  check([rifle,tank].every(u=>u.order.type==='attackmove'),'ordinary right-click uses the selected attack-move mode');
+  const destinations=[rifle,tank].map(u=>({x:u.order.x,z:u.order.z}));
+  move().click();
+  check([rifle,tank].every((u,i)=>u.order.type==='move'&&u.order.x===destinations[i].x&&u.order.z===destinations[i].z),
+    'changing mode while marching resumes direct movement to the same destinations');
+  attack().click();
+  check([rifle,tank].every(u=>u.order.type==='attackmove'),'changing back makes an ongoing march engage enemies');
+  doc.querySelector('.unit-stop').click();
+  check([rifle,tank].every(u=>u.order.type==='idle'&&!u.path&&u.attackMoveDefault),'Stop halts the group and retains its preferred mode');
+  input.setSelection([spare],true);
+  check(checked(move()),'unmodified units keep their own direct-movement preference');
+  input.setSelection([rifle],true);
+  check(checked(attack()),'movement mode survives deselection and reselection');
+  input.setSelection([rifle,spare],true);
+  check(!checked(move())&&!checked(attack())&&doc.querySelector('.movement-help').textContent.includes('distintos'),'mixed preferences are represented honestly');
+  attack().click();
+  check(rifle.attackMoveDefault&&spare.attackMoveDefault&&checked(attack()),'one click unifies mixed movement modes');
+  move().dispatchEvent(new win.KeyboardEvent('keydown',{key:'ArrowLeft',code:'ArrowLeft',bubbles:true}));
+  check(checked(move())&&!input.keys.has('ArrowLeft'),'keyboard mode selection works without moving the camera');
+  const space = new win.KeyboardEvent('keydown',{key:' ',code:'Space',bubbles:true,cancelable:true});
+  move().dispatchEvent(space);
+  check(!space.defaultPrevented&&!input.keys.has('Space'),'button activation keys are not intercepted by camera shortcuts');
+  attack().click();
+  const map = doc.getElementById('minimap'), rect = map.getBoundingClientRect();
+  map.dispatchEvent(new win.MouseEvent('mousedown',{button:2,clientX:rect.left+goal.x/384*rect.width,clientY:rect.top+goal.z/384*rect.height,bubbles:true}));
+  check([rifle,spare].every(u=>u.order.type==='attackmove'),'minimap movement respects the selected attack-move mode');
+  input.setSelection([rifle,harvester],true);attack().click();input.commandAt(0,0);
+  check(rifle.order.type==='attackmove'&&harvester.order.type!=='attackmove'&&!harvester.attackMoveDefault,'harvesters keep their ordinary movement behavior in mixed groups');
+  input.setSelection([rifle],true);
+  const enemy=g.units.find(u=>u.team!==g.player&&u.def.weapon);
+  input.pickEntity=()=>enemy;input.commandAt(0,0);
+  check(rifle.order.type==='attack'&&rifle.target===enemy,'explicit attack clicks still focus the clicked enemy');
+  const originalCrates=g.cashCrates.at;
+  g.cashCrates.at=()=>({x:goal.x,z:goal.z});input.orderMove([rifle],goal.x,goal.z);
+  check(rifle.order.type==='move','explicit crate pickup moves directly despite an attack-move preference');
+  g.cashCrates.at=originalCrates;
+  move().click();input.onKey({code:'KeyA',target:doc.body,ctrlKey:false},true);input.onDown({button:0,clientX:0,clientY:0});input.onKey({code:'KeyA',target:doc.body},false);
+  check(rifle.order.type==='attackmove'&&!rifle.attackMoveDefault&&!input.attackMode,'A still issues one attack-move order without changing the saved preference');
+  input.setSelection([enemy],true);
+  check(!doc.querySelector('.unit-orders'),'enemy selection has no command controls');
+  input.setSelection([g.teamBuildings(g.player,'hq')[0]],true);
+  check(!doc.querySelector('.unit-orders'),'building selection keeps its existing panel');
+  input.setSelection([harvester],true);
+  check(!move()&&doc.querySelector('.unit-stop'),'a harvester exposes Stop without combat movement modes');
+  input.setSelection([rifle,tank],true);g.spectate=true;ui.refreshSelPanel(true);
+  check(!doc.querySelector('.unit-orders'),'spectator panels do not expose player commands');
+  g.spectate=false;input.groundAt=ground;input.pickEntity=pick;ui.refreshSelPanel(true);attack().click();
+  input.stopSelected();ui.drawOverlay();
+  out.textContent=lines.join('\n')+'\nALL PASSED';
+}catch(error){out.textContent=lines.join('\n')+'\nFAIL '+error.stack;}
+</script></html>

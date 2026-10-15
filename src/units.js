@@ -32,6 +32,7 @@ export class Unit {
     this.stuckT = 0; this.stuckCount = 0; this.lastPX = x; this.lastPZ = z;
     this.moving = false; this.anim = Math.random() * 10; this.walk = 0; this.recoil = 0;
     this.selected = false; this.dead = false; this.lastHit = -99;
+    this.attackMoveDefault = false;
     this.speedMul = 1;
     // cosechadora
     this.load = 0; this.hstate = 'idle'; this.field = null; this.refinery = null; this.waitT = 0;

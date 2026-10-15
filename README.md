@@ -199,13 +199,14 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 | Seleccionar | clic · arrastrar caja · doble clic (mismo tipo) · Ctrl+A (todas) |
 | Mover / atacar / cosechar / curar | clic derecho (sobre un aliado herido: curar o reparar; en cuartel/fábrica: punto de reunión) |
 | Capturar | clic derecho con un ingeniero sobre una estructura tecnológica que no sea tuya |
-| Atacar-mover · Detener | `A` + clic · `S` |
+| Modo de movimiento · Detener | panel de selección: Mover / Atacar-mover / Detener · `A` + clic = atacar-mover puntual · `S` = detener |
 | Cámara | flechas o bordes · rueda / `Q` `E` zoom · botón central arrastra · `H` base · `Espacio` última alerta |
 | Grupos | `Ctrl+1-9` crear · `1-9` seleccionar (doble = centrar) |
 | Construcción | barra lateral: clic = construir, clic en «LISTO» = colocar, clic derecho = cancelar, Shift = ×5 |
 | Vender edificio | `Supr` o botón del panel · `P` pausa · `M` sonido |
 
 ## Mecánicas
+- **Modo de movimiento**: el panel de las unidades propias permite elegir **Mover** o **Atacar-mover** y **Detener**. Cada unidad conserva su modo al cambiar de selección; el clic derecho, también en el minimapa, lo respeta. Cambiar el modo durante una marcha conserva el destino y cambia si se detiene a combatir por el camino. Las órdenes explícitas de atacar, capturar, curar o recoger una caja mantienen su función. `A` + clic permite dar una orden puntual de atacar-mover, y `S` detiene al grupo.
 - **Estelas de movimiento**: los vehículos terrestres, incluidas las cosechadoras y los caminantes pesados, levantan polvo ocre en el desierto y pequeñas salpicaduras de nieve en el mapa helado. La cantidad depende del desplazamiento y del tamaño; dejan de emitir al parar. La infantería y los drones flotantes no las producen. Las partículas respetan la visibilidad y tienen un límite independiente de los efectos de combate. `npm run test:ground-trails` comprueba emisión, visibilidad y límites; `tests/ground-trails.html` muestra ambos efectos.
 - **Radar móvil**: ambos bandos lo construyen en la fábrica por 650 créditos (16 s). Desarmado y con 180 de vida, revela terreno y enemigos en un radio de 64 unidades, también en movimiento (un tanque ve 22). Su antena gira continuamente y al seleccionarlo muestra la cobertura en el minimapa. La IA mantiene como máximo uno y puede usarlo como explorador.
 - **Experiencia**: las unidades de combate ascienden a veteranas con 3 bajas (+10 % daño) y a élite con 8 (+20 % daño y +10 % vida máxima, conservando el porcentaje de salud). Solo cuenta el golpe final contra unidades enemigas; edificios y defensas estáticas no generan ascensos. Los distintivos y la ficha muestran rango y progreso. Las bonificaciones son totales y no se acumulan más allá de élite.

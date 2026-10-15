@@ -147,6 +147,29 @@ export class Input {
   }
 
   // -------------------------------------------------------------- órdenes
+  movementUnits() { return this.selUnits().filter((u) => u.def.weapon || u.def.repair || u.def.radar); }
+
+  setMovementMode(attackMove) {
+    if (this.game.spectate || this.game.over) return;
+    const units = this.movementUnits();
+    if (!units.length) return;
+    for (const u of units) {
+      u.attackMoveDefault = !!attackMove;
+      const o = u.order;
+      if (o.type === 'move' || o.type === 'attackmove') u.cmdMove(o.x, o.z, attackMove);
+    }
+    this.attackMode = false; this.superTarget = null; this.cancelPlacement();
+    this.game.audio.play('click');
+    this.ui?.refreshMovementControls();
+  }
+
+  stopSelected() {
+    if (this.game.spectate || this.game.over || !this.selUnits().length) return;
+    for (const u of this.selUnits()) u.cmdStop();
+    this.attackMode = false; this.superTarget = null; this.cancelPlacement();
+    this.game.audio.play('order');
+  }
+
   formation(units, x, z) {
     const n = units.length;
     if (n === 1) return [{ x, z }];
@@ -172,9 +195,10 @@ export class Input {
     return units.map((u) => map.get(u));
   }
 
-  orderMove(units, x, z, attackMove = false) {
+  orderMove(units, x, z, attackMove = null) {
     const pts = this.formation(units, x, z);
-    const crate = !attackMove && this.game.cashCrates?.at(x, z);
+    const crate = attackMove !== true && this.game.cashCrates?.at(x, z);
+    let collector = -1;
     if (crate && units.length) {
       let nearest = 0;
       for (let i = 1; i < units.length; i++) {
@@ -182,8 +206,9 @@ export class Input {
       }
       // Keep one unit on the crate even when the formation leaves its center empty.
       pts[nearest] = { x: crate.x, z: crate.z };
+      collector = nearest;
     }
-    units.forEach((u, i) => u.cmdMove(pts[i].x, pts[i].z, attackMove));
+    units.forEach((u, i) => u.cmdMove(pts[i].x, pts[i].z, i === collector ? false : (attackMove ?? !!u.attackMoveDefault)));
   }
 
   commandAt(cx, cy) {
@@ -236,7 +261,7 @@ export class Input {
       }
     }
     if (handled) { if (others.length) this.orderMove(others, gp.x, gp.z); }
-    else { this.orderMove(units, gp.x, gp.z); g.fx.marker(gp.x, gp.z, 'move'); }
+    else { this.orderMove(units, gp.x, gp.z); g.fx.marker(gp.x, gp.z, units.some((u) => u.attackMoveDefault) ? 'attack' : 'move'); }
     g.audio.play('order');
   }
 
@@ -425,6 +450,7 @@ export class Input {
   onKey(e, down) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     const code = e.code;
+    if (e.target?.tagName === 'BUTTON' && (code === 'Space' || code === 'Enter')) return;
     if (down) this.keys.add(code); else this.keys.delete(code);
     if (!down) return;
     const g = this.game;
@@ -434,7 +460,7 @@ export class Input {
     if (g.over) return;
     if (code === 'KeyA' && !e.ctrlKey) { if (this.selUnits().some((u) => u.def.weapon || u.def.repair || u.def.radar)) { this.attackMode = true; this.superTarget = null; this.cancelPlacement(); } return; }
     if (code === 'KeyA' && e.ctrlKey) { e.preventDefault(); this.setSelection(g.units.filter((u) => u.team === this.player && !u.dead)); return; }
-    if (code === 'KeyS') { for (const u of this.selUnits()) u.cmdStop(); g.audio.play('order'); return; }
+    if (code === 'KeyS') { this.stopSelected(); return; }
     if (code === 'KeyH') { const hq = g.teamBuildings(this.player, 'hq')[0]; if (hq) { this.centerOn(hq.x, hq.z); } return; }
     if (code === 'Space') { e.preventDefault(); if (this.lastAlert) this.centerOn(this.lastAlert.x, this.lastAlert.z); return; }
     if (code === 'Delete' || code === 'Backspace') {
