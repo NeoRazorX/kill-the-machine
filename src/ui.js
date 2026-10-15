@@ -45,6 +45,7 @@ export class UI {
     input.ui = this;
     this.tab = 'struct';
     this.pings = [];
+    this.incomeLabels = [];
     this.credShown = game.teams[this.team].credits;
     this.selKey = '';
     this.t = 0;
@@ -82,6 +83,10 @@ export class UI {
       this.pings.push({ x: data.x, z: data.z, t: this.game.time });
       this.input.lastAlert = { x: data.x, z: data.z };
     } else if (type === 'over') this.showEnd(data);
+    else if (type === 'income' && (data.team === this.game.player || this.game.spectate)) {
+      this.incomeLabels.push({ ...data, t: this.game.time });
+      if (this.incomeLabels.length > 32) this.incomeLabels.shift();
+    }
   }
 
   toast(text, kind = 'info') {
@@ -585,6 +590,26 @@ export class UI {
     c.restore();
   }
 
+  drawIncomeLabels() {
+    const g = this.game, c = this.ctx;
+    this.incomeLabels = this.incomeLabels.filter((label) => g.time - label.t < 2);
+    if (!this.incomeLabels.length) return;
+    c.save();
+    c.font = 'bold 18px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'bottom';
+    c.fillStyle = '#ffd36b'; c.strokeStyle = 'rgba(0,0,0,.9)'; c.lineWidth = 3;
+    c.lineJoin = 'round'; c.shadowColor = '#000'; c.shadowBlur = 5;
+    for (const label of this.incomeLabels) {
+      if (!g.spectate && label.team !== g.player) continue;
+      const p = this.input.project(label.x, label.height + 4, label.z);
+      if (p.z < -1 || p.z > 1 || p.x < -50 || p.x > this.cv.width / this.dpr + 50) continue;
+      const t = clamp((g.time - label.t) / 2, 0, 1), y = p.y - t * 32;
+      c.globalAlpha = Math.min(1, (1 - t) * 2);
+      const text = `+${label.amount.toLocaleString('es-ES', { maximumFractionDigits: 2 })} $`;
+      c.strokeText(text, p.x, y); c.fillText(text, p.x, y);
+    }
+    c.restore();
+  }
+
   drawOverlay() {
     const c = this.ctx, inp = this.input, g = this.game;
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -632,6 +657,7 @@ export class UI {
       c.fillStyle = v.team ? TEAMS[v.team].css : '#e8ecef'; c.fillText(text, p.x, p.y);
     }
     c.restore();
+    this.drawIncomeLabels();
     // puntos de reunión
     for (const e of inp.sel) {
       if (e.kind === 'building' && e.rally && e.team === g.player) {

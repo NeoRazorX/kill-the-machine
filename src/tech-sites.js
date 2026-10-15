@@ -290,7 +290,13 @@ export class TechSites {
     const elapsed = (t.incomeT || 0) + dt;
     const payments = Math.floor((elapsed + 1e-9) / income.interval);
     t.incomeT = Math.max(0, elapsed - payments * income.interval);
-    if (payments) this.game.addCredits(b.team, payments * income.amount);
+    if (payments) {
+      const g = this.game, amount = payments * income.amount;
+      g.addCredits(b.team, amount);
+      if (b.team === g.player || g.spectate) g.emit('income', {
+        team: b.team, amount: amount * g.teams[b.team].income, x: b.x, z: b.z, height: b.def.height,
+      });
+    }
   }
 
   update(dt) {

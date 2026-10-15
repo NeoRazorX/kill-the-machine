@@ -4,6 +4,7 @@
 body{margin:24px;background:#11171c;color:#e9efed;font:15px system-ui}h1{font-size:24px;margin-bottom:6px}
 p{color:#a8b9bf}main{display:flex;gap:16px;flex-wrap:wrap}article{border:1px solid #44525a;border-radius:8px;overflow:hidden}
 h2{font-size:17px;margin:14px 16px}canvas{display:block;width:390px;height:450px}pre{font:12px monospace}
+.preview{position:relative}.income-overlay{position:absolute;inset:0;pointer-events:none}
 </style>
 <h1>Mina de Tibero</h1><p>Captura y reparación con ingenieros · ingreso base de 50 créditos cada 5 segundos · sin consumo de energía.</p>
 <main></main><pre id="results">RUNNING</pre>
@@ -13,6 +14,8 @@ import { preloadModels } from '../src/assets.js';
 import { Building } from '../src/buildings.js';
 import { TechSites } from '../src/tech-sites.js';
 import { DEFS } from '../src/config.js';
+import { Game } from '../src/game.js';
+import { UI } from '../src/ui.js';
 const out = document.querySelector('#results'), results = [];
 try {
   const def = DEFS[new URLSearchParams(location.search).get('model') || 't_mine'];
@@ -35,10 +38,24 @@ try {
     if ((moving.rotation.y !== yaw) !== (state === 'online')) throw new Error('Incorrect operating animation');
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(16,16),new THREE.MeshStandardMaterial({color:0x3e5142,roughness:1}));
     ground.rotation.x = -Math.PI/2; ground.position.set(4,-.015,4); scene.add(ground);
-    const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(390,450); article.append(renderer.domElement);
+    const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(390,450);
+    const preview = document.createElement('div'); preview.className='preview'; article.append(preview); preview.append(renderer.domElement);
     const camera = new THREE.PerspectiveCamera(38,390/450,.1,100);
-    camera.position.set(15,12,20); camera.lookAt(4,2.9,4); renderer.render(scene,camera);
+    camera.position.set(17,15,23); camera.lookAt(4,3.4,4); renderer.render(scene,camera);
     if (renderer.getContext().getError()) throw new Error('Render error');
+    if (state === 'online' && def.income) {
+      const overlay = document.createElement('canvas'); overlay.width=390; overlay.height=450;
+      overlay.className='income-overlay'; preview.append(overlay);
+      const hud = Object.assign(Object.create(UI.prototype), {
+        game, cv:overlay, dpr:1, ctx:overlay.getContext('2d'), incomeLabels:[],
+        input:{project(x,y,z){const p=new THREE.Vector3(x,y,z).project(camera);return{x:(p.x*.5+.5)*390,y:(-.5*p.y+.5)*450,z:p.z};}},
+      });
+      game.teams={human:{credits:0,income:1,stats:{earned:0}}};
+      game.addCredits=Game.prototype.addCredits; game.emit=(type,data)=>hud.onGameEvent(type,data);
+      sites.updateIncome(b,def.income.interval); game.time=.35; hud.drawIncomeLabels();
+      if (game.teams.human.credits!==def.income.amount || hud.incomeLabels[0]?.amount!==def.income.amount) throw new Error('Payout indicator differs from actual credits');
+      results.push(`PASS income: +${def.income.amount} displayed after a real mine payment`);
+    }
     results.push(`PASS ${state}: model, ownership beacon and operating animation`);
   }
   out.textContent = results.join('\n')+'\nALL PASSED';

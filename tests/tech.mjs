@@ -334,7 +334,7 @@ for (const team of ['human', 'machine']) {
 
 // ------------------------------------------------------------- Tibero mine
 for (const team of ['human', 'machine']) {
-  const { game } = fixture(), mine = forceSite(game, 't_mine');
+  const { game, events } = fixture(), mine = forceSite(game, 't_mine');
   const sites = game.techSites, T = game.teams[team], rival = other(team), income = mine.def.income;
   const initial = T.credits;
   sites.update(30);
@@ -355,6 +355,9 @@ for (const team of ['human', 'machine']) {
   assert(T.credits === credits, `${team}: no premature mine payment`);
   sites.update(.1);
   assert(T.credits === credits + income.amount && T.stats.earned === income.amount, `${team}: a full interval credits the owner and earned-income statistics`);
+  const payment = events.filter(e => e.type === 'income');
+  assert(payment.length === 1 && payment[0].data.amount === income.amount && payment[0].data.team === team && payment[0].data.x === mine.x,
+    `${team}: exactly one floating indicator is emitted for the real payment at the mine`);
   sites.update(income.interval * 2.5);
   assert(T.credits === credits + income.amount * 3 && Math.abs(mine.tech.incomeT - income.interval / 2) < 1e-6,
     `${team}: long frames pay every completed interval and preserve the remainder`);
@@ -371,12 +374,17 @@ for (const team of ['human', 'machine']) {
   T.income = 1.2; const scaled = T.credits;
   sites.update(income.interval); T.income = 1;
   assert(T.credits === scaled + income.amount * 1.2, `${team}: mine income follows the normal economy multiplier`);
+  assert(events.filter(e => e.type === 'income').at(-1).data.amount === income.amount * 1.2,
+    `${team}: floating payout includes the actual economy multiplier`);
   const ui = { game, techView: b => ({ ...b.tech, team: b.team }) };
   const observer = game.player; game.player = team; game.spectate = false;
   assert(UI.prototype.techStatus.call(ui, mine).includes(`+${income.amount} $`) && UI.prototype.techStatus.call(ui, mine).includes('0:05'),
     `${team}: owner panel shows the payout and next-payment countdown`);
   game.player = rival;
   assert(UI.prototype.techStatus.call(ui, mine) === 'Operativa', `${team}: enemy panel does not leak the live income timer`);
+  const hiddenPayments = events.filter(e => e.type === 'income').length;
+  sites.update(income.interval);
+  assert(events.filter(e => e.type === 'income').length === hiddenPayments, `${team}: enemy mine payouts do not emit floating indicators for the player`);
   game.player = observer; game.spectate = true;
   sites.update(income.interval - 1);
   const thief = game.spawnUnit(ROLE[rival].engineer, rival, beside(mine).x, beside(mine).z);

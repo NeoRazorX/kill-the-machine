@@ -59,6 +59,8 @@ para su propietario (con el multiplicador económico habitual de la dificultad).
 funciona aunque falte energía en la base y no necesita cosechadoras. El panel muestra el ingreso y el
 tiempo hasta el próximo pago. Al cambiar de dueño reinicia el contador; destruida, vuelve a ser una
 ruina sin ingresos hasta capturarla y repararla de nuevo.
+Cada pago muestra un indicador dorado flotante sobre la mina con los créditos recibidos; asciende
+y se desvanece en dos segundos. Solo lo ve su propietario (o un espectador).
 Vista de los tres estados: `tests/tibero.html`.
 
 **Radar Estratégico**: capturado y reparado, consume **50 de energía** y revela **todo el mapa**
