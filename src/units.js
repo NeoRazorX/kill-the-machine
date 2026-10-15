@@ -497,6 +497,7 @@ export class Unit {
 
   // ----------------------------------------------------------------- ciclo
   update(dt) {
+    const oldX = this.x, oldZ = this.z;
     this.cooldown -= dt;
     this.moving = false; this.aimed = false; this.gathering = false; this.healing = false;
     if (this.def.harvester) this.updateHarvester(dt);
@@ -509,6 +510,7 @@ export class Unit {
     if (sr && this.hp < this.maxHp * sr.upTo && this.game.time - this.lastHit > sr.delay) {
       this.hp = Math.min(this.maxHp * sr.upTo, this.hp + sr.rate * dt);
     }
+    this.game.fx.groundTrails?.emit(this, dt, oldX, oldZ);
     this.separate(dt);
     if (!this.aimed) {
       if (this.def.turret) {

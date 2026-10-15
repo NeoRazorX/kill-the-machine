@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><title>Polvo y nieve · prueba visual</title>
+<script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
+<style>
+  body{margin:24px;background:#11171c;color:#e9efed;font:15px system-ui}
+  h1{font-size:24px;margin-bottom:6px}p{color:#a8b9bf}
+  main{display:flex;gap:20px;flex-wrap:wrap}article{border:1px solid #44525a;border-radius:8px;overflow:hidden}
+  h2{font-size:18px;margin:14px 18px}canvas{display:block;width:600px;height:460px}pre{font:12px monospace}
+</style>
+<h1>Estelas de vehículos</h1><p>Tanque, cosechadora y radar tras cuatro segundos de desplazamiento real.</p>
+<main></main><pre id="results">RUNNING</pre>
+<script type="module">
+import * as THREE from 'three';
+import { preloadModels } from '../src/assets.js';
+import { Game } from '../src/game.js';
+import { Unit } from '../src/units.js';
+import { FX } from '../src/fx.js';
+import { DEFS, N } from '../src/config.js';
+import { THEMES } from '../src/themes.js';
+const out = document.querySelector('#results'), results = [];
+try {
+  await preloadModels();
+  for (const theme of [THEMES.desert, THEMES.ice]) {
+    const article = document.createElement('article');
+    const title = document.createElement('h2'); title.textContent = theme.label; article.append(title);
+    document.querySelector('main').append(article);
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(theme.sky);
+    scene.add(new THREE.HemisphereLight(...theme.hemi));
+    const sun = new THREE.DirectionalLight(...theme.sun); sun.position.set(90,35,120); scene.add(sun);
+    sun.target.position.set(110,0,96); scene.add(sun.target);
+    const game = Object.assign(Object.create(Game.prototype), {
+      scene, theme, time: 0, spectate: true, player: 'human', navVersion: 1,
+      map: { grid: new Uint8Array(N*N) }, units: [], buildings: [],
+      queryUnits() { return this.units; }, findTarget() { return null; },
+    });
+    game.fx = new FX(game, scene);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(80,60), new THREE.MeshStandardMaterial({
+      color: new THREE.Color(...theme.ground.high.map(c => c / 255)), roughness: 1,
+    }));
+    ground.rotation.x = -Math.PI/2; ground.position.set(110,-.01,96); scene.add(ground);
+    for (const [i,id] of ['h_tank','h_harv','h_radar'].entries()) {
+      const u = new Unit(game,DEFS[id],90,90+i*6,'human');
+      u.heading = Math.PI/2; game.units.push(u); u.cmdMove(150,u.z);
+    }
+    for (let i=0;i<240;i++) {
+      game.time += 1/60;
+      for (const u of game.units) u.update(1/60);
+      game.fx.update(1/60);
+    }
+    const renderer = new THREE.WebGLRenderer({ antialias:true }); renderer.setSize(600,460);
+    renderer.debug.onShaderError = () => { throw new Error('Ground trail shader failed to compile'); };
+    article.append(renderer.domElement);
+    const camera = new THREE.PerspectiveCamera(42,600/460,.1,200);
+    camera.position.set(119,18,122); camera.lookAt(108,0,96);
+    renderer.render(scene,camera);
+    if (!game.fx.groundTrails.n || renderer.getContext().getError()) throw new Error('Missing or invalid rendered trail');
+    results.push(`PASS ${theme.id}: real vehicle simulation, ${game.fx.groundTrails.n} trail particles, shader rendered`);
+  }
+  out.textContent = results.join('\n')+'\nALL PASSED';
+} catch(error) { out.textContent = results.join('\n')+'\nFAIL '+error.stack; }
+</script></html>

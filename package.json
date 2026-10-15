@@ -12,6 +12,7 @@
     "test:ai": "node tests/ai.mjs",
     "test:crates": "node tests/crates.mjs",
     "test:tech": "node tests/tech.mjs",
-    "test:radar": "node tests/radar.mjs"
+    "test:radar": "node tests/radar.mjs",
+    "test:ground-trails": "node tests/ground-trails.mjs"
   }
 }
