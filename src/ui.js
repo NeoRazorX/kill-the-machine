@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { DEFS, ROLE, TEAMS, N, SIZE, CELL, STRUCT_ROLES, UNIT_ROLES, ROLE_NAMES, PLAYER, globalRadarActive, buildingRepairCost, canRepairBuilding } from './config.js';
 import { buildUnitModel, buildBuildingModel } from './models.js';
 import { isCombatUnit, experienceText } from './experience.js';
+import { SelectionRings } from './selection-rings.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -54,6 +55,7 @@ export class UI {
     this.icons = makeIcons(Object.values(DEFS));
 
     this.cv = $('overlay'); this.ctx = this.cv.getContext('2d');
+    this.rings = new SelectionRings(game.scene);
     this.mini = $('minimap'); this.mctx = this.mini.getContext('2d');
     this.buildMiniBase();
     this.buildSidebar();
@@ -566,7 +568,11 @@ export class UI {
       const p = inp.project(e.x, 0.1, e.z), r = e.radius * 1.25;
       const px = inp.project(e.x + r, 0.1, e.z), pz = inp.project(e.x, 0.1, e.z + r);
       const rx = Math.abs(px.x - p.x), ry = Math.abs(pz.y - p.y);
-      if (mode !== 'bar') { c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.3); c.stroke(); }
+      // The circle lies on the ground in the 3D scene, so the unit stays visible on top of it.
+      if (mode !== 'bar') {
+        if (this.rings) this.rings.add(e, mode === 'hover' ? '#ffffff' : col);
+        else { c.beginPath(); c.ellipse(p.x, p.y, rx, ry, 0, 0, 6.3); c.stroke(); }
+      }
       const top = inp.project(e.x, e.def.height + 0.7, e.z);
       bx = top.x; by = top.y; bw = Math.max(22, rx * 2.2);
     } else {
@@ -640,8 +646,10 @@ export class UI {
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c.clearRect(0, 0, this.cv.width, this.cv.height);
     const drawn = new Set();
+    this.rings?.begin();
     for (const e of inp.sel) { this.drawEntity(e, 'sel'); drawn.add(e); }
     if (inp.hover && !drawn.has(inp.hover)) { this.drawEntity(inp.hover, 'hover'); drawn.add(inp.hover); }
+    this.rings?.end();
     for (const e of [...g.units, ...g.buildings]) {
       if (drawn.has(e) || e.dead) continue;
       if ((e.hp < e.maxHp && g.time - e.lastHit < 6) || (e.kind === 'building' && e.team === g.player && e.hp < e.maxHp && inp.keys.has('AltLeft'))) this.drawEntity(e, 'bar');
