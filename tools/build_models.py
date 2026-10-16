@@ -915,24 +915,56 @@ def barracks(machine=False):
 
 
 def machine_hq():
+    # Long command hull: ribbed red-lit hood over the core, open landing deck with the network pad.
     reset()
-    objects = platform(machine=True)
-    objects += [armor('Core bunker',5.2,5.2,.28,2.15,1.5,(0,0),MACHINE),
-                armor('Upper pyramid',3.5,3.5,2.15,3.48,2.1,(0,0),MPLATE),
-                cyl('Crystal socket',.68,.22,(0,3.48,0),BLACK,vertices=8)]
-    for x in (-2.3,2.3):
-        for z in (-2.3,2.3):
-            objects += [armor('Obelisk',.57,.57,.32,1.8,.2,(x,z),BLACK),
-                        gem('Network beacon',(.18,.16,.18),(x,1.89,z),RED)]
-    objects += [box('Core portal',(1.08,1.1,.12),(0,.93,2.23),BLACK),
-                box('Portal slit',(.13,.72,.025),(0,.93,2.3),RED)]
-    merge('Nexus',objects)
-    crystal = empty('crystal',(0,4.12,0))
-    merge('Core crystal',[gem('Crystal',(.48,.64,.48),(0,4.12,0),RED)],crystal)
-    ring = empty('ring',(0,3.93,0))
-    objects = [torus('Field ring',1.01,.055,(0,3.93,0),MPLATE)]
+    objects = platform(7.8,5.8,True)
+    objects += [armor('Command hull',7.4,4.9,.28,1.0,.35,(0,.05),BLACK),
+                armor('Hull trim',7.2,4.7,.98,1.06,.04,(0,.05),RED),
+                armor('Upper hull',7.0,4.5,1.04,1.55,.6,(0,.05),MACHINE),
+                arch('Hood glow',-3.35,-.45,-.35,1.86,2.36,1.5,.12,.3,math.pi,RED)]
+    for k in range(5):
+        x0 = -3.5 + k*.7
+        edge = k in (0,4)
+        objects.append(arch('Hood rib',x0,x0+(.42 if edge else .34),-.35,2.06,2.56,1.5,.24,.3,math.pi,
+                            MACHINE if edge else MPLATE))
+    objects += [box('Hood spine',(3.3,.14,.34),(-1.9,4.1,-.35),BLACK),
+                box('Hood keel',(3.3,.1,.16),(-1.9,2.3,1.62),BLACK)]
+    # Red vent slits on the sloped front armor under the hood.
+    for x in (-3.0,-2.35,-1.7,-1.05):
+        objects.append(tbox('Hull vent',(.42,.1,.03),(x,1.27,2.17),RED,(-.5,0,0),.005))
+    # Landing deck with grating and the hexagonal network pad.
+    objects += [box('Landing deck',(3.7,.16,4.3),(1.85,1.63,.05),BLACK),
+                cyl('Pad outline',1.08,.04,(2.0,1.73,.25),RED,vertices=6),
+                cyl('Network pad',.98,.08,(2.0,1.75,.25),MACHINE,vertices=6),
+                cyl('Pad core',.5,.03,(2.0,1.8,.25),BLACK,vertices=6)]
+    for i in range(8):
+        objects.append(box('Deck grating',(.05,.03,4.0),(.25+i*.46,1.725,.05),MPLATE,0))
+    for x in (.2,3.5):
+        for z in (-1.9,2.0):
+            objects += [armor('Deck pylon',.38,.38,1.7,2.3,.14,(x,z),BLACK),
+                        gem('Pylon beacon',(.12,.1,.12),(x,2.36,z),RED)]
+    # Vehicle bay facing the camera, under the deck.
+    objects += [box('Vehicle bay',(2.1,.66,.22),(1.85,.62,2.42),BLACK),
+                box('Bay light',(1.7,.06,.04),(1.85,1.0,2.54),RED,.005)]
+    # Coolant sphere and its cradle on the hood side.
+    objects += [box('Sphere cradle',(.9,.5,.9),(-3.15,1.75,1.6),BLACK),
+                gem('Coolant sphere',(.55,.55,.55),(-3.15,2.4,1.6),MPLATE),
+                torus('Sphere band',.52,.04,(-3.15,2.4,1.6),RED)]
+    # Command mast with a rotating sensor head.
+    objects += [cyl('Command mast',.12,3.1,(.1,3.05,-2.1),BLACK,vertices=8),
+                armor('Mast footing',.7,.7,1.55,1.9,.3,(.1,-2.1),MACHINE),
+                torus('Mast collar',.15,.04,(.1,4.1,-2.1),RED)]
+    merge('Command hull',objects)
+    dish = empty('dish',(.1,4.62,-2.1))
+    merge('Sensor head',[box('Sensor bar',(.95,.1,.2),(.1,4.66,-2.1),MPLATE),
+                         gem('Sensor eye',(.12,.1,.12),(.55,4.66,-2.1),RED),
+                         cyl('Sensor hub',.13,.14,(.1,4.62,-2.1),BLACK,vertices=8)],dish)
+    crystal = empty('crystal',(2.0,2.7,.25))
+    merge('Core crystal',[gem('Crystal',(.32,.46,.32),(2.0,2.7,.25),RED)],crystal)
+    ring = empty('ring',(2.0,2.7,.25))
+    objects = [torus('Field ring',.72,.045,(2.0,2.7,.25),MPLATE)]
     for x in (-1,1):
-        objects.append(gem('Field node',(.12,.12,.18),(x,3.93,0),RED))
+        objects.append(gem('Field node',(.1,.1,.14),(2.0+x*.72,2.7,.25),RED))
     merge('Field cage',objects,ring)
     save('m_hq')
 

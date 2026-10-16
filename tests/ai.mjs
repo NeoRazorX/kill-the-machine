@@ -140,7 +140,8 @@ try {
 
     const claims = [], claim = game.cashCrates.claim;
     game.cashCrates.claim = function (c, unit) { claims.push(unit); return claim.call(this, c, unit); };
-    for (let i = 0; i < 6000 && !crate.collected; i++) game.update(0.1);
+    // The scout's tour visits every sector in turn; its length depends on how both bases are laid out.
+    for (let i = 0; i < 9000 && !crate.collected; i++) game.update(0.1);
     assert(crate.found[team], `${team}: scout explores the map until it discovers the crate`);
     assert(crate.collected && claims.length === 1 && claims[0] === ai.scout, `${team}: scout collects the discovered crate`);
     ai.manageScout();

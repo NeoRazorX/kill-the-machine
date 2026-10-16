@@ -96,7 +96,8 @@ export class Game {
     const [sx, sz] = this.starts[team];
     // Refinery towards the centre of the map, whichever corner the base is in.
     const side = sx < N / 2 ? 1 : -1;
-    const layout = [['hq', 0, 0], ['power', -5, 1], ['refinery', 5, -1]];
+    // Two-cell walkways either side of the HQ, whatever its width.
+    const layout = [['hq', 0, 0], ['power', -5, 1], ['refinery', ROLE[team].hq.w + 2, -1]];
     for (const [role, dx, dz] of layout) {
       const def = ROLE[team][role];
       const cx = side > 0 ? sx - 1 + dx : sx + 2 - dx - def.w;
