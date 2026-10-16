@@ -11,7 +11,8 @@ Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
 
 Parámetros opcionales: `?autostart=easy|normal|hard`, `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada),
 `&spawn=0,2` (fija las esquinas de humanos y máquinas: 0 abajo a la izquierda y después en sentido horario),
-`&map=temperate|desert|ice|random` (aspecto del mapa) y `&seed=n` (repite una disposición de árboles y rocas).
+`&map=temperate|desert|ice|random` (aspecto del mapa), `&tech=random|none|t_silo,t_mine,…` (estructuras
+tecnológicas al azar, ninguna o las indicadas; ver más abajo) y `&seed=n` (repite una disposición de árboles y rocas).
 
 ## Aspecto del mapa
 
@@ -36,13 +37,28 @@ Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 
 ## Estructuras tecnológicas
 
-Cada partida coloca dos estructuras tecnológicas en ruinas, de tipos distintos sorteados entre
-seis: **silo de misiles**, **cañón de iones**, **fábrica Mamut**, **fábrica Juggernaut**, **mina de tibero** y **radar estratégico**.
+Cada partida coloca estructuras tecnológicas en ruinas. Hay seis tipos: **silo de misiles**, **cañón de iones**,
+**fábrica Mamut**, **fábrica Juggernaut**, **mina de tibero** y **radar estratégico**. En el menú, la opción
+**Estructuras tecnológicas** decide cuáles:
+
+- **Aleatorias** (por defecto): se sortean dos de tipos distintos.
+- **Elegir**: se marcan las que se quieran, con su icono, nombre y una descripción corta; entre ninguna
+  y cuatro como máximo. Sin ninguna marcada, la partida no tiene estructuras tecnológicas y no se anuncian.
+
+La elección se recuerda entre partidas (en `localStorage`). También se puede indicar en la dirección:
+`?tech=random`, `?tech=none` o una lista de tipos como `?tech=t_silo,t_mine` (`t_silo`, `t_ion`, `t_mammoth`,
+`t_juggernaut`, `t_mine`, `t_radar`). Los tipos desconocidos o repetidos se ignoran, y la dirección solo vale para
+esa visita: no cambia lo que se recuerda. El aviso de inicio dice cuántas hay. La IA, también en el modo
+espectador, juega igual con cualquier selección.
+
 Se colocan después de sortear las esquinas, a la misma distancia a pie
 (medida con la holgura del vehículo más grande) de las dos bases y lejos de ambas. Nunca quedan
 sobre caminos, mineral ni cajas, y dejan un pasillo libre alrededor. Si con dos esquinas vecinas no hay sitio exactamente
-entre ambas, se admite poco más de margen; si aun así no basta, las dos estructuras se compensan
-y cada una favorece a un bando por la misma distancia. Con esquinas enfrentadas suelen ocupar las esquinas vacías.
+entre ambas, se admite poco más de margen; si aun así no basta, las estructuras se compensan
+y las ventajas que dan a cada bando suman lo mismo. Con esquinas enfrentadas suelen ocupar las esquinas vacías.
+Normalmente quedan a 40 celdas como mínimo unas de otras; con tres o cuatro elegidas esa distancia puede bajar
+a 32 o 24 celdas si no caben, antes que perder equidad. Una sola estructura no se puede compensar con otra: si
+no hay ningún sitio equidistante, se usa el más justo disponible.
 
 Hay que encontrarlas: aparecen en el minimapa con un rombo (blanco en ruinas, del color del
 dueño al capturarlas) y cada bando las descubre con su propia visión. Bajo la niebla se recuerda
@@ -102,8 +118,8 @@ evita alcanzar lo suyo y espera si no hay un objetivo que merezca la pena.
 La IA busca las estructuras con su explorador y, pasado un tiempo según la dificultad (7 min en
 Fácil, 3 min 20 s en Normal y 1 min 30 s en Difícil), envía un ingeniero escoltado a la más cercana
 que no sea suya. La escolta se queda guardándola.
-Pruebas de colocación justa en todas las parejas de esquinas, captura, reparación, vuelta a ruina,
-niebla e IA: `npm run test:tech`.
+Pruebas de colocación justa en todas las parejas de esquinas, al azar y con una, varias o ninguna
+estructura elegida, captura, reparación, vuelta a ruina, niebla e IA: `npm run test:tech`.
 
 ## Cantera de los Cuatro Vientos
 

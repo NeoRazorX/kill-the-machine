@@ -8,7 +8,7 @@ const { GameMap, mulberry32 } = await import('../src/map.js');
 const { AI } = await import('../src/ai.js');
 const { preloadModels } = await import('../src/assets.js');
 const { generateCashCrates, CashCrates } = await import('../src/cash-crates.js');
-const { TechSites, chooseTechSites, walkDistances, fairTolerance, TECH_MIN_START, TECH_MARGIN } = await import('../src/tech-sites.js');
+const { TechSites, chooseTechSites, techSelection, walkDistances, fairTolerance, TECH_MIN_START, TECH_MARGIN, TECH_PICK_MAX } = await import('../src/tech-sites.js');
 const { N, CELL, SIZE, ROLE, DEFS, DIFFICULTY, START_CREDITS, TECH_IDS, TECH_SITE_COUNT, UNIT_ROLES, canCapture, other, globalRadarActive, visionRadius } = await import('../src/config.js');
 const { clearLine, findPath } = await import('../src/pathfinding.js');
 const { Superweapons, HQ_FLOOR } = await import('../src/superweapons.js');
@@ -29,6 +29,63 @@ for (const team of ['human', 'machine']) {
 // ---------------------------------------------------------------- placement
 // Every pair of corners, on several terrain seeds: the sites are fair, open and leave the map playable.
 const pairs = [[0, 1], [1, 2], [2, 3], [3, 0], [0, 2], [1, 3]];
+// Checks a placement: fair, open, reachable sites that keep roads and mineral accessible, at least
+// `gap` cells apart.
+function checkPlacement(map, starts, crates, sites, label, gap = 40) {
+  const [da, db] = starts.map((s) => walkDistances(map.grid, s));
+  // Measured without vehicle clearance, so it gets a little extra room. A balanced set may lean
+  // each way, as long as the leads cancel out.
+  const slackOf = (s) => typeof s.fairness === 'number' ? s.fairness : s.fairness === 'balanced' ? 5 : s.fairness === 'balanced-wide' ? 10 : Infinity;
+  const near = (A, B, slack) => Math.abs(A - B) <= fairTolerance(A, B) * slack + 8;
+  const leads = [[], []];
+  const grid = map.grid.slice();
+  for (const s of sites) {
+    for (let z = s.cz - TECH_MARGIN; z < s.cz + 4 + TECH_MARGIN; z++) for (let x = s.cx - TECH_MARGIN; x < s.cx + 4 + TECH_MARGIN; x++) {
+      if (map.grid[z * N + x] !== 0) throw new Error(`${label}: site overlaps terrain`);
+    }
+    const centre = (s.cz + 2) * N + s.cx + 2, A = da[centre], B = db[centre];
+    if (Math.min(A, B) < TECH_MIN_START) throw new Error(`${label}: site too close to a base`);
+    leads[0].push(A - B);
+    if (!near(A, B, slackOf(s))) throw new Error(`${label}: unfair site (${A.toFixed(1)} vs ${B.toFixed(1)})`);
+    const rect = { x0: s.cx * CELL, z0: s.cz * CELL, x1: (s.cx + 4) * CELL, z1: (s.cz + 4) * CELL };
+    for (const c of crates) if (Math.hypot(Math.max(rect.x0 - c.x, 0, c.x - rect.x1), Math.max(rect.z0 - c.z, 0, c.z - rect.z1)) < 6) throw new Error(`${label}: site covers a crate`);
+    for (const f of map.fields) if (Math.hypot(Math.max(rect.x0 - f.x, 0, f.x - rect.x1), Math.max(rect.z0 - f.z, 0, f.z - rect.z1)) < f.r + 4) throw new Error(`${label}: site on mineral`);
+    for (let z = s.cz; z < s.cz + 4; z++) for (let x = s.cx; x < s.cx + 4; x++) grid[z * N + x] = 2;
+  }
+  for (let i = 1; i < sites.length; i++) for (let j = 0; j < i; j++) if (Math.hypot(sites[i].cx - sites[j].cx, sites[i].cz - sites[j].cz) < gap) throw new Error(`${label}: sites clustered`);
+  // Independent check with the game's own pathfinder: the largest vehicle reaches all four sides
+  // of each site, and from each base the nearest side is about as far.
+  for (const s of sites) {
+    const mx = (s.cx + 2) * CELL, mz = (s.cz + 2) * CELL, off = 2 * CELL + 2, lengths = [];
+    for (const [sx, sz] of starts) {
+      let best = Infinity;
+      for (const [fx, fz] of [[mx, mz + off], [mx, mz - off], [mx + off, mz], [mx - off, mz]]) {
+        const path = findPath(grid, sx * CELL, sz * CELL, fx, fz, 1.6), end = path?.at(-1);
+        if (!end || Math.hypot(end.x - fx, end.z - fz) > .01) throw new Error(`${label}: a side of the site is unreachable`);
+        let len = 0, px = sx * CELL, pz = sz * CELL;
+        for (const p of path) { len += Math.hypot(p.x - px, p.z - pz); px = p.x; pz = p.z; }
+        best = Math.min(best, len / CELL);
+      }
+      lengths.push(best);
+    }
+    leads[1].push(lengths[0] - lengths[1]);
+    if (!near(...lengths, slackOf(s))) throw new Error(`${label}: routes differ (${lengths.map((l) => l.toFixed(0))})`);
+  }
+  // Checked on the vehicle routes, which are the ones the placement balances.
+  const l = leads[1], sum = (key) => sites.reduce((t, s) => t + s[key], 0);
+  if (String(sites[0].fairness).startsWith('balanced') && Math.abs(l.reduce((t, v) => t + v, 0)) > fairTolerance(sum('a'), sum('b')) + 5 * sites.length) {
+    throw new Error(`${label}: balanced set does not balance (${l})`);
+  }
+  // Placed sites keep every mineral field reachable and every formation corridor open.
+  for (const [sx, sz] of map.spawns) for (const f of map.fields) {
+    const end = findPath(grid, sx * CELL, sz * CELL, f.x, f.z, 1.2)?.at(-1);
+    if (!end || Math.hypot(end.x - f.x, end.z - f.z) > .01) throw new Error(`${label}: sites cut off mineral`);
+  }
+  for (const route of map.routes) for (let i = 1; i < route.length; i++) {
+    const [ax, az] = route[i - 1], [bx, bz] = route[i];
+    if (!clearLine(grid, ax * CELL, az * CELL, bx * CELL, bz * CELL, 5)) throw new Error(`${label}: site blocks a road`);
+  }
+}
 const fairness = {};
 for (let seed = 20260; seed < 20266; seed++) {
   const map = new GameMap(seed), crates = generateCashCrates(map, seed * 3);
@@ -36,60 +93,8 @@ for (let seed = 20260; seed < 20266; seed++) {
     const starts = [map.spawns[a], map.spawns[b]], label = `seed ${seed}, corners ${a}-${b}`;
     const sites = chooseTechSites(map, starts, crates, mulberry32(seed + a * 7 + b));
     assert(sites.length === TECH_SITE_COUNT && new Set(sites.map((s) => s.id)).size === TECH_SITE_COUNT, `${label}: two different structures`);
-    const [da, db] = starts.map((s) => walkDistances(map.grid, s));
-    // Measured without vehicle clearance, so it gets a little extra room. A balanced pair may lean
-    // each way, as long as the leads cancel out.
-    const slackOf = (s) => typeof s.fairness === 'number' ? s.fairness : s.fairness === 'balanced' ? 5 : Infinity;
-    const near = (A, B, slack) => Math.abs(A - B) <= fairTolerance(A, B) * slack + 8;
     fairness[sites[0].fairness] = (fairness[sites[0].fairness] || 0) + 1;
-    const leads = [[], []];
-    const grid = map.grid.slice();
-    for (const s of sites) {
-      for (let z = s.cz - TECH_MARGIN; z < s.cz + 4 + TECH_MARGIN; z++) for (let x = s.cx - TECH_MARGIN; x < s.cx + 4 + TECH_MARGIN; x++) {
-        if (map.grid[z * N + x] !== 0) throw new Error(`${label}: site overlaps terrain`);
-      }
-      const centre = (s.cz + 2) * N + s.cx + 2, A = da[centre], B = db[centre];
-      if (Math.min(A, B) < TECH_MIN_START) throw new Error(`${label}: site too close to a base`);
-      leads[0].push(A - B);
-      if (!near(A, B, slackOf(s))) throw new Error(`${label}: unfair site (${A.toFixed(1)} vs ${B.toFixed(1)})`);
-      const rect = { x0: s.cx * CELL, z0: s.cz * CELL, x1: (s.cx + 4) * CELL, z1: (s.cz + 4) * CELL };
-      for (const c of crates) if (Math.hypot(Math.max(rect.x0 - c.x, 0, c.x - rect.x1), Math.max(rect.z0 - c.z, 0, c.z - rect.z1)) < 6) throw new Error(`${label}: site covers a crate`);
-      for (const f of map.fields) if (Math.hypot(Math.max(rect.x0 - f.x, 0, f.x - rect.x1), Math.max(rect.z0 - f.z, 0, f.z - rect.z1)) < f.r + 4) throw new Error(`${label}: site on mineral`);
-      for (let z = s.cz; z < s.cz + 4; z++) for (let x = s.cx; x < s.cx + 4; x++) grid[z * N + x] = 2;
-    }
-    for (let i = 1; i < sites.length; i++) if (Math.hypot(sites[i].cx - sites[0].cx, sites[i].cz - sites[0].cz) < 40) throw new Error(`${label}: sites clustered`);
-    // Independent check with the game's own pathfinder: the largest vehicle reaches all four sides
-    // of each site, and from each base the nearest side is about as far.
-    for (const s of sites) {
-      const mx = (s.cx + 2) * CELL, mz = (s.cz + 2) * CELL, off = 2 * CELL + 2, lengths = [];
-      for (const [sx, sz] of starts) {
-        let best = Infinity;
-        for (const [fx, fz] of [[mx, mz + off], [mx, mz - off], [mx + off, mz], [mx - off, mz]]) {
-          const path = findPath(grid, sx * CELL, sz * CELL, fx, fz, 1.6), end = path?.at(-1);
-          if (!end || Math.hypot(end.x - fx, end.z - fz) > .01) throw new Error(`${label}: a side of the site is unreachable`);
-          let len = 0, px = sx * CELL, pz = sz * CELL;
-          for (const p of path) { len += Math.hypot(p.x - px, p.z - pz); px = p.x; pz = p.z; }
-          best = Math.min(best, len / CELL);
-        }
-        lengths.push(best);
-      }
-      leads[1].push(lengths[0] - lengths[1]);
-      if (!near(...lengths, slackOf(s))) throw new Error(`${label}: routes differ (${lengths.map((l) => l.toFixed(0))})`);
-    }
-    // Checked on the vehicle routes, which are the ones the placement balances.
-    const l = leads[1];
-    if (sites[0].fairness === 'balanced' && Math.abs(l[0] + l[1]) > fairTolerance(sites[0].a + sites[1].a, sites[0].b + sites[1].b) + 10) {
-      throw new Error(`${label}: balanced pair does not balance (${l})`);
-    }
-    // Placed sites keep every mineral field reachable and every formation corridor open.
-    for (const [sx, sz] of map.spawns) for (const f of map.fields) {
-      const end = findPath(grid, sx * CELL, sz * CELL, f.x, f.z, 1.2)?.at(-1);
-      if (!end || Math.hypot(end.x - f.x, end.z - f.z) > .01) throw new Error(`${label}: sites cut off mineral`);
-    }
-    for (const route of map.routes) for (let i = 1; i < route.length; i++) {
-      const [ax, az] = route[i - 1], [bx, bz] = route[i];
-      if (!clearLine(grid, ax * CELL, az * CELL, bx * CELL, bz * CELL, 5)) throw new Error(`${label}: site blocks a road`);
-    }
+    checkPlacement(map, starts, crates, sites, label);
   }
 }
 assert(!fairness.closest, `6 seeds × 6 corner pairs: fair (${JSON.stringify(fairness)}), open, reachable sites that keep roads and mineral accessible`);
@@ -102,6 +107,38 @@ assert(!fairness.closest, `6 seeds × 6 corner pairs: fair (${JSON.stringify(fai
   assert(draws.size > 6 && types.size === TECH_IDS.length, 'new matches vary positions and draw all six types');
 }
 
+// Structures chosen in the menu: exactly those types, placed by the same rules. Beyond two the
+// gap between sites may shrink, never below 24 cells.
+assert(techSelection(null) === null && techSelection([]).length === 0, 'no choice draws at random; an empty choice means none');
+assert(JSON.stringify(techSelection(['t_mine', 'bogus', 't_mine', 't_silo'])) === '["t_mine","t_silo"]', 'a choice drops unknown and repeated ids');
+assert(TECH_PICK_MAX === 4 && techSelection(TECH_IDS).length === TECH_PICK_MAX, 'at most four structures can be chosen');
+{
+  const choices = [['t_mine'], ['t_silo', 't_radar'], ['t_ion', 't_mammoth', 't_radar'], ['t_silo', 't_mammoth', 't_juggernaut', 't_mine']];
+  const chosenFairness = {};
+  for (let seed = 20260; seed < 20263; seed++) {
+    const map = new GameMap(seed), crates = generateCashCrates(map, seed * 3);
+    for (const [a, b] of pairs) {
+      const starts = [map.spawns[a], map.spawns[b]];
+      if (chooseTechSites(map, starts, crates, mulberry32(seed), []).length) throw new Error(`seed ${seed}, corners ${a}-${b}: an empty choice placed structures`);
+      for (const ids of choices) {
+        const label = `seed ${seed}, corners ${a}-${b}, chosen ${ids}`;
+        const sites = chooseTechSites(map, starts, crates, mulberry32(seed * 11 + a + b), ids);
+        if (sites.length !== ids.length || [...ids].sort().join() !== sites.map((s) => s.id).sort().join()) throw new Error(`${label}: got ${sites.map((s) => s.id)}`);
+        chosenFairness[sites[0].fairness] = (chosenFairness[sites[0].fairness] || 0) + 1;
+        checkPlacement(map, starts, crates, sites, label, ids.length > TECH_SITE_COUNT ? 24 : 40);
+      }
+    }
+  }
+  assert(!chosenFairness.closest, `3 seeds × 6 corner pairs: none, one, two, three and four chosen structures, exactly those, fairly placed (${JSON.stringify(chosenFairness)})`);
+  const map = new GameMap(20261), starts = [map.spawns[1], map.spawns[3]], pick = ['t_mine', 't_radar', 't_ion'];
+  const spots = new Set(), order = new Set();
+  for (let k = 0; k < 10; k++) {
+    const sites = chooseTechSites(map, starts, [], mulberry32(300 + k), pick);
+    order.add(sites.map((s) => s.id).join()); spots.add(sites.map((s) => `${s.cx},${s.cz}`).sort().join(' '));
+  }
+  assert(spots.size > 3 && order.size > 1, 'chosen structures still land in random spots, in random order');
+}
+
 // --------------------------------------------------------------- game rules
 const originalFetch = globalThis.fetch;
 try {
@@ -111,7 +148,7 @@ try {
   globalThis.fetch = originalFetch;
 }
 
-function fixture({ slots = { human: 0, machine: 2 }, seed = 9, ai = null, spectate = true } = {}) {
+function fixture({ slots = { human: 0, machine: 2 }, seed = 9, ai = null, spectate = true, tech = null } = {}) {
   const newTeam = () => ({
     credits: START_CREDITS, income: 1, structQueue: null, power: { prod: 0, use: 0 },
     stats: { killed: 0, lost: 0, built: 0, earned: 0 }, lastAttacked: null,
@@ -129,6 +166,7 @@ function fixture({ slots = { human: 0, machine: 2 }, seed = 9, ai = null, specta
     fog: new Uint8Array(N * N).fill(spectate ? 2 : 0), ais: [],
   });
   game.techSites = new TechSites(game, seed);
+  game.techSites.choice = tech;
   game.superweapons = new Superweapons(game);
   game.assignStarts(slots);
   game.techSites.place();
@@ -691,6 +729,34 @@ try {
     for (const b of game.techSites.items) b.tech.found.machine = true;
     ai.manageScout();
     assert(!ai.scout, 'scout stands down once every site is known and there is no loot');
+  }
+  {
+    // A match with no structures chosen: nothing to look for, and the AI plays on regardless.
+    Math.random = mulberry32(78);
+    const { game, sites } = fixture({ ai: { team: 'machine' }, tech: [] });
+    assert(sites.length === 0 && !game.buildings.some((b) => b.def.tech), 'an empty choice starts the match without tech structures');
+    const ai = game.ais[0], hq = game.teamBuildings('machine', 'hq')[0];
+    ai.enemyBase = { x: 0, z: 0 }; ai.corners = [];
+    game.spawnUnit(ROLE.machine.inf1, 'machine', hq.x + 8, hq.z + 8);
+    ai.manageScout();
+    assert(!ai.scout, 'without tech structures or loot the scout does not go looking for them');
+    game.difficulty = { ...game.difficulty, techDelay: 0 };
+    ai.diff = game.difficulty;
+    run(game, 120);
+    assert(!game.over && game.techSites.items.length === 0 && !game.units.some((u) => u.def.engineer), 'the AI plays two minutes and never trains an engineer');
+  }
+  {
+    // Three chosen structures, for both AIs of a spectated match.
+    Math.random = mulberry32(79);
+    const pick = ['t_mine', 't_radar', 't_silo'];
+    const { game, sites } = fixture({ ai: { team: 'machine' }, tech: pick });
+    game.ais.push(new AI(game, 'human', game.difficulty));
+    assert(sites.length === 3 && pick.every((id) => sites.some((b) => b.def.id === id)) && sites.every((b) => b.tech.state === 'ruin' && !b.team),
+      'the chosen structures start as neutral ruins');
+    for (const b of sites) b.tech.found.machine = b.tech.found.human = true;
+    for (const ai of game.ais) ai.diff = game.difficulty = { ...game.difficulty, techDelay: 0 };
+    run(game, 240, () => sites.some((b) => b.team));
+    assert(sites.some((b) => b.team), 'AIs send engineers to the chosen structures');
   }
 } finally {
   Math.random = originalRandom;

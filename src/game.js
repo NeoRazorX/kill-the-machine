@@ -64,11 +64,13 @@ export class Game {
 
   // ------------------------------------------------------------------ inicio
   // slots: corner index per team; by default two different corners are drawn at random.
-  start(difficulty = 'normal', spectate = false, slots = null) {
+  // tech: the tech structure ids to place (see techSelection); null draws them at random.
+  start(difficulty = 'normal', spectate = false, slots = null, tech = null) {
     this.spectate = spectate;
     this.difficulty = DIFFICULTY[difficulty] || DIFFICULTY.normal;
     this.teams.machine.income = this.difficulty.income;
     this.assignStarts(slots);
+    this.techSites.choice = tech;
     // The sites depend on which corners are in play: they sit at the same walking distance from both.
     this.techSites.place();
     for (const team of ['human', 'machine']) this.setupBase(team);

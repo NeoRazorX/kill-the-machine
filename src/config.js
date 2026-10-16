@@ -165,29 +165,29 @@ U({ id: 'm_engineer', team: 'machine', role: 'engineer', name: 'Infiltrador', co
     desc: 'Dron que se infiltra en estructuras tecnológicas y toma su control. Se consume al entrar. Desarmado.' });
 
 // ------------------------------------------------- estructuras tecnológicas
-// Pre-war sites in ruins, two drawn at random each match. They belong to nobody until an engineer
+// Pre-war sites in ruins, two drawn at random each match unless chosen in the menu. They belong to nobody until an engineer
 // captures one; its owner then pays to repair it. They never count for victory, cannot be sold
-// and do not extend the build radius. ruin: fraction of health left in a ruin.
+// and do not extend the build radius. ruin: fraction of health left in a ruin; brief: one line for the menu.
 export const TECH_SITE_COUNT = 2;
 const T = (o) => def({ kind: 'building', tech: true, team: null, role: 'tech', buildable: false, cost: 0, time: 0,
   w: 4, h: 4, hp: 2400, power: 0, sight: 20, ruin: 0.3, repairCost: 2000, repairTime: 60, ...o });
 
 // superweapon: charge (s) once repaired and powered; delay (s) from firing to impact; damage at the centre,
 // falling to 40 % at the edge of radius. Both consume power, but only once repaired.
-T({ id: 't_silo', name: 'Silo de misiles', height: 5, power: -60,
+T({ id: 't_silo', brief: 'Misil nuclear cada 6 min', name: 'Silo de misiles', height: 5, power: -60,
     superweapon: { kind: 'nuke', title: 'Misil nuclear', charge: 360, delay: 8, radius: 11, damage: 1000 },
     desc: 'Silo de misiles. Reparado y con energía, carga un misil nuclear (6 min) que arrasa una zona amplia. El misil tarda 8 s en caer y todos ven dónde.' });
-T({ id: 't_ion', name: 'Cañón de iones', height: 8.5, power: -60,
+T({ id: 't_ion', brief: 'Haz orbital cada 4 min', name: 'Cañón de iones', height: 8.5, power: -60,
     superweapon: { kind: 'ion', title: 'Cañón de iones', charge: 240, delay: 1.5, radius: 9, damage: 1400 },
     desc: 'Enlace con un cañón de iones orbital. Reparado y con energía, carga (4 min) un haz preciso y devastador que cae en 1,5 s.' });
-T({ id: 't_mammoth', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
+T({ id: 't_mammoth', brief: 'Construye el supertanque Mamut', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
     desc: 'Planta de tanques pesados. Reparada, construye el supertanque Mamut (pestaña Vehículos).' });
-T({ id: 't_juggernaut', name: 'Fábrica Juggernaut', height: 8, produces: 'juggernaut',
+T({ id: 't_juggernaut', brief: 'Construye el caminante Juggernaut', name: 'Fábrica Juggernaut', height: 8, produces: 'juggernaut',
     desc: 'Línea de montaje de caminantes. Reparada, construye el Juggernaut de tres cañones (pestaña Vehículos).' });
-T({ id: 't_mine', name: 'Mina de Tibero', height: 7,
+T({ id: 't_mine', brief: '50 créditos cada 5 s', name: 'Mina de Tibero', height: 7,
     income: { amount: 50, interval: 5 },
     desc: 'Mina de tibero abandonada. Captúrala con un ingeniero y repárala para recibir 50 créditos cada 5 s. No consume energía ni necesita cosechadoras.' });
-T({ id: 't_radar', name: 'Radar Estratégico', height: 8.2, power: -50, globalRadar: true,
+T({ id: 't_radar', brief: 'Revela todo el mapa', name: 'Radar Estratégico', height: 8.2, power: -50, globalRadar: true,
     desc: 'Estación de vigilancia abandonada. Captúrala y repárala para ver todo el mapa, incluidos enemigos, cajas y estructuras tecnológicas. Consume 50 de energía; la cobertura global se pierde sin energía o al perder el radar.' });
 
 // Units of a pre-war design, built by whichever side holds the repaired factory. Each side has its own

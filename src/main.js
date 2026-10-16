@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { Game } from './game.js';
 import { Input } from './input.js';
-import { UI } from './ui.js';
-import { SIZE, TEAMS, DIFFICULTY } from './config.js';
+import { UI, makeIcons } from './ui.js';
+import { SIZE, TEAMS, DIFFICULTY, DEFS, TECH_IDS } from './config.js';
 import { preloadModels, assetStatus } from './assets.js';
 import { WarFog } from './war-fog.js';
 import { THEMES, resolveTheme } from './themes.js';
+import { techSelection, TECH_PICK_MAX } from './tech-sites.js';
 
 const params = new URLSearchParams(location.search);
 const startButton = document.getElementById('btn-start');
@@ -91,6 +92,56 @@ themeEls.forEach((el) => { el.onclick = () => chooseTheme(el.dataset.map); });
 themeEls.forEach((e) => e.classList.toggle('active', e.dataset.map === themeChoice));
 applyTheme(game.theme);
 
+// ?tech=random|none|t_silo,t_mine,… places random or chosen tech structures. The menu choice is
+// remembered between matches; the address only overrides it for this visit.
+const TECH_KEY = 'ktm.tech';
+const techModeEls = [...document.querySelectorAll('.tech-mode')];
+const techPick = document.getElementById('tech-pick'), techList = document.getElementById('tech-list'), techCount = document.getElementById('tech-count');
+const tech = { mode: 'random', ids: [] };
+try {
+  const saved = JSON.parse(localStorage.getItem(TECH_KEY));
+  if (saved && Array.isArray(saved.ids)) Object.assign(tech, { mode: saved.mode === 'pick' ? 'pick' : 'random', ids: techSelection(saved.ids) });
+} catch { /* sin almacenamiento: valores por defecto */ }
+{
+  const p = params.get('tech'), ids = p ? techSelection(p.split(',')) : [];
+  if (p === 'random') tech.mode = 'random';
+  else if (p === 'none') Object.assign(tech, { mode: 'pick', ids: [] });
+  else if (ids.length) Object.assign(tech, { mode: 'pick', ids });
+}
+const saveTech = () => { try { localStorage.setItem(TECH_KEY, JSON.stringify(tech)); } catch { /* no se recuerda */ } };
+const techOpts = TECH_IDS.map((id) => {
+  const el = document.createElement('button'), def = DEFS[id];
+  el.className = 'tech-opt'; el.dataset.id = id; el.title = def.desc;
+  el.innerHTML = `<img alt=""><span><b>${def.name}</b><small>${def.brief}</small></span>`;
+  el.onclick = () => {
+    tech.ids = el.classList.contains('active') ? tech.ids.filter((t) => t !== id) : techSelection([...tech.ids, id]);
+    saveTech(); showTech();
+  };
+  techList.append(el);
+  return el;
+});
+function showTech() {
+  techModeEls.forEach((e) => e.classList.toggle('active', e.dataset.mode === tech.mode));
+  techPick.hidden = tech.mode !== 'pick';
+  const full = tech.ids.length >= TECH_PICK_MAX;
+  for (const el of techOpts) {
+    const on = tech.ids.includes(el.dataset.id);
+    el.classList.toggle('active', on); el.setAttribute('aria-pressed', on);
+    el.disabled = full && !on;
+  }
+  const n = tech.ids.length;
+  techCount.textContent = n ? `${n} de ${TECH_PICK_MAX} como máximo` : `Ninguna marcada: la partida no tendrá estructuras tecnológicas (máximo ${TECH_PICK_MAX})`;
+}
+techModeEls.forEach((el) => { el.onclick = () => { tech.mode = el.dataset.mode; saveTech(); showTech(); }; });
+showTech();
+try {
+  const icons = makeIcons(TECH_IDS.map((id) => DEFS[id]));
+  for (const el of techOpts) el.querySelector('img').src = icons[el.dataset.id];
+} catch { /* solo nombres si no hay WebGL */ }
+
+const techNews = (n) => n === 1 ? 'Hay una estructura tecnológica en ruinas: encuéntrala y captúrala con un ingeniero'
+  : `Hay ${['dos', 'tres', 'cuatro', 'cinco', 'seis'][n - 2] ?? n} estructuras tecnológicas en ruinas: encuéntralas y captúralas con un ingeniero`;
+
 let input = null, ui = null, started = false, speed = 1;
 const diffEls = [...document.querySelectorAll('.diff[data-d]')];
 let difficulty = 'normal';
@@ -107,14 +158,15 @@ function spawnSlots() {
 
 function begin(spectate) {
   if (started) return;
-  game.start(difficulty, spectate, spawnSlots());
-  themeEls.forEach((el) => { el.onclick = null; });
+  game.start(difficulty, spectate, spawnSlots(), tech.mode === 'pick' ? tech.ids : null);
+  [...themeEls, ...techModeEls, ...techOpts].forEach((el) => { el.onclick = null; });
   input = new Input(game, camera, renderer, sun);
   ui = new UI(game, input, camera);
   game.emit('toast', { text: game.map.name, kind: 'info' });
   if (!spectate) {
     game.emit('toast', { text: 'Se desconoce la posición enemiga: explora las otras esquinas', kind: 'warn' });
-    game.emit('toast', { text: 'Hay dos estructuras tecnológicas en ruinas: encuéntralas y captúralas con un ingeniero', kind: 'info' });
+    const sites = game.techSites.items.length;
+    if (sites) game.emit('toast', { text: techNews(sites), kind: 'info' });
   }
   window.__input = input; window.__ui = ui;
   const hq = game.teamBuildings(spectate ? 'human' : game.player, 'hq')[0];

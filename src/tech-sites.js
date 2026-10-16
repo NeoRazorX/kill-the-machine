@@ -107,39 +107,71 @@ export function techCandidates(map, starts, crates = [], slack = 1) {
 export const FAIR_SLACK = [1, 1.5, 2];
 const BALANCED_LIMIT = 5;
 
-// Draws the sites and their types. Types never repeat within a match.
-export function chooseTechSites(map, starts, crates, random) {
+// A chosen selection may ask for more sites than fit at the usual spacing; the gap then shrinks
+// before fairness gives way. Never below the footprint, its margin and room for an army between.
+const SPACINGS = [SPACING, 32, 24];
+export const TECH_PICK_MAX = 4;
+
+// Valid, distinct tech ids from a list, at most TECH_PICK_MAX. null keeps the random draw.
+export function techSelection(ids) {
+  if (ids == null) return null;
+  return [...new Set(ids)].filter((id) => TECH_IDS.includes(id)).slice(0, TECH_PICK_MAX);
+}
+
+// Draws the sites. Without `chosen` the types are drawn too and never repeat within a match; with
+// a list (see techSelection) those types are placed, in random spots, and none if it is empty.
+export function chooseTechSites(map, starts, crates, random, chosen = null) {
+  const types = chosen ? techSelection(chosen) : TECH_IDS.slice(), count = chosen ? types.length : TECH_SITE_COUNT;
+  if (!count) return [];
   const all = techCandidates(map, starts, crates, Infinity);
-  const types = TECH_IDS.slice();
   const shuffle = (list) => {
     for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
     return list;
   };
   shuffle(types);
-  const spaced = (c, picked) => picked.every((p) => Math.hypot(p.cx - c.cx, p.cz - c.cz) >= SPACING);
+  const spacings = count > TECH_SITE_COUNT ? SPACINGS : [SPACING];
+  const spaced = (c, picked, gap) => picked.every((p) => Math.hypot(p.cx - c.cx, p.cz - c.cz) >= gap);
   const site = (c, i, fairness) => ({ id: types[i], cx: c.cx, cz: c.cz, a: c.a, b: c.b, fairness });
+  // Random greedy draws; a few more tries when several sites have to share the room.
+  const tries = count > TECH_SITE_COUNT ? 8 : 1;
   for (const slack of FAIR_SLACK) {
-    const candidates = all.filter((c) => Math.abs(c.a - c.b) <= fairTolerance(c.a, c.b) * slack), picked = [];
-    while (picked.length < TECH_SITE_COUNT) {
-      const free = candidates.filter((c) => spaced(c, picked));
-      if (!free.length) break;
-      picked.push(site(free[Math.floor(random() * free.length)], picked.length, slack));
+    const candidates = all.filter((c) => Math.abs(c.a - c.b) <= fairTolerance(c.a, c.b) * slack);
+    for (const gap of spacings) for (let t = 0; t < tries; t++) {
+      const picked = [];
+      while (picked.length < count) {
+        const free = candidates.filter((c) => spaced(c, picked, gap));
+        if (!free.length) break;
+        picked.push(site(free[Math.floor(random() * free.length)], picked.length, slack));
+      }
+      if (picked.length === count) return picked;
     }
-    if (picked.length === TECH_SITE_COUNT) return picked;
   }
-  const near = shuffle(all.filter((c) => Math.abs(c.a - c.b) <= fairTolerance(c.a, c.b) * BALANCED_LIMIT));
+  // Sites that each lean towards one side, whose leads cancel out over the whole set. Several sites
+  // have more ways to cancel out, so they may lean further each.
   const lead = (c) => c.a - c.b;
-  for (let i = 0; i < near.length; i++) {
-    for (let j = i + 1; j < near.length; j++) {
-      const p = near[i], q = near[j];
-      if (!spaced(p, [q]) || Math.abs(lead(p) + lead(q)) > fairTolerance(p.a + q.a, p.b + q.b)) continue;
-      return [site(p, 0, 'balanced'), site(q, 1, 'balanced')];
+  for (const limit of count > TECH_SITE_COUNT ? [BALANCED_LIMIT, 2 * BALANCED_LIMIT] : [BALANCED_LIMIT]) {
+    const near = shuffle(all.filter((c) => Math.abs(lead(c)) <= fairTolerance(c.a, c.b) * limit));
+    for (const gap of spacings) {
+      let budget = 40000;
+      const search = (from, picked, sum, A, B) => {
+        if (picked.length === count) return Math.abs(sum) <= fairTolerance(A, B) ? picked : null;
+        for (let i = from; i < near.length && budget > 0; i++) {
+          const c = near[i];
+          budget--;
+          if (!spaced(c, picked, gap)) continue;
+          const found = search(i + 1, [...picked, c], sum + lead(c), A + c.a, B + c.b);
+          if (found) return found;
+        }
+        return null;
+      };
+      const found = search(0, [], 0, 0, 0);
+      if (found) return found.map((c, i) => site(c, i, limit === BALANCED_LIMIT ? 'balanced' : 'balanced-wide'));
     }
   }
   // Last resort on a map with no fair room at all: the fairest spots available.
-  const picked = [];
+  const picked = [], gap = spacings.at(-1);
   for (const c of all.sort((p, q) => Math.abs(lead(p)) / (p.a + p.b) - Math.abs(lead(q)) / (q.a + q.b))) {
-    if (picked.length < TECH_SITE_COUNT && spaced(c, picked)) picked.push(site(c, picked.length, 'closest'));
+    if (picked.length < count && spaced(c, picked, gap)) picked.push(site(c, picked.length, 'closest'));
   }
   return picked;
 }
@@ -150,13 +182,15 @@ export class TechSites {
   constructor(game, seed = Math.floor(Math.random() * 0x100000000)) {
     this.game = game;
     this.seed = seed;
+    // Tech ids chosen in the menu; null draws them at random.
+    this.choice = null;
     this.items = [];
   }
 
   // Called once the corners are drawn, before the bases are laid out.
   place() {
     const g = this.game;
-    const spots = chooseTechSites(g.map, [g.starts.human, g.starts.machine], g.cashCrates?.items ?? [], mulberry32(this.seed));
+    const spots = chooseTechSites(g.map, [g.starts.human, g.starts.machine], g.cashCrates?.items ?? [], mulberry32(this.seed), this.choice);
     for (const s of spots) {
       const b = g.placeBuilding(null, s.id, s.cx, s.cz, true);
       b.tech = { state: 'ruin', progress: 0, paid: 0, repairing: false, waiting: false, found: {}, announced: false,

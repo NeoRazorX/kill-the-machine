@@ -47,7 +47,7 @@
         <li>Clic derecho sobre un botón de la barra: cancelar · Shift + clic: ×5 unidades</li>
         <li><b>Cajas de dinero:</b> explora y acerca cualquier unidad para recogerlas. Se marcan en dorado al descubrirlas.</li>
         <li><b>Superarmas:</b> con el silo o el cañón de iones reparados y cargados, pulsa su botón en la barra lateral y haz clic en una zona explorada.</li>
-        <li><b>Estructuras tecnológicas:</b> dos ruinas ocultas en el mapa (rombo en el minimapa). Clic derecho con un ingeniero para capturarlas; después se reparan pagando.</li>
+        <li><b>Estructuras tecnológicas:</b> ruinas ocultas en el mapa (dos al azar o las elegidas en el menú) (rombo en el minimapa). Clic derecho con un ingeniero para capturarlas; después se reparan pagando.</li>
       </ul>
       <small>Clic para cerrar</small>
     </div>
@@ -81,6 +81,15 @@
         <button class="diff theme" data-map="desert">Desierto</button>
         <button class="diff theme" data-map="ice">Helado</button>
         <button class="diff theme" data-map="random">Aleatorio</button>
+      </div>
+      <div class="diffs">
+        <span>Estructuras tecnológicas</span>
+        <button class="diff tech-mode" data-mode="random">Aleatorias</button>
+        <button class="diff tech-mode" data-mode="pick">Elegir</button>
+      </div>
+      <div id="tech-pick" hidden>
+        <div id="tech-list"></div>
+        <small id="tech-count"></small>
       </div>
       <p id="model-status" role="status" aria-live="polite">Cargando gráficos…</p>
       <button id="btn-retry-models" class="ghost" hidden>Reintentar carga</button>
