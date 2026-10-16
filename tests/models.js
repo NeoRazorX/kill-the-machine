@@ -106,6 +106,11 @@ try {
         dish.rotation.y = yaw;
         assert(contained, 'h_hq: rotating radar stays inside the building footprint');
       }
+      if (def.id === 'm_power') {
+        const [a, b] = instance.parts.turbines ?? [], ya = a?.rotation.y, yb = b?.rotation.y;
+        instance.update(.1);
+        assert(instance.parts.turbines.length === 2 && a.rotation.y > ya && b.rotation.y < yb, 'm_power: twin turbines counter-rotate');
+      }
       if (def.role === 'refinery') {
         const dock = instance.mesh.localToWorld(new THREE.Vector3(def.dock?.x ?? 0, 0,
           def.h * CELL / 2 + (def.dock?.clearance ?? 2.6)));

@@ -698,25 +698,80 @@ def human_power_geometry():
 
 
 def power(machine=False):
-    reset()
-    objects = platform(3.75,3.75,True) if machine else platform()
     if machine:
-        objects += [cone('Reactor plinth',1.53,1.2,.62,(0,.6,0),MACHINE,8),
-                    cyl('Core',.59,2.3,(0,1.93,0),RED,vertices=8),
-                    cone('Containment cap',1,.72,.4,(0,3.33,0),MPLATE,8)]
-        for x,z in ((-1,0),(1,0),(0,-1),(0,1)):
-            objects.append(beam('Containment strut',(x*1.27,.7,z*1.27),(x*.75,3.4,z*.75),.22,BLACK))
-        merge('Reactor frame',objects)
-        for i,y in enumerate((1.25,2.05,2.82)):
-            ring = empty(f'ring_{i}',(0,y,0))
-            objects = [torus('Containment ring',1.03,.075,(0,y,0),MPLATE)]
-            for a in (0,math.pi):
-                objects.append(box('Field emitter',(.25,.16,.22),(math.sin(a),y,math.cos(a)),RED))
-            merge('Field ring',objects,ring)
-    else:
-        objects += human_power_geometry()
-        merge('Power plant',objects)
-    save('m_power' if machine else 'h_power')
+        return machine_power()
+    reset()
+    objects = platform()
+    objects += human_power_geometry()
+    merge('Power plant',objects)
+    save('h_power')
+
+
+def turbine_tower(s, x, z):
+    # Tapered generator casing split by a glowing grille band, open intake on top.
+    objects = [cone('Lower casing',.8,.72,1.17,(x,1.365,z),MACHINE,12),
+               cyl('Grille core',.66,.4,(x,2.15,z),RED,vertices=12),
+               cyl('Grille collar',.78,.08,(x,1.95,z),MPLATE,12),
+               cyl('Grille collar',.74,.08,(x,2.35,z),MPLATE,12),
+               cone('Upper casing',.72,.62,1.0,(x,2.85,z),MACHINE,12),
+               cyl('Intake collar',.71,.16,(x,3.42,z),MPLATE,12),
+               cyl('Intake well',.55,.02,(x,3.505,z),BLACK,12),
+               cyl('Rotor glow',.34,.02,(x,3.512,z),RED,12)]
+    for i in range(12):
+        a = (i+.5)*math.tau/12
+        objects.append(box('Grille bar',(.07,.4,.07),(x+math.cos(a)*.69,2.15,z+math.sin(a)*.69),BLACK,0))
+    # Riveted ribs brace the casing at the diagonals.
+    for i in range(4):
+        a = (i+.5)*math.pi/2
+        objects += [tbox('Casing rib',(.1,1.12,.08),(x+math.cos(a)*.77,1.37,z+math.sin(a)*.77),MPLATE,(0,-a,0),.01),
+                    tbox('Casing rib',(.1,.94,.08),(x+math.cos(a)*.68,2.86,z+math.sin(a)*.68),MPLATE,(0,-a,0),.01)]
+    return objects
+
+
+def turbine_rotor(i, x, z):
+    rotor = empty(f'turbine_{i}',(x,3.58,z))
+    objects = [cyl('Rotor hub',.13,.14,(x,3.58,z),MPLATE,8),
+               cyl('Hub cap',.07,.04,(x,3.66,z),RED,8)]
+    for k in range(4):
+        a = k*math.tau/4 + i*.4
+        objects.append(tbox('Rotor blade',(.5,.035,.15),(x+math.cos(a)*.33,3.57,z-math.sin(a)*.33),MPLATE,(.38,a,0),.01))
+    merge('Turbine rotor',objects,rotor)
+
+
+def machine_power():
+    reset()
+    objects = platform(3.75,3.75,True)
+    objects += [armor('Generator plinth',3.45,3.45,.28,.78,.4,(0,0),MACHINE),
+                armor('Turbine hall',3.0,1.5,.78,1.75,.5,(0,-.95),MACHINE),
+                box('Hall roof plate',(1.1,.06,.9),(0,1.78,-.95),MPLATE),
+                armor('Control block',2.3,1.2,.78,1.28,.36,(0,1.0),MACHINE),
+                box('Control roof',(1.7,.06,.7),(0,1.31,1.0),BLACK)]
+    # Glowing exhaust louvres on the sloped front of the control block.
+    for k,y in enumerate((.9,1.02,1.14)):
+        zf = 1.6-(y-.78)/.5*.18+.015
+        objects.append(tbox('Front louvre',(1.25-k*.08,.05,.03),(0,y,zf),ORANGE,(-.34,0,0),.005))
+    for s in (-1,1):
+        x, z = s*.88, -.35
+        objects += turbine_tower(s,x,z)
+        # Conduits feed the control block from each generator.
+        objects += [pipe('Power conduit',(s*.55,1.25,.95),(s*.62,2.2,.25),.11,BLACK),
+                    torus('Conduit flange',.14,.035,(s*.55,1.3,.92),MPLATE),
+                    pipe('Coolant main',(s*1.68,.72,-1.2),(s*1.68,.72,.9),.1,BLACK),
+                    pipe('Coolant line',(s*1.68,.72,.25),(s*1.68,1.6,.25),.08,MPLATE),
+                    pipe('Coolant line',(s*1.68,1.6,.25),(s*1.5,1.6,-.05),.08,MPLATE),
+                    box('Pump housing',(.36,.36,.5),(s*1.55,.95,1.15),BLACK),
+                    box('Pump light',(.03,.08,.26),(s*1.735,1.0,1.15),RED,.005),
+                    armor('Corner buttress',.5,.5,.28,1.05,.3,(s*1.55,-1.55),BLACK)]
+    # Rear transformer stack between the towers.
+    objects += [box('Transformer',(.7,.7,.5),(0,2.1,-1.25),BLACK),
+                beam('Tower bridge',(-.5,3.0,-.35),(.5,3.0,-.35),.16,BLACK)]
+    for x in (-.2,.2):
+        objects += [cyl('Insulator',.07,.5,(x,2.7,-1.25),MPLATE,8),
+                    cyl('Insulator tip',.09,.08,(x,2.98,-1.25),RED,8)]
+    merge('Generator works',objects)
+    for i,s in enumerate((-1,1)):
+        turbine_rotor(i,s*.88,-.35)
+    save('m_power')
 
 
 def human_refinery():

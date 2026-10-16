@@ -72,7 +72,8 @@ export class Building {
     if (p.dish && scanning) p.dish.rotation.y += dt * 1.2;
     if (p.crystal) { p.crystal.rotation.y += dt * 1.5; p.crystal.position.y = p.crystalBase + Math.sin(g.time * 2) * 0.15; }
     if (p.ring) { p.ring.rotation.y += dt * 1.8; }
-    if (p.rings) p.rings.forEach((r, i) => { r.rotation.y += dt * (1.5 + i * 0.7); });
+    // The reactor's twin turbines counter-rotate, idling when the team is short of power.
+    if (p.turbines) p.turbines.forEach((r, i) => { r.rotation.y += dt * (i ? -1 : 1) * (low ? 1.2 : 5); });
     if (p.drill && this.tech?.view?.state === 'online') p.drill.rotation.y += dt * 2;
 
     // humo / fuego al estar dañado; las ruinas sin dueño ya no arden
