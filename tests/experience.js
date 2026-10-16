@@ -92,5 +92,18 @@ export function checkExperience() {
   fx.fireWeapon(beamShooter, beamTarget);
   assert(beamTarget.dead && beamShooter.kills === 1, 'instant beam kills also award experience');
   assert(JSON.stringify(DEFS) === original, 'shared unit and weapon definitions remain unchanged');
+  // Promotions of the player's own units are announced with a chime and a voice line, as in C&C.
+  const sounds = [], voice = [];
+  Object.assign(game, { spectate: false, audio: { play: (n) => { if (n === 'promote' || n === 'elite') sounds.push(n); }, say: (t) => voice.push(t) } });
+  const recruit = unit('human');
+  for (let i = 0; i < 2; i++) eliminate(recruit);
+  assert(!sounds.length && !voice.length, 'kills without a promotion play no fanfare');
+  eliminate(recruit);
+  assert(sounds.join() === 'promote' && voice.join() === 'Unidad ascendida', 'veteran promotion plays its chime and announcement');
+  for (let i = 3; i < 8; i++) eliminate(recruit);
+  assert(sounds.join() === 'promote,elite' && voice[1] === 'Unidad de élite', 'elite promotion has its own, grander fanfare');
+  const enemy = unit('machine');
+  for (let i = 0; i < 8; i++) eliminate(enemy);
+  assert(enemy.rank === 2 && sounds.length === 2, 'enemy promotions stay silent');
   return results;
 }

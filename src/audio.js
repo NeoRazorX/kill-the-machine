@@ -132,6 +132,16 @@ export class GameAudio {
   s_sell(v) { this.tone(1200, 1200, 0.07, 'square', 0.08); this.tone(1600, 1600, 0.1, 'square', 0.08, 0.08); }
   s_alert(v) { this.tone(880, 880, 0.12, 'square', 0.1); this.tone(660, 660, 0.12, 'square', 0.1, 0.14); }
   s_start(v) { for (let i = 0; i < 4; i++) this.tone(220 * Math.pow(1.5, i), 220 * Math.pow(1.5, i), 0.2, 'triangle', 0.14, i * 0.1); }
+  // Promotion: a rising bell arpeggio over a soft shimmer; elite adds a higher, longer final chord.
+  s_promote(v) {
+    [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, f, 0.32, 'triangle', 0.13, i * 0.07));
+    this.tone(3136, 3136, 0.5, 'sine', 0.03, 0.21);
+  }
+  s_elite(v) {
+    [659, 784, 988, 1319, 1568].forEach((f, i) => this.tone(f, f, 0.3, 'triangle', 0.13, i * 0.07));
+    for (const f of [1319, 1568, 1976]) this.tone(f, f * 1.005, 0.9, 'triangle', 0.08, 0.38);
+    this.tone(3951, 3951, 0.8, 'sine', 0.03, 0.38);
+  }
   s_win(v) { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, f, 0.35, 'triangle', 0.2, i * 0.16)); }
   s_lose(v) { [392, 330, 262, 196].forEach((f, i) => this.tone(f, f * 0.98, 0.45, 'sawtooth', 0.12, i * 0.24)); }
 

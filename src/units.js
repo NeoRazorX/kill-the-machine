@@ -58,6 +58,10 @@ export class Unit {
     this.hp = this.maxHp * healthFraction;
     if (this.team === this.game.player && !this.game.spectate) {
       this.game.emit('toast', { text: `${this.def.name}: rango ${bonus.name}`, kind: 'info' });
+      // Like C&C: a bright chime and the command computer announcing the promotion.
+      const audio = this.game.audio;
+      audio?.play(this.rank === 2 ? 'elite' : 'promote');
+      audio?.say(this.rank === 2 ? 'Unidad de élite' : 'Unidad ascendida', 1500);
     }
   }
 
