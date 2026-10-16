@@ -258,6 +258,7 @@ export class FX {
   fireWeapon(att, target) {
     const w = att.def.weapon, style = PROJ_STYLE[w.proj];
     const aim = att.aim;
+    att.lastFired = this.game.time;
     // Combat runs before syncMesh: synchronize the pose before reading the authored socket.
     att.mesh.position.set(att.x, 0, att.z);
     if (att.kind === 'unit') att.mesh.rotation.y = att.heading;

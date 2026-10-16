@@ -1,4 +1,5 @@
 // Sonido 100% sintetizado con WebAudio + voz de la "computadora de mando" (speechSynthesis).
+import { Music } from './music.js';
 
 const MIN_GAP = { rifle: 45, zap: 45, rocket: 90, cannon: 90, plasma: 90, howitzer: 150, laser: 90, explosion: 60, bigexplosion: 150 };
 
@@ -8,6 +9,7 @@ export class GameAudio {
     this.ctx = null; this.master = null; this.noise = null;
     this.muted = false; this.last = {};
     this.lastVoice = 0; this.voiceQueue = [];
+    this.music = null; this.musicTimer = null;
   }
 
   init() {
@@ -22,12 +24,25 @@ export class GameAudio {
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      this.music = new Music(this.ctx, this.master, this.noise);
     } catch (e) { this.ctx = null; }
   }
+
+  // Arranca la pista ambiental; el programador va por su cuenta para no depender de los fotogramas.
+  startMusic() {
+    if (!this.music || this.musicTimer) return;
+    this.music.muted = this.muted;
+    this.music.start();
+    this.music.tick();
+    this.musicTimer = setInterval(() => this.music.tick(), 50);
+  }
+
+  updateMusic(dt) { if (this.music) this.music.updateCombat(dt, this.game); }
 
   toggleMute() {
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    if (this.music) this.music.muted = this.muted;
     if (this.muted && window.speechSynthesis) window.speechSynthesis.cancel();
     return this.muted;
   }

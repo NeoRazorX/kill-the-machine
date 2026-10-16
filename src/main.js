@@ -126,6 +126,7 @@ function begin(spectate) {
   ui.resize();
   game.audio.init();
   game.audio.play('start');
+  game.audio.startMusic();
   if (!spectate) game.audio.say('Comandante, la base está operativa. Destruye a las máquinas.', 0);
   started = true;
 }
@@ -146,6 +147,7 @@ function frame(now) {
   last = now;
   if (started) {
     for (let i = 0; i < speed; i++) game.update(dt);
+    if (!game.paused) game.audio.updateMusic(dt * speed);
     input.update(dt);
     ui.update(dt);
   } else {
@@ -163,6 +165,6 @@ requestAnimationFrame(frame);
 
 // Utilidad de pruebas: avanza la simulación y renderiza aunque la pestaña esté oculta.
 window.__step = (n = 1, dt = 0.05) => {
-  for (let i = 0; i < n; i++) { game.update(dt); if (input) { input.update(dt); ui.update(dt); } }
+  for (let i = 0; i < n; i++) { game.update(dt); if (input) { input.update(dt); ui.update(dt); game.audio.updateMusic(dt); } }
   warFog.render(renderer, scene, camera);
 };
