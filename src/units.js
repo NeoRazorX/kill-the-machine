@@ -1,4 +1,4 @@
-import { SIZE, canRepair, canCapture } from './config.js';
+import { SIZE, HARVEST_QUEUE, canRepair, canCapture } from './config.js';
 import { findPath, clearLine } from './pathfinding.js';
 import { buildUnitModel } from './models.js';
 import { RANKS, isCombatUnit } from './experience.js';
@@ -14,6 +14,7 @@ export function angleDiff(to, from) {
   return d;
 }
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const refineryUp = (r) => !!r && !r.dead && !r.selling;
 
 export class Unit {
   constructor(game, def, x, z, team) {
@@ -175,6 +176,8 @@ export class Unit {
   }
 
   separate(dt) {
+    // The harvester at the dock holds its place; whoever crowds it gives way.
+    if (this.hstate === 'unload' && this.order.type === 'harvest') return;
     const g = this.game;
     const near = g.queryUnits(this.x, this.z, this.radius + 2.4);
     let px = 0, pz = 0;
@@ -185,7 +188,7 @@ export class Unit {
       const d2 = dx * dx + dz * dz;
       if (d2 >= min * min) continue;
       const d = Math.sqrt(d2);
-      const w = (o.moving && !this.moving) ? 1 : (this.moving && !o.moving ? 0.25 : 0.5);
+      const w = (o.hstate === 'unload' || (o.moving && !this.moving)) ? 1 : (this.moving && !o.moving ? 0.25 : 0.5);
       if (d < 0.01) { px += (Math.random() - 0.5) * 0.4; pz += (Math.random() - 0.5) * 0.4; }
       else { px += (dx / d) * (min - d) * w; pz += (dz / d) * (min - d) * w; }
     }
@@ -462,8 +465,10 @@ export class Unit {
         break;
       }
       case 'return': {
-        let r = this.refinery && !this.refinery.dead ? this.refinery : g.nearestRefinery(this.team, this.x, this.z);
-        if (!r) { this.waitT = 1.5; this.hstate = 'noref'; break; }
+        // A refinery the player pointed at is kept; otherwise the least busy one nearby.
+        const r = refineryUp(this.refinery) ? this.refinery : g.pickRefinery(this);
+        this.waitSpot = null;
+        if (!r) { this.refinery = null; this.waitT = 1.5; this.hstate = 'noref'; break; }
         this.refinery = r;
         if (!this.pathTo(r.dock.x, r.dock.z)) { this.waitT = 1; this.hstate = 'noref'; break; }
         this.hstate = 'toRefinery';
@@ -476,19 +481,54 @@ export class Unit {
       }
       case 'toRefinery': {
         const r = this.refinery;
-        if (!r || r.dead) { this.refinery = null; this.hstate = 'return'; break; }
+        if (!refineryUp(r)) { this.refinery = null; this.hstate = 'return'; break; }
+        // Close to the dock it takes its turn in line instead of shoving its way in.
+        if (Math.hypot(this.x - r.dock.x, this.z - r.dock.z) <= HARVEST_QUEUE.join) {
+          g.dockQueue(r).push(this);
+          this.path = null; this.repathT = 0; this.hstate = 'queued';
+          break;
+        }
+        if (this.followPath(dt)) { this.waitT = 1; this.hstate = 'noref'; }
+        break;
+      }
+      case 'queued': {
+        const r = this.refinery;
+        if (!refineryUp(r)) { this.refinery = null; this.hstate = 'return'; break; }
+        if (g.dockQueue(r)[0] === this) {
+          this.waitSpot = null; this.waitT = HARVEST_QUEUE.dockTime;
+          if (!this.pathTo(r.dock.x, r.dock.z)) { this.yieldDock(); break; }
+          this.hstate = 'toDock';
+          break;
+        }
+        const spot = this.claimWaitSpot(r);
+        if (!spot) { this.path = null; break; } // nowhere to park: wait where it is
+        if (Math.hypot(this.x - spot.x, this.z - spot.z) > 1.2) {
+          this.repathT -= dt;
+          if (!this.path && this.repathT <= 0) { this.repathT = 1; this.pathTo(spot.x, spot.z); }
+          if (this.path) this.followPath(dt);
+        } else {
+          this.path = null;
+          const want = Math.atan2(r.dock.x - this.x, r.dock.z - this.z);
+          this.heading += clamp(angleDiff(want, this.heading), -d.turn * dt, d.turn * dt);
+        }
+        break;
+      }
+      case 'toDock': {
+        const r = this.refinery;
+        if (!refineryUp(r)) { this.refinery = null; this.hstate = 'return'; break; }
+        this.waitT -= dt;
         const arrived = this.followPath(dt);
         if (Math.hypot(this.x - r.dock.x, this.z - r.dock.z) <= .8) {
-          this.path = null; this.hstate = 'unload';
-        } else if (arrived) {
-          // A blocked or shortened route must not unload against another wall.
-          this.waitT = 1; this.hstate = 'noref';
+          this.path = null; this.waitT = 0; this.hstate = 'unload';
+        } else if (arrived || this.waitT <= 0) {
+          // A blocked dock must not unload against another wall, nor hold up the whole line.
+          this.yieldDock();
         }
         break;
       }
       case 'unload': {
         const r = this.refinery;
-        if (!r || r.dead) { this.refinery = null; this.hstate = 'return'; break; }
+        if (!refineryUp(r)) { this.refinery = null; this.hstate = 'return'; break; }
         const want = Math.atan2(r.dock.x - this.x, r.z - this.z);
         this.heading += clamp(angleDiff(want, this.heading), -d.turn * dt, d.turn * dt);
         const amt = Math.min(this.load, d.unloadRate * dt);
@@ -498,6 +538,20 @@ export class Unit {
         break;
       }
     }
+  }
+
+  // The parking spot closest to the dock that no other harvester in this refinery's line has taken.
+  claimWaitSpot(r) {
+    const spots = this.game.dockWaitSpots(r, this.radius), q = this.game.dockQueue(r);
+    if (this.waitSpot && spots.includes(this.waitSpot)) return this.waitSpot;
+    this.path = null; this.repathT = 0;
+    return (this.waitSpot = spots.find((s) => !q.some((o) => o !== this && o.waitSpot === s)) || null);
+  }
+
+  // Could not reach the dock: let the next one in and come back to the end of the line.
+  yieldDock() {
+    this.path = null; this.waitSpot = null; this.refinery = null;
+    this.waitT = 1; this.hstate = 'noref';
   }
 
   // ----------------------------------------------------------------- ciclo

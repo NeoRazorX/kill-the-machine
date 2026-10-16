@@ -54,7 +54,8 @@ assert(path && canOccupy(grid, path.at(-1).x, path.at(-1).z, 1.5) && validRoute(
 assert(findPath(grid, 45, 45, 65, 50, 1.5) === null, 'invalid start cannot generate a path through an obstacle');
 
 function tank(grid, x, z) {
-  const game = { map: { grid }, navVersion: 1, canStand: Game.prototype.canStand };
+  const game = { map: { grid }, navVersion: 1, canStand: Game.prototype.canStand,
+    dockQueue: Game.prototype.dockQueue, dockWaitSpots: Game.prototype.dockWaitSpots };
   return Object.assign(Object.create(Unit.prototype), {
     game, def: DEFS.h_tank, radius: 1.5, x, z, heading: 0, speedMul: 1,
     path: null, dest: null, stuckCount: 0, stuckT: 0, lastPX: x, lastPZ: z,
@@ -117,7 +118,7 @@ for (const id of ['h_refinery', 'm_refinery']) {
   assert(harv.load === 0 && Math.abs(delivered - harv.def.capacity) < .001,
     `${id}: full cargo is delivered at the dock`);
   harv.x = refinery.x; harv.z = 40 - 2; harv.load = 100;
-  harv.refinery = refinery; harv.hstate = 'toRefinery'; harv.path = null;
+  harv.refinery = refinery; harv.hstate = 'toDock'; harv.path = null; harv.waitT = 20;
   harv.updateHarvester(.05);
   assert(harv.hstate === 'noref' && harv.load === 100,
     `${id}: failed approach retries instead of unloading remotely`);

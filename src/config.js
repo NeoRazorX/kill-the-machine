@@ -7,6 +7,17 @@ export const PLAYER = 'human';
 export const BUILD_RADIUS = 24;  // distancia máxima a un edificio propio para construir
 export const START_CREDITS = 4000;
 
+// Refinery dock queue (C&C style): one harvester unloads, the rest park beside the dock.
+export const HARVEST_QUEUE = {
+  join: 16,       // distance from the dock where a returning harvester takes its turn in line
+  busyCost: 30,   // extra distance a refinery "costs" per harvester already bound for it
+  dockTime: 20,   // seconds the first in line may take to reach the dock before yielding it
+  side: 6, ahead: 3, gap: 4, // wait spots: lateral offset from the dock, depth ahead of it, spacing
+};
+// hstates of a harvester bound for a refinery; the last three hold a place in its dock queue.
+export const DOCK_QUEUE = new Set(['queued', 'toDock', 'unload']);
+export const DOCK_BOUND = new Set(['toRefinery', ...DOCK_QUEUE]);
+
 export const other = (t) => (t === 'human' ? 'machine' : 'human');
 
 export const TEAMS = {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, other, visionRadius, canRepairBuilding } from './config.js';
+import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, HARVEST_QUEUE, DOCK_QUEUE, DOCK_BOUND, other, visionRadius, canRepairBuilding } from './config.js';
 import { GameMap, MapVisuals } from './map.js';
 import { THEMES } from './themes.js';
 import { Foundations } from './foundations.js';
@@ -252,6 +252,47 @@ export class Game {
       if (d < bd) { bd = d; best = b; }
     }
     return best;
+  }
+
+  // Like C&C, a harvester prefers a free refinery over a busy one, as long as it is not much farther:
+  // every harvester already heading to, waiting at or unloading in a refinery adds HARVEST_QUEUE.busyCost.
+  pickRefinery(u) {
+    let best = null, bs = 1e9;
+    for (const b of this.buildings) {
+      if (b.team !== u.team || b.dead || b.def.role !== 'refinery' || !b.complete) continue;
+      let busy = 0;
+      for (const o of this.units) {
+        if (o !== u && !o.dead && o.refinery === b && o.order.type === 'harvest' && DOCK_BOUND.has(o.hstate)) busy++;
+      }
+      const s = Math.hypot(b.dock.x - u.x, b.dock.z - u.z) + busy * HARVEST_QUEUE.busyCost;
+      if (s < bs) { bs = s; best = b; }
+    }
+    return best;
+  }
+
+  // Harvesters waiting for or holding a refinery's dock, oldest first. The first one owns the dock;
+  // anyone who died, got another order, gave up or lost the refinery drops out here.
+  dockQueue(r) {
+    const q = r.dockQueue || (r.dockQueue = []);
+    for (let i = q.length - 1; i >= 0; i--) {
+      const u = q[i];
+      if (r.dead || r.selling || u.dead || u.refinery !== r || u.order.type !== 'harvest' || !DOCK_QUEUE.has(u.hstate)) q.splice(i, 1);
+    }
+    return q;
+  }
+
+  // Parking spots beside and ahead of the dock, nearest first, clear of the dock's own approach.
+  dockWaitSpots(r, radius) {
+    if (r.waitSpots && r.waitSpotsVer === this.navVersion) return r.waitSpots;
+    const d = r.dock, f = r.front || 1, spots = [];
+    const { side, ahead, gap } = HARVEST_QUEUE;
+    for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) for (const s of [-1, 1]) {
+      const x = d.x + s * (side + col * gap), z = d.z + f * (ahead + row * gap);
+      if (this.canStand(x, z, radius + 0.4)) spots.push({ x, z });
+    }
+    spots.sort((a, b) => Math.hypot(a.x - d.x, a.z - d.z) - Math.hypot(b.x - d.x, b.z - d.z));
+    r.waitSpots = spots; r.waitSpotsVer = this.navVersion;
+    return spots;
   }
 
   teamBuildings(team, role = null) {
