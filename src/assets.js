@@ -6,8 +6,8 @@ export const ENVIRONMENT_MODELS = ['env_tree', 'env_rock', 'env_ore', 'env_cliff
 export const MODEL_IDS = [...Object.keys(DEFS), ...ENVIRONMENT_MODELS, 'prop_cash_crate'];
 const templates = new Map();
 const instanceAssets = new Map();
-const animatedNodes = ['turret', 'barrel', 'muzzle', 'body', 'fill', 'bob', 'ring', 'drill', 'dish', 'crystal', 'intact', 'wreck', 'beacon'];
-const groups = { legs: 'leg_', spider: 'spider_', turbines: 'turbine_', muzzles: 'muzzle_' };
+const animatedNodes = ['turret', 'barrel', 'muzzle', 'body', 'fill', 'bob', 'ring', 'drill', 'dish', 'crystal', 'rotor', 'intact', 'wreck', 'beacon'];
+const groups = { legs: 'leg_', spider: 'spider_', muzzles: 'muzzle_' };
 const requiredNodes = {
   h_rifle: ['body', 'leg_0', 'leg_1'], h_rocket: ['body', 'leg_0', 'leg_1'], h_medic: ['body', 'leg_0', 'leg_1', 'muzzle'],
   m_sentinel: ['body', 'leg_0', 'leg_1'],
@@ -18,7 +18,7 @@ const requiredNodes = {
   t_radar: ['dish'],
   m_crusher: Array.from({length: 4}, (_,i) => `spider_${i}`),
   m_siege: Array.from({length: 6}, (_,i) => `spider_${i}`),
-  h_hq: ['dish'], m_hq: ['crystal', 'ring'], m_power: ['turbine_0', 'turbine_1'],
+  h_hq: ['dish'], m_hq: ['crystal', 'ring'], m_power: ['rotor'],
   h_engineer: ['body', 'leg_0', 'leg_1'], m_engineer: ['bob', 'ring'],
   h_mammoth: ['muzzle_0', 'muzzle_1'], m_mammoth: ['muzzle_0', 'muzzle_1'],
   h_juggernaut: ['leg_0', 'leg_1', 'muzzle_0', 'muzzle_1', 'muzzle_2'], m_juggernaut: ['leg_0', 'leg_1', 'muzzle_0', 'muzzle_1', 'muzzle_2'],

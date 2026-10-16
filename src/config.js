@@ -72,7 +72,7 @@ B({ id: 'm_hq', team: 'machine', role: 'hq', name: 'Núcleo Central', buildable:
     w: 3, h: 3, hp: 2200, power: 30, sight: 30, height: 5,
     desc: 'La inteligencia que controla la red.' });
 B({ id: 'm_power', team: 'machine', role: 'power', name: 'Reactor', cost: 300, time: 10,
-    w: 2, h: 2, hp: 700, power: 100, sight: 16, height: 4,
+    w: 3, h: 3, hp: 700, power: 100, sight: 16, height: 5,
     desc: 'Reactor de fusión: +100 de energía.' });
 B({ id: 'm_refinery', team: 'machine', role: 'refinery', name: 'Fundición', cost: 1000, time: 20, requires: ['power'],
     w: 3, h: 3, hp: 1100, power: -30, sight: 18, height: 4.5,

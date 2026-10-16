@@ -107,9 +107,9 @@ try {
         assert(contained, 'h_hq: rotating radar stays inside the building footprint');
       }
       if (def.id === 'm_power') {
-        const [a, b] = instance.parts.turbines ?? [], ya = a?.rotation.y, yb = b?.rotation.y;
+        const rotor = instance.parts.rotor, spin = rotor.rotation.z;
         instance.update(.1);
-        assert(instance.parts.turbines.length === 2 && a.rotation.y > ya && b.rotation.y < yb, 'm_power: twin turbines counter-rotate');
+        assert(rotor.rotation.z > spin, 'm_power: generator wheel turns during gameplay');
       }
       if (def.role === 'refinery') {
         const dock = instance.mesh.localToWorld(new THREE.Vector3(def.dock?.x ?? 0, 0,

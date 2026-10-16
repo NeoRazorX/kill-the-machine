@@ -707,70 +707,108 @@ def power(machine=False):
     save('h_power')
 
 
-def turbine_tower(s, x, z):
-    # Tapered generator casing split by a glowing grille band, open intake on top.
-    objects = [cone('Lower casing',.8,.72,1.17,(x,1.365,z),MACHINE,12),
-               cyl('Grille core',.66,.4,(x,2.15,z),RED,vertices=12),
-               cyl('Grille collar',.78,.08,(x,1.95,z),MPLATE,12),
-               cyl('Grille collar',.74,.08,(x,2.35,z),MPLATE,12),
-               cone('Upper casing',.72,.62,1.0,(x,2.85,z),MACHINE,12),
-               cyl('Intake collar',.71,.16,(x,3.42,z),MPLATE,12),
-               cyl('Intake well',.55,.02,(x,3.505,z),BLACK,12),
-               cyl('Rotor glow',.34,.02,(x,3.512,z),RED,12)]
-    for i in range(12):
-        a = (i+.5)*math.tau/12
-        objects.append(box('Grille bar',(.07,.4,.07),(x+math.cos(a)*.69,2.15,z+math.sin(a)*.69),BLACK,0))
-    # Riveted ribs brace the casing at the diagonals.
-    for i in range(4):
-        a = (i+.5)*math.pi/2
-        objects += [tbox('Casing rib',(.1,1.12,.08),(x+math.cos(a)*.77,1.37,z+math.sin(a)*.77),MPLATE,(0,-a,0),.01),
-                    tbox('Casing rib',(.1,.94,.08),(x+math.cos(a)*.68,2.86,z+math.sin(a)*.68),MPLATE,(0,-a,0),.01)]
-    return objects
+def disc_shell(name, r0, r1, a0, a1, z0, z1, tint, segs=8):
+    # Faceted band around the Z axis between angles a0..a1 (0 = +X, pi/2 = up), z0..z1 deep.
+    verts = []
+    for k in range(segs+1):
+        a = a0 + (a1-a0)*k/segs
+        for r in (r1, r0):
+            verts += [(math.cos(a)*r, math.sin(a)*r, z0), (math.cos(a)*r, math.sin(a)*r, z1)]
+    faces = []
+    for k in range(segs):
+        o, n = 4*k, 4*k+4
+        faces += [(o,n,n+1,o+1), (o+2,o+3,n+3,n+2), (o,o+2,n+2,n), (o+1,n+1,n+3,o+3)]
+    e = 4*segs
+    faces += [(0,1,3,2), (e,e+2,e+3,e+1)]
+    return solid(name, verts, faces, tint)
 
 
-def turbine_rotor(i, x, z):
-    rotor = empty(f'turbine_{i}',(x,3.58,z))
-    objects = [cyl('Rotor hub',.13,.14,(x,3.58,z),MPLATE,8),
-               cyl('Hub cap',.07,.04,(x,3.66,z),RED,8)]
-    for k in range(4):
-        a = k*math.tau/4 + i*.4
-        objects.append(tbox('Rotor blade',(.5,.035,.15),(x+math.cos(a)*.33,3.57,z-math.sin(a)*.33),MPLATE,(.38,a,0),.01))
-    merge('Turbine rotor',objects,rotor)
+POWER_DISC = (-.25, 2.4, -.05)   # generator hub, game space
+POWER_YAW = -.5                  # the generator face turns towards the front-left
+
+
+def power_local(objs):
+    # Generator parts are authored around the hub with the face looking down +Z.
+    return group(objs, (0,POWER_YAW,0), (0,0,0), POWER_DISC)
+
+
+def power_rotor():
+    rotor = empty('rotor', POWER_DISC)
+    rotor.rotation_euler[2] = POWER_YAW
+    objects = [cyl('Rotor disc',1.92,.46,(0,0,-.03),BLACK,'z',20),
+               cyl('Rotor hub',.68,.62,(0,0,.1),MACHINE,'z',12),
+               cyl('Hub face',.42,.1,(0,0,.44),MPLATE,'z',12),
+               cyl('Axle',.2,1.0,(0,0,.85),MPLATE,'z',8)]
+    for k in range(24):
+        a = k*math.tau/24
+        objects.append(tbox('Field vane',(.98,.1,.2),(math.cos(a)*1.3,math.sin(a)*1.3,.26),RED,(0,0,a),0))
+    for k in range(12):
+        a = (k+.5)*math.tau/12
+        objects.append(tbox('Hub fin',(.22,.07,.16),(math.cos(a)*.62,math.sin(a)*.62,.38),BLACK,(0,0,a),0))
+    merge('Generator rotor', power_local(objects), rotor)
 
 
 def machine_power():
     reset()
-    objects = platform(3.75,3.75,True)
-    objects += [armor('Generator plinth',3.45,3.45,.28,.78,.4,(0,0),MACHINE),
-                armor('Turbine hall',3.0,1.5,.78,1.75,.5,(0,-.95),MACHINE),
-                box('Hall roof plate',(1.1,.06,.9),(0,1.78,-.95),MPLATE),
-                armor('Control block',2.3,1.2,.78,1.28,.36,(0,1.0),MACHINE),
-                box('Control roof',(1.7,.06,.7),(0,1.31,1.0),BLACK)]
-    # Glowing exhaust louvres on the sloped front of the control block.
-    for k,y in enumerate((.9,1.02,1.14)):
-        zf = 1.6-(y-.78)/.5*.18+.015
-        objects.append(tbox('Front louvre',(1.25-k*.08,.05,.03),(0,y,zf),ORANGE,(-.34,0,0),.005))
-    for s in (-1,1):
-        x, z = s*.88, -.35
-        objects += turbine_tower(s,x,z)
-        # Conduits feed the control block from each generator.
-        objects += [pipe('Power conduit',(s*.55,1.25,.95),(s*.62,2.2,.25),.11,BLACK),
-                    torus('Conduit flange',.14,.035,(s*.55,1.3,.92),MPLATE),
-                    pipe('Coolant main',(s*1.68,.72,-1.2),(s*1.68,.72,.9),.1,BLACK),
-                    pipe('Coolant line',(s*1.68,.72,.25),(s*1.68,1.6,.25),.08,MPLATE),
-                    pipe('Coolant line',(s*1.68,1.6,.25),(s*1.5,1.6,-.05),.08,MPLATE),
-                    box('Pump housing',(.36,.36,.5),(s*1.55,.95,1.15),BLACK),
-                    box('Pump light',(.03,.08,.26),(s*1.735,1.0,1.15),RED,.005),
-                    armor('Corner buttress',.5,.5,.28,1.05,.3,(s*1.55,-1.55),BLACK)]
-    # Rear transformer stack between the towers.
-    objects += [box('Transformer',(.7,.7,.5),(0,2.1,-1.25),BLACK),
-                beam('Tower bridge',(-.5,3.0,-.35),(.5,3.0,-.35),.16,BLACK)]
-    for x in (-.2,.2):
-        objects += [cyl('Insulator',.07,.5,(x,2.7,-1.25),MPLATE,8),
-                    cyl('Insulator tip',.09,.08,(x,2.98,-1.25),RED,8)]
+    cx, cy, cz = POWER_DISC
+    objects = platform(machine=True)
+    objects += [armor('Generator plinth',5.4,5.4,.28,.62,.35,(0,0),MACHINE)]
+    disc = [torus('Stator ring',2.03,.15,(0,0,0),MPLATE,'z'),
+            cyl('Stator back',2.05,.3,(0,0,-.4),MACHINE,'z',20),
+            # Armored hood arching over the top and back of the generator.
+            disc_shell('Generator hood',2.22,2.55,-.55,2.75,-.95,.38,MPLATE,10),
+            disc_shell('Hood lip',2.18,2.62,-.2,2.55,.38,.58,MACHINE,9),
+            disc_shell('Hood stripe',2.55,2.58,.1,2.4,-.45,-.25,RED,8),
+            disc_shell('Hood spine',2.55,2.68,1.2,1.6,-.95,.38,MACHINE,2),
+            # Bearing pedestal holds the axle in front of the hub.
+            cyl('Bearing',.36,.42,(0,0,1.25),MACHINE,'z',10),
+            torus('Bearing glow',.36,.05,(0,0,1.47),RED,'z'),
+            box('Bearing pedestal',(.62,cy-.6,.5),(0,-(cy-.6)/2,1.25),MACHINE),
+            tbox('Pedestal brace',(.5,1.5,.3),(0,-1.3,.8),BLACK,(.55,0,0)),
+            # Motor housing behind the generator.
+            box('Exciter housing',(2.0,1.3,.9),(0,-1.1,-1.15),MACHINE),
+            box('Exciter roof',(1.7,.08,.7),(0,-.42,-1.15),BLACK)]
+    for a in (1.25,1.6):
+        tip = (math.cos(a)*2.62, math.sin(a)*2.62, 1.5)
+        disc += [beam('Hood antenna',(math.cos(a)*2.5,math.sin(a)*2.5,.4),tip,.07,BLACK),
+                 cyl('Antenna tip',.06,.12,tip,RED,'y',6)]
+    for x in (-.6,-.2,.2,.6):
+        disc.append(box('Exciter vent',(.22,.6,.04),(x,-1.15,-.68),RED,.005))
+    objects += power_local(disc)
+    # Sloped feet where the hood meets the plinth, like buttressed pylons.
+    def world(x, y, z):
+        c, s_ = math.cos(POWER_YAW), math.sin(POWER_YAW)
+        return (cx + x*c + z*s_, cy + y, cz - x*s_ + z*c)
+    for a, z in ((-.55,-.3), (2.75,-.3)):
+        fx, fy, fz = world(math.cos(a)*2.45, math.sin(a)*2.45, z)
+        objects += [armor('Hood pylon',1.15,1.25,.6,fy,.75,(fx,fz),MPLATE),
+                    armor('Pylon foot',1.4,1.5,.28,.75,.3,(fx,fz),BLACK)]
+    # Exhaust tower at the back corner.
+    sx, sz = 2.05, -2.05
+    objects += [armor('Stack base',1.3,1.3,.6,1.2,.35,(sx,sz),MACHINE),
+                cone('Exhaust tower',.46,.32,3.4,(sx,2.9,sz),MPLATE,10),
+                cyl('Stack collar',.42,.14,(sx,4.0,sz),BLACK,10),
+                torus('Stack glow',.39,.05,(sx,4.25,sz),RED),
+                cyl('Stack crown',.38,.35,(sx,4.75,sz),MACHINE,10),
+                cyl('Stack mouth',.27,.02,(sx,4.93,sz),BLACK,10)]
+    for k in range(4):
+        a = k*math.pi/2 + .4
+        objects.append(tbox('Stack slot',(.08,.42,.03),(sx+math.cos(a)*.34,4.52,sz-math.sin(a)*.34),BLACK,(0,a,0),0))
+    objects += [pipe('Exhaust duct',(sx-.3,1.0,sz+.5),(.4,1.0,-1.9),.14,BLACK),
+                pipe('Coolant main',(-2.45,.78,-2.3),(-2.45,.78,1.5),.12,BLACK),
+                pipe('Coolant riser',(-2.45,.78,-1.2),(-1.6,1.6,-1.2),.09,MPLATE),
+                box('Transformer',(.9,.9,.8),(2.1,1.05,1.8),BLACK),
+                box('Transformer light',(.5,.05,.03),(2.1,1.3,2.215),RED,.005)]
+    # Drive motor on the open front corner.
+    objects += [armor('Motor bed',1.5,1.2,.6,1.0,.25,(-1.95,1.95),BLACK),
+                cyl('Drive motor',.36,1.0,(-1.95,1.35,1.95),MACHINE,'x',10),
+                cyl('Motor band',.39,.08,(-1.6,1.35,1.95),RED,'x',10),
+                cyl('Motor cap',.26,.12,(-2.5,1.35,1.95),MPLATE,'x',10)]
+    for x in (1.85,2.35):
+        objects += [cyl('Insulator',.07,.45,(x,1.72,1.8),MPLATE,8),
+                    cyl('Insulator tip',.09,.07,(x,1.97,1.8),RED,8)]
     merge('Generator works',objects)
-    for i,s in enumerate((-1,1)):
-        turbine_rotor(i,s*.88,-.35)
+    power_rotor()
     save('m_power')
 
 
