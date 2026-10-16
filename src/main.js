@@ -130,7 +130,7 @@ function showTech() {
     el.disabled = full && !on;
   }
   const n = tech.ids.length;
-  techCount.textContent = n ? `${n} de ${TECH_PICK_MAX} como máximo` : `Ninguna marcada: la partida no tendrá estructuras tecnológicas (máximo ${TECH_PICK_MAX})`;
+  techCount.textContent = n ? `${n} de ${TECH_PICK_MAX} como máximo` : `Ninguna marcada: partida sin estructuras (máximo ${TECH_PICK_MAX})`;
 }
 techModeEls.forEach((el) => { el.onclick = () => { tech.mode = el.dataset.mode; saveTech(); showTech(); }; });
 showTech();

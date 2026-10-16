@@ -180,9 +180,9 @@ T({ id: 't_silo', brief: 'Misil nuclear cada 6 min', name: 'Silo de misiles', he
 T({ id: 't_ion', brief: 'Haz orbital cada 4 min', name: 'Cañón de iones', height: 8.5, power: -60,
     superweapon: { kind: 'ion', title: 'Cañón de iones', charge: 240, delay: 1.5, radius: 9, damage: 1400 },
     desc: 'Enlace con un cañón de iones orbital. Reparado y con energía, carga (4 min) un haz preciso y devastador que cae en 1,5 s.' });
-T({ id: 't_mammoth', brief: 'Construye el supertanque Mamut', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
+T({ id: 't_mammoth', brief: 'Produce tanques Mamut', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
     desc: 'Planta de tanques pesados. Reparada, construye el supertanque Mamut (pestaña Vehículos).' });
-T({ id: 't_juggernaut', brief: 'Construye el caminante Juggernaut', name: 'Fábrica Juggernaut', height: 8, produces: 'juggernaut',
+T({ id: 't_juggernaut', brief: 'Produce caminantes Juggernaut', name: 'Fábrica Juggernaut', height: 8, produces: 'juggernaut',
     desc: 'Línea de montaje de caminantes. Reparada, construye el Juggernaut de tres cañones (pestaña Vehículos).' });
 T({ id: 't_mine', brief: '50 créditos cada 5 s', name: 'Mina de Tibero', height: 7,
     income: { amount: 50, interval: 5 },
