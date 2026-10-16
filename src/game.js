@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, other, visionRadius } from './config.js';
+import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, other, visionRadius, canRepairBuilding } from './config.js';
 import { GameMap, MapVisuals } from './map.js';
 import { THEMES } from './themes.js';
 import { Foundations } from './foundations.js';
@@ -474,6 +474,14 @@ export class Game {
       if (!this.canStand(nx, nz, u.radius)) { nx += (dx / d) * u.radius; nz += (dz / d) * u.radius; }
       u.x = nx; u.z = nz;
     }
+  }
+
+  // Switches a structure's repair on or off. Turning it on needs a damaged, finished, owned building.
+  setBuildingRepair(b, on) {
+    if (!on) { const was = b.repairing; b.repairing = b.repairWaiting = false; return was; }
+    if (b.repairing || !canRepairBuilding(b)) return false;
+    b.repairing = true; b.repairWaiting = false;
+    return true;
   }
 
   sellBuilding(b) {

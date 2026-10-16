@@ -1,4 +1,4 @@
-import { N, CELL, ROLE, other, canCapture, visionRadius } from './config.js';
+import { N, CELL, ROLE, other, canCapture, canRepairBuilding, visionRadius } from './config.js';
 
 const SECTOR = 32; // lado en unidades de mundo de cada zona que explora el explorador
 const SECTORS = N * CELL / SECTOR;
@@ -25,6 +25,7 @@ export class AI {
     if (this.g.over) return;
     this.updateIntel();
     this.manageStructures();
+    this.manageRepairs();
     this.manageUnits();
     this.manageWaves(d);
     this.manageDefense();
@@ -79,6 +80,16 @@ export class AI {
   }
 
   // -------------------------------------------------------------- estructuras
+  // Repairs structures below 80 % while there is money to spare, and lets them wait when funds run
+  // low so production and rebuilding keep priority.
+  manageRepairs() {
+    const g = this.g, credits = g.teams[this.team].credits;
+    for (const b of g.teamBuildings(this.team)) {
+      if (b.repairing && credits < 150) g.setBuildingRepair(b, false);
+      else if (!b.repairing && credits >= 400 && canRepairBuilding(b) && b.hp < b.maxHp * 0.8) g.setBuildingRepair(b, true);
+    }
+  }
+
   manageStructures() {
     const g = this.g, team = this.team, T = g.teams[team];
     if (T.structQueue) {

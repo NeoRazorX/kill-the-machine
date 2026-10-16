@@ -217,6 +217,8 @@ export class TechSites {
     if (t.state === 'ruin') { t.state = 'repairing'; t.progress = 0; t.paid = 0; }
     // A captured site resumes repairs for its new owner; paid work stays with the building.
     t.repairing = t.state === 'repairing';
+    // Structural repairs were the old owner's order.
+    b.repairing = b.repairWaiting = false;
     t.waiting = false;
     // A superweapon starts charging again for its new owner.
     t.charge = 0; t.announcedReady = false;

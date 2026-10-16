@@ -1,4 +1,4 @@
-import { CELL, SIZE, buildingFront, globalRadarActive } from './config.js';
+import { CELL, SIZE, BUILDING_REPAIR, buildingFront, buildingRepairCost, canRepairBuilding, globalRadarActive } from './config.js';
 import { buildBuildingModel } from './models.js';
 import { nextId, angleDiff } from './units.js';
 
@@ -16,6 +16,7 @@ export class Building {
     this.queue = []; this.rally = null;
     this.buildT = instant ? 1 : 0;
     this.selling = false; this.sellT = 0;
+    this.repairing = false; this.repairWaiting = false;
     this.selected = false; this.dead = false; this.lastHit = -99;
     this.cooldown = 0; this.target = null; this.scanT = Math.random() * 0.4; this.recoil = 0;
     this.fxT = Math.random(); this.seen = team === game.player || game.spectate;
@@ -41,6 +42,7 @@ export class Building {
   sell() {
     if (this.selling) return;
     this.selling = true; this.sellT = 0; this.queue = [];
+    this.repairing = this.repairWaiting = false;
   }
 
   update(dt) {
@@ -63,6 +65,7 @@ export class Building {
     // A tech factory only produces once repaired.
     if (def.produces && (!this.tech || this.tech.state === 'online')) this.updateQueue(dt, low);
     if (def.weapon) this.updateTurret(dt, low);
+    this.updateRepair(dt, low);
 
     // animaciones decorativas
     const scanning = !def.globalRadar || (!g.spectate && this.team !== g.player ? this.tech?.view?.state === 'online' : globalRadarActive(this));
@@ -100,6 +103,30 @@ export class Building {
     if (it.progress >= 0.9999) {
       this.queue.shift();
       g.spawnProduced(this, it.def);
+    }
+  }
+
+  // Health returns at a fixed share of the maximum per second and is paid as it comes, like production.
+  // Without funds the repair waits; it switches itself off once the building is whole again.
+  updateRepair(dt, low) {
+    if (!this.repairing) return;
+    if (!canRepairBuilding(this)) { this.repairing = this.repairWaiting = false; return; }
+    const g = this.game, t = g.teams[this.team];
+    const heal = Math.min(this.maxHp * dt / BUILDING_REPAIR.time * (low ? 0.4 : 1), this.maxHp - this.hp);
+    const cost = buildingRepairCost(this.def) * heal / this.maxHp;
+    if (t.credits < cost) { this.repairWaiting = true; return; }
+    t.credits -= cost; this.hp += heal; this.repairWaiting = false;
+    if (this.maxHp - this.hp < 1e-6) {
+      this.hp = this.maxHp; this.repairing = false;
+      if (this.team === g.player && !g.spectate) g.emit('toast', { text: `${this.def.name} reparado`, kind: 'good' });
+    }
+    // Welding sparks over the roof while the work is under way.
+    this.repairFx = (this.repairFx || 0) - dt;
+    if (this.repairFx <= 0 && this.repairing && this.seen) {
+      this.repairFx = 0.18;
+      const W = this.w * CELL * 0.6, H = this.h * CELL * 0.6;
+      g.fx.spawn(this.x + (Math.random() - 0.5) * W, this.def.height * (0.6 + Math.random() * 0.4), this.z + (Math.random() - 0.5) * H,
+        (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3, 0.45, 0.16, 0.05, [1, 0.9, 0.45], [1, 0.55, 0.15], 9, 1);
     }
   }
 

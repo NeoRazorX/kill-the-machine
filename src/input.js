@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SIZE, CELL, N, PLAYER, other, canRepair, canCapture, buildingFront } from './config.js';
+import { SIZE, CELL, N, PLAYER, other, canRepair, canCapture, canRepairBuilding, buildingFront } from './config.js';
 import { buildBuildingModel } from './models.js';
 import { concreteTexture, CONCRETE_TILE, SLAB_MARGIN } from './foundations.js';
 import { nearestFreeCell } from './pathfinding.js';
@@ -168,6 +168,18 @@ export class Input {
     for (const u of this.selUnits()) u.cmdStop();
     this.attackMode = false; this.superTarget = null; this.cancelPlacement();
     this.game.audio.play('order');
+  }
+
+  // Like the sell key, acts on every selected structure of the player's: starts repairing the damaged
+  // ones, or, when all of those are already under repair, stops them.
+  toggleRepair(list) {
+    const g = this.game;
+    if (g.spectate || g.over) return false;
+    const own = list.filter((b) => b.kind === 'building' && b.team === this.player);
+    const idle = own.filter((b) => !b.repairing && canRepairBuilding(b));
+    const changed = idle.length ? idle.filter((b) => g.setBuildingRepair(b, true)) : own.filter((b) => g.setBuildingRepair(b, false));
+    if (changed.length) g.audio.play('click');
+    return changed.length > 0;
   }
 
   formation(units, x, z) {
@@ -463,6 +475,7 @@ export class Input {
     if (code === 'KeyS') { this.stopSelected(); return; }
     if (code === 'KeyH') { const hq = g.teamBuildings(this.player, 'hq')[0]; if (hq) { this.centerOn(hq.x, hq.z); } return; }
     if (code === 'Space') { e.preventDefault(); if (this.lastAlert) this.centerOn(this.lastAlert.x, this.lastAlert.z); return; }
+    if (code === 'KeyR') { this.toggleRepair(this.sel); return; }
     if (code === 'Delete' || code === 'Backspace') {
       for (const b of this.sel) if (b.kind === 'building' && b.team === this.player) g.sellBuilding(b);
       return;

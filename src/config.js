@@ -221,6 +221,14 @@ export const ROLE_NAMES = {
 export const canRepair = (healer, target) => !!healer.def.repair && healer !== target && !target.dead &&
   target.kind === 'unit' && target.team === healer.team && target.def.producer === healer.def.repair.targets;
 
+// Damaged structures are repaired by their owner with credits, paid as health returns. A full repair
+// from zero costs `costShare` of the building's price (the repair cost of a tech site) and takes `time`
+// seconds at full power, whatever its size.
+export const BUILDING_REPAIR = { time: 25, costShare: 0.5 };
+export const buildingRepairCost = (def) => (def.cost || def.repairCost || 0) * BUILDING_REPAIR.costShare;
+export const canRepairBuilding = (b) => b.kind === 'building' && !b.dead && !!b.team && b.complete &&
+  (!b.tech || b.tech.state === 'online') && b.hp < b.maxHp;
+
 // Engineers take over tech structures that are not already theirs: ruins or enemy-held sites alike.
 export const canCapture = (unit, target) => !!unit.def.engineer && !unit.dead && !!target && !target.dead &&
   !!target.def?.tech && target.team !== unit.team;

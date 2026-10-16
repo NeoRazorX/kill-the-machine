@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DEFS, ROLE, TEAMS, N, SIZE, CELL, STRUCT_ROLES, UNIT_ROLES, ROLE_NAMES, PLAYER, globalRadarActive } from './config.js';
+import { DEFS, ROLE, TEAMS, N, SIZE, CELL, STRUCT_ROLES, UNIT_ROLES, ROLE_NAMES, PLAYER, globalRadarActive, buildingRepairCost, canRepairBuilding } from './config.js';
 import { buildUnitModel, buildBuildingModel } from './models.js';
 import { isCombatUnit, experienceText } from './experience.js';
 
@@ -263,8 +263,10 @@ export class UI {
   refreshSelPanel(force = false) {
     const sel = this.input.sel, panel = $('selpanel');
     // A tech structure redraws its panel whenever its owner, state or repair switch changes.
-    const key = sel.map((e) => e.tech ? `${e.id}:${this.techView(e).team}:${this.techView(e).state}:${e.tech.repairing}` :
-      e.kind === 'building' && e.def.weapon ? `${e.id}:${this.game.lowPower(e.team)}` : e.id).join(',');
+    // Structures also redraw when their repair button changes between repair, stop and hidden.
+    const repair = (e) => e.kind === 'building' ? `:${e.repairing}:${canRepairBuilding(e)}` : '';
+    const key = sel.map((e) => (e.tech ? `${e.id}:${this.techView(e).team}:${this.techView(e).state}:${e.tech.repairing}` :
+      e.kind === 'building' && e.def.weapon ? `${e.id}:${this.game.lowPower(e.team)}` : e.id) + repair(e)).join(',');
     if (!force && key === this.selKey) {
       this.updateSelBars();
       return;
@@ -279,10 +281,11 @@ export class UI {
       const pw = b.def.power;
       panel.innerHTML = `<div class="sp-head"><img src="${this.icons[b.def.id]}"><div><div class="sp-name">${b.def.name}</div>` +
         `<div class="sp-sub">${own ? (pw > 0 ? `⚡ +${pw}` : pw < 0 ? `⚡ ${pw}` : 'Base') : 'Edificio enemigo'}${b.def.produces && own ? ' · clic derecho: punto de reunión' : ''}${b.def.weapon && own && g.lowPower(b.team) ? ' · <b class="off">SIN ENERGÍA: apagada</b>' : ''}</div></div></div>` +
-        `<div class="hpbar"><i></i></div>` +
+        `<div class="hpbar"><i></i></div>` + this.repairControls(b) +
         (own && b.def.role !== 'hq' ? `<button id="sell-btn">Vender (Supr)</button>` : '');
       const sb = $('sell-btn');
       if (sb) sb.onclick = () => { g.sellBuilding(b); };
+      this.bindRepair(b);
     } else {
       const groups = new Map();
       for (const e of sel) { if (!groups.has(e.def.id)) groups.set(e.def.id, []); groups.get(e.def.id).push(e); }
@@ -349,9 +352,29 @@ export class UI {
       `<div class="hpbar"><i></i></div><div class="sp-tech"></div>` +
       (v.state === 'repairing' ? '<div class="repairbar"><i></i></div>' : '') +
       (own && v.state === 'repairing' ? `<button id="repair-btn">${b.tech.repairing ? 'Pausar reparación' : 'Reanudar reparación'}</button>` : '') +
+      (own && v.state === 'online' ? this.repairControls(b) : '') +
       `<div class="sp-desc">${b.def.desc}</div>`;
     const rb = $('repair-btn');
     if (rb) rb.onclick = () => { g.techSites.setRepairing(b, !b.tech.repairing); g.audio.play('click'); this.refreshSelPanel(true); };
+    this.bindRepair(b);
+  }
+
+  // Repair switch for a damaged structure of the player's: a status line and a toggle button (R).
+  repairControls(b) {
+    const g = this.game;
+    if (g.spectate || b.team !== g.player || (!b.repairing && !canRepairBuilding(b))) return '';
+    return `<div class="sp-repair"></div><button id="bld-repair-btn">${b.repairing ? 'Detener reparación (R)' : 'Reparar (R)'}</button>`;
+  }
+
+  bindRepair(b) {
+    const btn = $('bld-repair-btn');
+    if (btn) btn.onclick = () => { this.input.toggleRepair([b]); this.refreshSelPanel(true); };
+  }
+
+  repairStatus(b) {
+    const g = this.game, left = Math.ceil(buildingRepairCost(b.def) * (b.maxHp - b.hp) / b.maxHp);
+    if (!b.repairing) return `Dañado · reparación completa: ${left} $`;
+    return `Reparando · faltan ${left} $` + (b.repairWaiting ? ' · SIN FONDOS' : g.lowPower(b.team) ? ' · energía baja: más lenta' : '');
   }
 
   techStatus(b) {
@@ -393,6 +416,8 @@ export class UI {
       const repair = document.querySelector('#selpanel .repairbar i');
       if (repair) repair.style.width = (this.techView(sel[0]).progress * 100).toFixed(1) + '%';
     }
+    const repairLine = document.querySelector('#selpanel .sp-repair');
+    if (repairLine && sel.length === 1) repairLine.textContent = this.repairStatus(sel[0]);
     let hp = 0, max = 0;
     for (const e of sel) { hp += e.hp; max += e.maxHp; }
     const experience = document.querySelector('#selpanel .sp-experience');
