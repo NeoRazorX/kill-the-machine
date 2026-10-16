@@ -512,6 +512,7 @@ export class Unit {
       this.hp = Math.min(this.maxHp * sr.upTo, this.hp + sr.rate * dt);
     }
     this.game.fx.groundTrails?.emit(this, dt, oldX, oldZ);
+    this.game.fx.trackMarks?.emit(this, dt, oldX, oldZ);
     this.separate(dt);
     if (!this.aimed) {
       if (this.def.turret) {

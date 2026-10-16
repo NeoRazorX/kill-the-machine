@@ -120,12 +120,12 @@ U({ id: 'm_nanite', team: 'machine', role: 'medic', name: 'Nanodron', cost: 140,
     hp: 45, speed: 4.5, radius: 0.6, cls: 'light', height: 1.6, hover: true, sight: 20,
     repair: { targets: 'barracks', rate: 9, range: 5 },
     desc: 'Enjambre de nanobots que restaura drones y centinelas. Desarmado.' });
-U({ id: 'm_crusher', team: 'machine', role: 'tank', name: 'Segador', cost: 580, time: 14, producer: 'factory',
+U({ id: 'm_crusher', team: 'machine', role: 'tank', name: 'Segador', cost: 580, time: 14, producer: 'factory', tracks: 'legs',
     hp: 350, speed: 4.6, turn: 2.6, radius: 1.6, cls: 'armor', height: 2.6, turret: true, turretTurn: 3.2, fireOnMove: true,
     sight: 22,
     weapon: { range: 17, damage: 30, cd: 1.4, proj: 'plasma', splash: 2.5, mult: { light: 0.85, armor: 1, building: 1 } },
     desc: 'Máquina de guerra arácnida con cañón de plasma.' });
-U({ id: 'm_siege', team: 'machine', role: 'arty', name: 'Araña de Asedio', cost: 750, time: 16, producer: 'factory',
+U({ id: 'm_siege', team: 'machine', role: 'arty', name: 'Araña de Asedio', cost: 750, time: 16, producer: 'factory', tracks: 'legs',
     hp: 130, speed: 4, turn: 2.2, radius: 1.4, cls: 'armor', height: 2.8, turret: true, turretTurn: 2,
     sight: 20,
     weapon: { range: 40, damage: 50, cd: 3.8, proj: 'plasmalob', lob: 0.25, splash: 5, mult: { light: 1, armor: 0.8, building: 1.3 } },
@@ -191,7 +191,7 @@ U({ ...MAMMOTH, id: 'm_mammoth', team: 'machine' });
 
 // Long-range walker: outranges the Mammoth but is far less armoured and must stop to fire.
 // salvo: shells per volley, one per gun, salvoGap seconds apart.
-const JUGGERNAUT = { role: 'juggernaut', name: 'Juggernaut', cost: 2000, time: 36, producer: 'juggernaut',
+const JUGGERNAUT = { role: 'juggernaut', name: 'Juggernaut', cost: 2000, time: 36, producer: 'juggernaut', tracks: 'feet',
   hp: 650, speed: 3.8, turn: 2, radius: 1.9, cls: 'armor', height: 4.6, turret: true, turretTurn: 1.8,
   sight: 30,
   weapon: { range: 30, damage: 30, cd: 3.2, proj: 'arty', lob: 0.15, splash: 3.5, salvo: 3, salvoGap: 0.18,

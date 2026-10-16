@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GroundTrails } from './ground-trails.js';
+import { TrackMarks } from './track-marks.js';
 
 // Height of an arcing shell's flight over a horizontal distance d. Weapons with `lob` set how high
 // their arc rises, and their guns elevate to its launch angle.
@@ -30,6 +31,7 @@ export class FX {
     this.game = game; this.scene = scene;
     this.group = new THREE.Group(); scene.add(this.group);
     this.groundTrails = new GroundTrails(game, this.group);
+    this.trackMarks = new TrackMarks(game, this.group);
 
     // partículas (SoA)
     this.n = 0;
@@ -336,6 +338,7 @@ export class FX {
 
   update(dt) {
     this.groundTrails.update(dt);
+    this.trackMarks.update(dt);
     this.updateParticles(dt);
     this.updateProjectiles(dt);
     for (const f of this.flashes) {
