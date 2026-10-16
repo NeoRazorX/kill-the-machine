@@ -55,13 +55,15 @@ export function checkExperience() {
   assert(attacker.kills === 1, 'friendly kills grant no experience');
   const building = { kind: 'building', team: 'machine', hp: 1, def: DEFS.m_power, w: 2, h: 2, x: 0, z: 0 };
   eliminate(attacker, building);
-  assert(attacker.kills === 1, 'destroying buildings grants no experience');
+  assert(attacker.kills === 2 && building.dead, 'destroying an enemy structure counts as a kill');
+  eliminate(attacker, { kind: 'building', team: 'human', hp: 1, def: DEFS.h_power, w: 2, h: 2, x: 0, z: 0 });
+  assert(attacker.kills === 2, 'destroying a friendly structure grants no experience');
   const harvester = unit('human', 'h_harv'); eliminate(harvester);
   assert(harvester.kills === 0, 'harvesters cannot gain ranks');
   const tower = { kind: 'building', team: 'human' }; eliminate(tower);
   assert(tower.rank === undefined, 'static defenses cannot gain ranks');
   attacker.dead = true; eliminate(attacker);
-  assert(attacker.kills === 1, 'projectiles from a dead attacker grant no posthumous ranks');
+  assert(attacker.kills === 2, 'projectiles from a dead attacker grant no posthumous ranks');
 
   const shooter = unit(), fx = Object.assign(Object.create(FX.prototype), {
     game, projectiles: [], muzzle() {}, beam() {}, acquireProj() { return new THREE.Object3D(); },
