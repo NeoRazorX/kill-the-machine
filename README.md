@@ -33,7 +33,10 @@ dorada en el minimapa. Acerca cualquier unidad (o haz clic derecho sobre la caja
 para recibir entre 300 y 700 créditos. Cada caja se recoge una sola vez y también
 pueden recogerlas las máquinas: la IA envía su unidad de combate más rápida a
 explorar el mapa y a por las cajas que ha descubierto con su propia visión, nunca
-las que solo ha visto el rival (en Fácil no sale hasta los 2 min 30 s).
+las que solo ha visto el rival. Mientras busca tu base se desvía a por las que tiene
+cerca, y las unidades ociosas que estén a menos de 90 unidades de una caja vista van a
+recogerla (una a la vez en Fácil, dos en Normal y tres en Difícil); evita las que están
+junto a tu base. En Fácil no empieza hasta el minuto y medio.
 La distribución cambia al volver a jugar.
 Pruebas de reparto, niebla, recogida y economía: `npm run test:crates`.
 
@@ -249,6 +252,31 @@ el arranque desde solo el centro de mando, la recolección y el acceso a cuartel
 fábrica para ambos bandos en las tres dificultades, además de la reconstrucción.
 También comprueba que la IA empieza sin conocer la base enemiga, descarta las
 esquinas vacías, deduce la última y ataca la base una vez descubierta.
+
+La economía de la IA depende de la dificultad:
+
+| | Fácil | Normal | Difícil |
+|---|---|---|---|
+| Cosechadoras por refinería | 2 | 2 | 3 |
+| Refinerías | 2 (la 2.ª desde el min 7) | 2 (desde el min 2 30 s) | 3 (desde el min 1 y el 2) |
+| Ingresos por mineral | ×0,75 | ×1 | ×1,25 |
+
+Encarga una refinería más cuando las que tiene ya tienen sus cosechadoras y, mientras le
+falten cosechadoras o refinerías, ahorra: la refinería pasa delante de los edificios
+militares y el ejército espera hasta tener 1000 créditos, salvo si le atacan la base.
+Repone las cosechadoras perdidas poniéndolas al principio de la cola de la fábrica. Pone
+cada refinería nueva junto a un campo que no tenga ya una y reparte las cosechadoras entre
+los campos a menos de 120 unidades de sus refinerías: unas tres por campo, primero los más
+cercanos, y pasa a otro cuando el suyo se agota, se llena o queda junto a tu base. Nunca
+tiene más cosechadoras de las que ese mineral puede ocupar.
+
+`npm run test:ai-economy` simula 9 minutos de IA contra IA (la máquina en Normal y en Difícil
+contra los humanos en Normal) en cuatro semillas y comprueba cosechadoras, refinerías,
+campos explotados, cajas recogidas antes del minuto 5 e ingresos frente a las cifras de
+antes de este ajuste. En Difícil la IA pasa de 2 a 9 cosechadoras, de 1 a 3 refinerías y de
+2 a 4 o 5 campos; recoge su primera caja a los 12–38 s (antes, 22–83 s) e ingresa unos
+37 000 $ en 9 minutos (antes, 15 400 $). En Normal, de 11 700 $ a unos 19 000 $.
+`node tests/ai-economy.mjs --report --easy` muestra la tabla con Fácil incluido.
 
 La IA ordena su base como en C&C: deja pasillos de dos celdas entre edificios (caben
 una cosechadora o un tanque), no tapa los muelles de las refinerías ni las salidas

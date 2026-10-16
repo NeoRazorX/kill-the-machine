@@ -12,6 +12,12 @@ export const LAYOUT_LEVELS = [{ gap: 2 }, { gap: 1 }, { gap: 1, loose: true }];
 // runway: the softer zone ahead of any exit that the layout prefers to leave open.
 export const EXIT = { producer: { side: 1, depth: 3 }, refinery: { side: 2, depth: 4 }, runway: 8 };
 const TURRET_REACH = 14;
+// Economy: fields further than ORE_RANGE from every refinery dock are not worth the drive, a field with
+// less than ORE_MIN left is treated as spent, and while harvesters or a refinery are missing the army
+// waits until there are ECO_RESERVE credits. Idle units go for seen crates within CRATE_REACH.
+const ORE_RANGE = 120, ORE_MIN = 400, ECO_RESERVE = 1000, CRATE_REACH = 90;
+// How many harvesters a field keeps busy without them queueing for the ore.
+export const fieldSlots = (f) => Math.max(2, Math.round(f.r / 3));
 
 // Cells in front of a building that must stay clear: where units come out or harvesters unload.
 // With depth, the same strip reaching that many cells out.
@@ -43,6 +49,7 @@ export class AI {
     this.corners = game.map.spawns.filter(([x, z]) => x !== ox || z !== oz).map(([x, z]) => ({ x: x * CELL, z: z * CELL }));
     this.known = new Set(); this.enemyBase = null;
     this.engineer = null; this.techRetry = 0;
+    this.crateHunt = new Map(); this.refineryBlocked = -99;
     this.seed = 1 + Math.floor(Math.random() * 1e6);
   }
 
@@ -55,9 +62,11 @@ export class AI {
     this.manageStructures();
     this.manageRepairs();
     this.manageUnits();
+    this.manageHarvesters();
     this.manageWaves(d);
     this.manageDefense();
     this.manageScout();
+    this.manageCrates();
     this.manageTech();
     this.manageSuperweapons();
   }
@@ -107,6 +116,92 @@ export class AI {
     return best;
   }
 
+  // ----------------------------------------------------------------- economía
+  // Ore fields worth working from these refineries: with ore left, within reach of a dock and away
+  // from the enemy base once it is known.
+  oreFields(refs) {
+    const e = this.enemyBase;
+    return this.g.map.fields.filter((f) => f.amount > ORE_MIN && (!e || Math.hypot(f.x - e.x, f.z - e.z) > 60)
+      && refs.some((r) => Math.hypot(r.dock.x - f.x, r.dock.z - f.z) < ORE_RANGE));
+  }
+
+  // Economic targets for this think: refineries by difficulty and match time, harvesters per refinery
+  // up to what the nearby ore keeps busy. short: something economic is missing, so the army waits.
+  economy() {
+    const g = this.g, team = this.team, d = this.diff;
+    const refs = g.teamBuildings(team, 'refinery'), done = refs.filter((b) => b.complete);
+    const harvesters = g.units.filter((u) => u.team === team && !u.dead && u.def.harvester).length;
+    const queued = g.queuedCount(team, ROLE[team].harv.id);
+    const slots = this.oreFields(refs).reduce((a, f) => a + fieldSlots(f), 0);
+    const wantHarv = Math.min(Math.max(1, done.length) * d.harvPerRef, Math.max(2, slots));
+    // Another refinery, past the difficulty's time for each one, once the current ones have their harvesters.
+    let wantRefs = Math.max(1, refs.length);
+    const building = refs.length > done.length || g.teams[team].structQueue?.def.role === 'refinery';
+    if (!building && refs.length < d.maxRefineries && g.time >= d.expandAt * refs.length && g.time >= this.refineryBlocked
+      && harvesters + queued >= done.length * d.harvPerRef - 1) wantRefs = refs.length + 1;
+    const factory = g.hasRole(team, 'factory');
+    const missing = factory ? Math.max(0, wantHarv - harvesters - queued) : 0;
+    return { wantHarv, wantRefs, refs: refs.length, harvesters, queued, missing, short: missing > 0 || wantRefs > refs.length || building };
+  }
+
+  // Spreads the harvesters over the ore near its refineries: each field takes a few, the fields closest
+  // to a dock fill first, and a harvester moves on when its field runs dry or is crowded. One that is
+  // already driving to or working a field finishes its load there.
+  manageHarvesters() {
+    const g = this.g, team = this.team;
+    const refs = g.teamBuildings(team, 'refinery').filter((b) => b.complete);
+    const harv = g.units.filter((u) => u.team === team && !u.dead && u.def.harvester && u.order.type === 'harvest');
+    if (!refs.length || !harv.length) return;
+    const fields = this.oreFields(refs);
+    if (!fields.length) return;
+    const dist = new Map(fields.map((f) => [f, Math.min(...refs.map((r) => Math.hypot(r.dock.x - f.x, r.dock.z - f.z)))]));
+    const load = new Map(fields.map((f) => [f, 0]));
+    const working = (u) => u.hstate === 'gather' || u.hstate === 'toField';
+    harv.sort((a, b) => working(b) - working(a));
+    const free = [];
+    for (const u of harv) {
+      const f = u.order.field;
+      if (f && load.has(f) && (load.get(f) < fieldSlots(f) || working(u))) load.set(f, load.get(f) + 1);
+      else free.push(u);
+    }
+    for (const u of free) {
+      let best = null, bs = 1e9;
+      for (const f of fields) {
+        const n = load.get(f), s = dist.get(f) + n * 12 + (n >= fieldSlots(f) ? 400 : 0);
+        if (s < bs) { bs = s; best = f; }
+      }
+      load.set(best, load.get(best) + 1);
+      u.order.field = best;
+      if (u.hstate === 'idle') u.field = best;
+    }
+  }
+
+  // Idle units near a crate their side has seen go and pick it up, a few at a time; the scout takes
+  // the far ones. Crates by the known enemy base are left alone.
+  manageCrates() {
+    const g = this.g;
+    for (const [c, u] of this.crateHunt) {
+      if (c.collected || u.dead || u.order.type !== 'move' || u.order.x !== c.x || u.order.z !== c.z) this.crateHunt.delete(c);
+    }
+    if (g.time < this.diff.scoutDelay) return;
+    let pool = null;
+    for (const c of g.cashCrates.discoveredBy(this.team)) {
+      if (this.crateHunt.size >= this.diff.crateHunters) break;
+      if (this.crateHunt.has(c) || this.scoutCrate === c) continue;
+      if (this.enemyBase && Math.hypot(c.x - this.enemyBase.x, c.z - this.enemyBase.z) < 60) continue;
+      pool ||= this.armyIdle().filter((u) => u.def.weapon);
+      let best = null, bd = CRATE_REACH;
+      for (const u of pool) {
+        const d = Math.hypot(u.x - c.x, u.z - c.z);
+        if (d < bd) { bd = d; best = u; }
+      }
+      if (!best) continue;
+      best.cmdMove(c.x, c.z);
+      this.crateHunt.set(c, best);
+      pool = pool.filter((u) => u !== best);
+    }
+  }
+
   // -------------------------------------------------------------- estructuras
   // Repairs structures below 80 % while there is money to spare, and lets them wait when funds run
   // low so production and rebuilding keep priority.
@@ -134,12 +229,13 @@ export class AI {
       // Esperar a que termine de desplegarse sin encargar otro edificio igual.
       return;
     }
-    const pw = T.power;
+    const pw = T.power, eco = this.economy();
     const want = [];
     if (pw.use + 25 > pw.prod) want.push('power');
+    // Another refinery comes before anything military, and the AI saves up for it.
+    if (eco.wantRefs > n('refinery')) want.push('refinery');
     if (!has('barracks')) want.push('barracks');
     if (!has('factory')) want.push('factory');
-    if (n('refinery') < 2 && T.credits > 1300 && n('factory') >= 1) want.push('refinery');
     if (n('turret') < Math.min(1 + this.waveNo, 6) && has('barracks')) want.push('turret');
     if (T.credits > 2500 && n('factory') < 2) want.push('factory');
     if (T.credits > 1800 && n('barracks') < 2) want.push('barracks');
@@ -147,7 +243,10 @@ export class AI {
     if (T.credits > 3200 && n('turret') < 8) want.push('turret');
     for (const r of want) {
       const def = ROLE[team][r];
-      if (T.credits < def.cost * 0.35) continue;
+      if (T.credits < def.cost * 0.35) {
+        if (r === 'refinery') break;
+        continue;
+      }
       if (g.startStruct(team, def.id)) break;
     }
   }
@@ -160,7 +259,11 @@ export class AI {
     if (!hq) return;
     const spot = this.layoutSpot(def);
     if (spot) { g.placeStruct(this.team, spot.cx, spot.cz); this.placeFail = 0; }
-    else if (++this.placeFail >= 8) { g.cancelStruct(this.team); this.placeFail = 0; }
+    else if (++this.placeFail >= 8) {
+      // No room: a refinery is not tried again for a while, so the AI does not keep saving for it.
+      if (def.role === 'refinery') this.refineryBlocked = g.time + 60;
+      g.cancelStruct(this.team); this.placeFail = 0;
+    }
   }
 
   layoutSpot(def) {
@@ -177,11 +280,16 @@ export class AI {
     const el = Math.hypot(e.x - hq.x, e.z - hq.z) || 1, ex = (e.x - hq.x) / el, ez = (e.z - hq.z) / el;
     let field = null;
     if (def.role === 'refinery') {
-      let bd = 1e9;
+      // The nearest field, preferring one no refinery of its own serves yet so the harvesters spread out.
+      const docks = own.filter((b) => b.def.role === 'refinery').map((b) => b.dock);
+      let bs = 1e9;
       for (const f of g.map.fields) {
         if (f.amount <= 0) continue;
         const d = core.reduce((m, b) => Math.min(m, Math.hypot(f.x - b.x, f.z - b.z)), 1e9);
-        if (d < bd && d < 70) { bd = d; field = f; }
+        if (d >= 70) continue;
+        const served = docks.filter((k) => Math.hypot(k.x - f.x, k.z - f.z) < f.r + 24).length;
+        const s = d + served * 45 + (f.amount < 2000 ? 40 : 0);
+        if (s < bs) { bs = s; field = f; }
       }
     }
     // Every cell that could still lie within the build radius, scored first and validated in order.
@@ -252,11 +360,19 @@ export class AI {
     for (const b of producers) if (st && !b.rally) b.rally = { x: st.x + (Math.random() - 0.5) * 10, z: st.z + (Math.random() - 0.5) * 10 };
     if (!producers.length) return;
 
-    const harvDef = ROLE[team].harv;
-    const refs = g.teamBuildings(team, 'refinery').length;
-    const wantH = refs >= 2 ? 3 : 2;
-    const haveH = g.units.filter((u) => u.team === team && !u.dead && u.def.harvester).length + g.queuedCount(team, harvDef.id);
-    if (haveH < wantH && g.hasRole(team, 'factory') && T.credits >= 400) { g.queueUnit(team, harvDef.id); return; }
+    // Missing harvesters go first: one per factory at a time, moved to the front of its queue.
+    const harvDef = ROLE[team].harv, eco = this.economy();
+    const factories = g.producers(team, 'factory').length;
+    if (eco.missing > 0 && eco.queued < factories && g.queueUnit(team, harvDef.id)) {
+      for (const b of producers) {
+        const i = b.queue.findIndex((it) => it.def === harvDef);
+        if (i > 0) b.queue.unshift(...b.queue.splice(i, 1));
+      }
+      return;
+    }
+    // While it saves for harvesters or a refinery the army waits, unless the base is under attack.
+    const la = T.lastAttacked, attacked = la && g.time - la.t < 15;
+    if (eco.short && !attacked && T.credits < ECO_RESERVE) return;
 
     const queued = producers.reduce((a, b) => a + b.queue.length, 0);
     if (queued >= producers.length * 2) return;
@@ -289,7 +405,12 @@ export class AI {
   }
 
   armyIdle() {
-    return this.g.units.filter((u) => u.team === this.team && !u.dead && !u.def.harvester && (u.def.weapon || u.def.repair) && u !== this.scout && !this.group.includes(u) && (u.order.type === 'idle' || (u.order.type === 'move' && !u.path)));
+    return this.g.units.filter((u) => u.team === this.team && !u.dead && !u.def.harvester && (u.def.weapon || u.def.repair) && u !== this.scout && !this.group.includes(u) && !this.isCrateHunter(u) && (u.order.type === 'idle' || (u.order.type === 'move' && !u.path)));
+  }
+
+  isCrateHunter(u) {
+    for (const h of this.crateHunt.values()) if (h === u) return true;
+    return false;
   }
 
   pickTarget(from) {
@@ -343,12 +464,13 @@ export class AI {
   manageScout() {
     const g = this.g, crates = g.cashCrates;
     if (this.scout?.dead) this.scout = null;
+    if (!this.scout) this.scoutCrate = null;
     const hunting = !this.enemyBase && this.corners.length > 0;
     // Everyone knows how many tech structures the map holds, so the scout keeps looking for them.
     const unexplored = this.explored.size < SECTORS * SECTORS;
     const missingTech = g.techSites.items.some((b) => !b.tech.found[this.team]);
     const looting = (unexplored && (missingTech || crates.items.some((c) => !c.collected))) || crates.discoveredBy(this.team).length > 0;
-    if (!hunting && !looting) { this.scout = null; return; }
+    if (!hunting && !looting) { this.scout = null; this.scoutCrate = null; return; }
     if (!this.scout) {
       // En fácil el explorador sale más tarde para dar ventaja al jugador.
       if (g.time < this.diff.scoutDelay) return;
@@ -360,21 +482,24 @@ export class AI {
     }
     const s = this.scout;
     this.explored.add(this.sectorAt(s.x, s.z));
+    // Seen crates nobody else is fetching; while it hunts for the enemy it only detours for close ones.
+    let best = null, bd = hunting ? 40 : 1e9;
+    for (const c of crates.discoveredBy(this.team)) {
+      if (this.crateHunt.has(c)) continue;
+      const d = Math.hypot(c.x - s.x, c.z - s.z);
+      if (d < bd) { bd = d; best = c; }
+    }
+    this.scoutCrate = best;
+    if (best) {
+      if (s.order.type !== 'move' || s.order.x !== best.x || s.order.z !== best.z) s.cmdMove(best.x, best.z);
+      this.scoutGoal = null;
+      return;
+    }
     if (hunting) {
       // Keep heading to the same corner until it has been seen, so the scout never dithers.
       if (!this.corners.includes(this.scoutCorner)) this.scoutCorner = this.nearestCorner(s);
       const c = this.scoutCorner;
       if (s.order.type !== 'move' || s.order.x !== c.x || s.order.z !== c.z) s.cmdMove(c.x, c.z);
-      this.scoutGoal = null;
-      return;
-    }
-    let best = null, bd = 1e9;
-    for (const c of crates.discoveredBy(this.team)) {
-      const d = Math.hypot(c.x - s.x, c.z - s.z);
-      if (d < bd) { bd = d; best = c; }
-    }
-    if (best) {
-      if (s.order.type !== 'move' || s.order.x !== best.x || s.order.z !== best.z) s.cmdMove(best.x, best.z);
       this.scoutGoal = null;
       return;
     }

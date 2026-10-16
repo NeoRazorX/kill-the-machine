@@ -29,10 +29,15 @@ export const TEAMS = {
 // buildings show their entrances and service equipment to the camera.
 export const buildingFront = () => 1;
 
+// income: multiplier on the AI's mining. harvPerRef: harvesters the AI keeps per refinery; maxRefineries: how
+// many it builds, the n-th extra one not before n × expandAt seconds; crateHunters: idle units it may send after cash crates it has seen.
 export const DIFFICULTY = {
-  easy:   { label: 'Fácil',   income: 0.7, think: 1.3, firstWave: 360, waveGap: 150, minArmy: 6, scoutDelay: 150, techDelay: 420 },
-  normal: { label: 'Normal',  income: 0.9, think: 0.9, firstWave: 280, waveGap: 115, minArmy: 8, scoutDelay: 0, techDelay: 200 },
-  hard:   { label: 'Difícil', income: 1.2, think: 0.5, firstWave: 210, waveGap: 80,  minArmy: 10, scoutDelay: 0, techDelay: 90 },
+  easy:   { label: 'Fácil',   income: 0.75, think: 1.3, firstWave: 360, waveGap: 150, minArmy: 6, scoutDelay: 90, techDelay: 420,
+            harvPerRef: 2, maxRefineries: 2, expandAt: 420, crateHunters: 1 },
+  normal: { label: 'Normal',  income: 1,    think: 0.9, firstWave: 280, waveGap: 115, minArmy: 8, scoutDelay: 0, techDelay: 200,
+            harvPerRef: 2, maxRefineries: 2, expandAt: 150, crateHunters: 2 },
+  hard:   { label: 'Difícil', income: 1.25, think: 0.5, firstWave: 210, waveGap: 80,  minArmy: 10, scoutDelay: 0, techDelay: 90,
+            harvPerRef: 3, maxRefineries: 3, expandAt: 60, crateHunters: 3 },
 };
 
 export const DEFS = {};

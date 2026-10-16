@@ -52,7 +52,8 @@ function fixture(seed, team, slot) {
 // Lets the AI order and place everything it wants, with money to spare and instant construction.
 function buildOut(game, ai) {
   const T = game.teams[ai.team], initial = new Set(game.buildings);
-  ai.waveNo = 5;
+  // Late enough in the match for every refinery the difficulty allows.
+  ai.waveNo = 5; game.time = 600;
   let idle = 0;
   for (let i = 0; i < 300 && idle < 3; i++) {
     T.credits = 100000;

@@ -18,6 +18,7 @@
     "test:track-marks": "node tests/track-marks.mjs",
     "test:building-repair": "node tests/building-repair.mjs",
     "test:music": "node tests/music.mjs",
-    "test:harvest-queue": "node tests/harvest-queue.mjs"
+    "test:harvest-queue": "node tests/harvest-queue.mjs",
+    "test:ai-economy": "node tests/ai-economy.mjs"
   }
 }
