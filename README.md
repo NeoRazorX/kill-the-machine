@@ -9,7 +9,9 @@ Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
     npm start            # o: python3 -m http.server 8765
     # abre http://localhost:8765
 
-Parámetros opcionales: `?autostart=easy|normal|hard`, `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada),
+La dificultad empieza marcada en **Fácil**; se cambia en el menú y no se recuerda entre partidas.
+
+Parámetros opcionales: `?autostart=easy|normal|hard` (empieza sin pasar por el menú, en Fácil si no se indica otra), `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada),
 `&spawn=0,2` (fija las esquinas de humanos y máquinas: 0 abajo a la izquierda y después en sentido horario),
 `&map=temperate|desert|ice|random` (aspecto del mapa), `&tech=random|none|t_silo,t_mine,…` (estructuras
 tecnológicas al azar, ninguna o las indicadas; ver más abajo) y `&seed=n` (repite una disposición de árboles y rocas).

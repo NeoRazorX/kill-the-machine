@@ -144,7 +144,8 @@ const techNews = (n) => n === 1 ? 'Hay una estructura tecnológica en ruinas: en
 
 let input = null, ui = null, started = false, speed = 1;
 const diffEls = [...document.querySelectorAll('.diff[data-d]')];
-let difficulty = 'normal';
+// Easy is preselected; ?autostart=easy|normal|hard picks one for an automatic start.
+let difficulty = 'easy';
 diffEls.forEach((el) => {
   el.onclick = () => { difficulty = el.dataset.d; diffEls.forEach((e) => e.classList.toggle('active', e === el)); };
 });
@@ -187,7 +188,7 @@ document.getElementById('btn-start').onclick = () => begin(false);
 document.getElementById('btn-spectate').onclick = () => begin(true);
 
 if (params.has('autostart')) {
-  difficulty = DIFFICULTY[params.get('autostart')] ? params.get('autostart') : 'normal';
+  difficulty = DIFFICULTY[params.get('autostart')] ? params.get('autostart') : difficulty;
   begin(params.has('spectate'));
 }
 speed = Math.max(1, Math.min(20, parseInt(params.get('speed') || '1', 10)));
