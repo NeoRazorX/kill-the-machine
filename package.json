@@ -10,6 +10,7 @@
     "test:experience": "node tests/run-experience.mjs",
     "test:repair": "node tests/repair.mjs",
     "test:ai": "node tests/ai.mjs",
+    "test:ai-layout": "node tests/ai-layout.mjs",
     "test:crates": "node tests/crates.mjs",
     "test:tech": "node tests/tech.mjs",
     "test:radar": "node tests/radar.mjs",

@@ -1,7 +1,34 @@
-import { N, CELL, ROLE, other, canCapture, canRepairBuilding, visionRadius } from './config.js';
+import { N, CELL, ROLE, BUILD_RADIUS, buildingFront, other, canCapture, canRepairBuilding, visionRadius } from './config.js';
 
 const SECTOR = 32; // lado en unidades de mundo de cada zona que explora el explorador
 const SECTORS = N * CELL / SECTOR;
+
+// Base layout, tried from the tidiest level to the loosest. gap: walkway between buildings, in cells
+// (two let a harvester or a tank through; placement never allows less than one). The loose level also
+// lets a turret stray from the base and a new building's own exit run into rocks, but no exit ever
+// holds a building. Exits (cells): producers keep a strip in front, refineries a wider apron for
+// the dock and its waiting harvesters. Turrets stay within TURRET_REACH (world units) of the base.
+export const LAYOUT_LEVELS = [{ gap: 2 }, { gap: 1 }, { gap: 1, loose: true }];
+// runway: the softer zone ahead of any exit that the layout prefers to leave open.
+export const EXIT = { producer: { side: 1, depth: 3 }, refinery: { side: 2, depth: 4 }, runway: 8 };
+const TURRET_REACH = 14;
+
+// Cells in front of a building that must stay clear: where units come out or harvesters unload.
+// With depth, the same strip reaching that many cells out.
+export function apron(b, depth = 0) {
+  const e = b.def.role === 'refinery' ? EXIT.refinery : b.def.produces ? EXIT.producer : null;
+  if (!e) return null;
+  const f = b.front ?? 1, d = depth || e.depth;
+  return { cx: b.cx - e.side, w: b.w + 2 * e.side, cz: f > 0 ? b.cz + b.h : b.cz - d, h: d };
+}
+// Stable per-AI noise so equal spots are not always picked the same way, without using Math.random.
+const jitter = (cx, cz, seed) => ((Math.imul(cx * 73856093 ^ cz * 19349663, seed | 1) >>> 0) % 1000) / 1000;
+const overlap = (a, b) => a.cx < b.cx + b.w && b.cx < a.cx + a.w && a.cz < b.cz + b.h && b.cz < a.cz + a.h;
+// Free distance (world units, per axis, the larger one) between a footprint at (cx, cz) and a building.
+function rectGap(cx, cz, def, b) {
+  const dx = Math.max(0, b.cx - (cx + def.w), cx - (b.cx + b.w)), dz = Math.max(0, b.cz - (cz + def.h), cz - (b.cz + b.h));
+  return Math.max(dx, dz) * CELL;
+}
 
 // IA de construcción, producción y ataque. Sirve para ambos bandos (modo espectador).
 export class AI {
@@ -16,6 +43,7 @@ export class AI {
     this.corners = game.map.spawns.filter(([x, z]) => x !== ox || z !== oz).map(([x, z]) => ({ x: x * CELL, z: z * CELL }));
     this.known = new Set(); this.enemyBase = null;
     this.engineer = null; this.techRetry = 0;
+    this.seed = 1 + Math.floor(Math.random() * 1e6);
   }
 
   update(dt) {
@@ -124,30 +152,96 @@ export class AI {
     }
   }
 
+  // Lays the base out like a C&C AI: walkways between buildings, refinery docks and producer exits kept
+  // clear, refineries by the ore and turrets on the side facing the enemy. When room runs short the
+  // spacing shrinks one step at a time, and as a last resort any valid spot that leaves exits clear will do.
   placeStructure(def) {
     const g = this.g, hq = this.hq;
     if (!hq) return;
-    const hcx = Math.floor(hq.x / CELL), hcz = Math.floor(hq.z / CELL);
-    const R = 8 + this.placeFail * 2;
-    let best = null, bestS = 1e9;
-    const stage = this.stage();
+    const spot = this.layoutSpot(def);
+    if (spot) { g.placeStruct(this.team, spot.cx, spot.cz); this.placeFail = 0; }
+    else if (++this.placeFail >= 8) { g.cancelStruct(this.team); this.placeFail = 0; }
+  }
+
+  layoutSpot(def) {
+    const g = this.g, team = this.team, hq = this.hq;
+    const own = g.teamBuildings(team).filter((b) => !b.def.tech);
+    const core = own.filter((b) => b.def.role !== 'turret');
+    const others = g.buildings.filter((b) => !b.dead);
+    const aprons = others.map((b) => apron(b)).filter(Boolean);
+    // Beyond each exit, units still need room to get going: keep that ground open where possible.
+    const runways = others.map((b) => apron(b, EXIT.runway)).filter(Boolean);
+    const turrets = own.filter((b) => b.def.role === 'turret');
+    // Direction to the enemy (or the map centre while it is unknown), for turrets and production.
+    const e = this.enemyBase || { x: N * CELL / 2, z: N * CELL / 2 };
+    const el = Math.hypot(e.x - hq.x, e.z - hq.z) || 1, ex = (e.x - hq.x) / el, ez = (e.z - hq.z) / el;
     let field = null;
     if (def.role === 'refinery') {
       let bd = 1e9;
-      for (const f of g.map.fields) { const d = Math.hypot(f.x - hq.x, f.z - hq.z); if (d < bd && d < 70) { bd = d; field = f; } }
+      for (const f of g.map.fields) {
+        if (f.amount <= 0) continue;
+        const d = core.reduce((m, b) => Math.min(m, Math.hypot(f.x - b.x, f.z - b.z)), 1e9);
+        if (d < bd && d < 70) { bd = d; field = f; }
+      }
     }
-    for (let k = 0; k < 90; k++) {
-      const cx = hcx + Math.round((Math.random() - 0.5) * 2 * R) - 1;
-      const cz = hcz + Math.round((Math.random() - 0.5) * 2 * R) - 1;
-      if (!g.canPlace(this.team, def, cx, cz, true)) continue;
-      const px = (cx + def.w / 2) * CELL, pz = (cz + def.h / 2) * CELL;
-      let s = Math.hypot(px - hq.x, pz - hq.z);
-      if (def.role === 'turret' && stage) s = Math.hypot(px - stage.x, pz - stage.z) * 0.6 + Math.random() * 6;
-      if (field) s = Math.hypot(px - field.x, pz - field.z) + Math.random() * 3;
-      if (s < bestS) { bestS = s; best = { cx, cz }; }
+    // Every cell that could still lie within the build radius, scored first and validated in order.
+    const reach = Math.ceil(BUILD_RADIUS / CELL) + Math.max(def.w, def.h);
+    let x0 = N, z0 = N, x1 = 0, z1 = 0;
+    for (const b of own) { x0 = Math.min(x0, b.cx); z0 = Math.min(z0, b.cz); x1 = Math.max(x1, b.cx + b.w); z1 = Math.max(z1, b.cz + b.h); }
+    const cands = [];
+    for (let cz = Math.max(1, z0 - reach); cz <= Math.min(N - 1 - def.h, z1 + reach); cz++) {
+      for (let cx = Math.max(1, x0 - reach); cx <= Math.min(N - 1 - def.w, x1 + reach); cx++) {
+        const px = (cx + def.w / 2) * CELL, pz = (cz + def.h / 2) * CELL;
+        const dx = px - hq.x, dz = pz - hq.z, along = dx * ex + dz * ez, dist = Math.hypot(dx, dz);
+        let s, far = false;
+        if (def.role === 'turret') {
+          // Out on the front, spread apart, but never far from the buildings they guard.
+          far = core.reduce((m, b) => Math.min(m, rectGap(cx, cz, def, b)), 1e9) > TURRET_REACH;
+          s = -along + turrets.reduce((a, t) => a + Math.max(0, 16 - Math.hypot(t.x - px, t.z - pz)) * 2, 0);
+        } else if (field) {
+          // Refinery docks face +Z: put the dock, not the building, next to the ore.
+          const dkx = px + (def.dock?.x ?? 0), dkz = (cz + def.h) * CELL + (def.dock?.clearance ?? 2.6);
+          s = Math.hypot(dkx - field.x, dkz - field.z) - field.r + dist * 0.25;
+        } else {
+          // Power at the back, production towards the front so units come out facing the enemy.
+          s = dist + (def.role === 'power' ? 0.4 : def.produces ? -0.3 : 0) * along;
+        }
+        const rect = { cx, cz, w: def.w, h: def.h };
+        if (runways.some((r) => overlap(rect, r))) s += 8;
+        const run = apron({ cx, cz, w: def.w, h: def.h, def, front: buildingFront(def) }, EXIT.runway);
+        if (run && others.some((b) => overlap(run, b))) s += 20;
+        // Rows: prefer lining up with an edge of a neighbour.
+        if (own.some((b) => b.cx === cx || b.cz === cz || b.cz + b.h === cz + def.h)) s -= 1.5;
+        cands.push({ cx, cz, far, s: s + jitter(cx, cz, this.seed) });
+      }
     }
-    if (best) { g.placeStruct(this.team, best.cx, best.cz); this.placeFail = 0; }
-    else if (++this.placeFail >= 8) { g.cancelStruct(this.team); this.placeFail = 0; }
+    cands.sort((a, b) => a.s - b.s);
+    for (const level of LAYOUT_LEVELS) {
+      for (const c of cands) {
+        if (c.far && !level.loose) continue;
+        if (this.layoutFits(def, c.cx, c.cz, level, others, aprons)) return c;
+      }
+    }
+    return null;
+  }
+
+  layoutFits(def, cx, cz, { gap, loose }, others, aprons) {
+    const g = this.g;
+    const rect = { cx, cz, w: def.w, h: def.h };
+    for (const b of others) if (rectGap(cx, cz, def, b) < gap * CELL) return false;
+    // Nothing may sit on another building's exit, and this building's own exit must be open ground.
+    for (const a of aprons) if (overlap(rect, a)) return false;
+    const mine = apron({ cx, cz, w: def.w, h: def.h, def, front: buildingFront(def) });
+    if (mine) {
+      if (!loose && (mine.cx < 1 || mine.cz < 1 || mine.cx + mine.w > N - 1 || mine.cz + mine.h > N - 1)) return false;
+      for (let z = Math.max(0, mine.cz); z < Math.min(N, mine.cz + mine.h); z++) {
+        for (let x = Math.max(0, mine.cx); x < Math.min(N, mine.cx + mine.w); x++) {
+          const v = g.map.grid[z * N + x];
+          if (v === 2 || (v && !loose)) return false;
+        }
+      }
+    }
+    return g.canPlace(this.team, def, cx, cz, true);
   }
 
   // ----------------------------------------------------------------- unidades

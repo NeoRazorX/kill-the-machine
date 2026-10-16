@@ -250,6 +250,16 @@ fábrica para ambos bandos en las tres dificultades, además de la reconstrucci�
 También comprueba que la IA empieza sin conocer la base enemiga, descarta las
 esquinas vacías, deduce la última y ataca la base una vez descubierta.
 
+La IA ordena su base como en C&C: deja pasillos de dos celdas entre edificios (caben
+una cosechadora o un tanque), no tapa los muelles de las refinerías ni las salidas
+del cuartel y la fábrica, y procura dejar libre el terreno que hay delante. Pone las
+refinerías con el muelle junto al mineral, la energía detrás y las torretas en el
+lado que mira al enemigo, repartidas y sin alejarse de la base. Si falta sitio,
+estrecha los pasillos a una celda antes de rendirse. `npm run test:ai-layout` levanta
+bases completas en varios mapas y esquinas y comprueba huecos, muelles, salidas, que
+los vehículos pueden salir de la base y que la IA sigue construyendo en una esquina
+estrecha.
+
 ## Estructura
 `src/config.js` definiciones · `map.js` terreno · `pathfinding.js` A* · `units.js` / `buildings.js` entidades ·
 `game.js` simulación · `tech-sites.js` estructuras tecnológicas · `ai.js` IA · `fx.js` efectos y proyectiles · `models.js` modelos procedurales ·
