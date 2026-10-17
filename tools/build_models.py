@@ -3053,9 +3053,65 @@ def drone():
     save('m_drone')
 
 
-def mobile_radar(machine=False):
+def sphere_patch(name, c, r, a0, a1, e0, e1, tint, t=.08):
+    # Plate of a spherical shell around c between azimuths a0..a1 (0 = +X, pi/2 = +Z) and elevations e0..e1.
+    P = lambda a, e, rr: (c[0] + math.cos(a)*math.cos(e)*rr, c[1] + math.sin(e)*rr, c[2] + math.sin(a)*math.cos(e)*rr)
+    outer = [P(a0,e0,r), P(a1,e0,r), P(a1,e1,r), P(a0,e1,r)]
+    inner = [P(a0,e0,r-t), P(a1,e0,r-t), P(a1,e1,r-t), P(a0,e1,r-t)]
+    faces = [(0,1,2,3), (7,6,5,4), (0,4,5,1), (1,5,6,2), (2,6,7,3), (3,7,4,0)]
+    return solid(name, outer + inner, faces, tint)
+
+
+def radome(c, r, tint, n=10, rings=(-.5,-.12,.28,.7,1.12,1.45), gap=.02):
+    # Panelled ball: plates over a dark inner sphere, so the seams read as dark lines.
+    out = [gem('Radome core', (r-.06,r-.06,r-.06), c, '#1a2028')]
+    for i in range(n):
+        a0, a1 = i*math.tau/n + gap, (i+1)*math.tau/n - gap
+        for j in range(len(rings)-1):
+            out.append(sphere_patch('Radome plate', c, r, a0, a1, rings[j]+gap, rings[j+1]-gap, tint, .07))
+    return out + [rod('Radome cap', r*.18, (c[0], c[1]+r*.99, c[2]), .05, tint, 'y', 12)]
+
+
+RADAR_DOME = (0,3.05,-.35), .55   # radome centre and radius, on top of the mast
+RADAR_FINS = (0,2.42,-.35)        # `dish` pivot: the ring of sensor fins under the radome
+
+
+def machine_radar():
+    # Machine mobile radar: a low spider on the welder's four legs carrying a dark radome on a
+    # telescopic mast. Under the ball a ring of three red-eyed sensor fins turns while it scans.
     reset()
-    hull, edge, base, accent = (MACHINE, MPLATE, BLACK, RED) if machine else (OLIVE, LIGHT, DARK, BLUE)
+    for i, leg in enumerate(WELD_LEGS):
+        welder_leg(i, *leg)
+    (cx, cy, cz), r = RADAR_DOME
+    parts = [armor('Belly',.8,1.3,.42,.58,.1,(0,-.3),BLACK,0),
+             loft('Hull',[(-1.05,.4,.5,1.0),(-.75,.5,.46,1.05),(.15,.5,.46,1.05),(.55,.4,.5,1.0)],MACHINE,0),
+             loft('Carapace',[(-1.1,.4,.98,1.2),(-.8,.66,.97,1.36),(-.2,.74,.97,1.42),(.3,.7,.98,1.38),(.6,.48,1.0,1.26)],MACHINE,0),
+             loft('Head',[(.5,.32,.7,1.2),(.78,.3,.74,1.16),(.95,.2,.8,1.06)],MPLATE,0),
+             armor('Mast base',.7,.7,1.3,1.6,.25,(cx,cz),BLACK),
+             rod('Mast',.13,(cx,2.0,cz),.9,MPLATE,'y',10),
+             rod('Mast sleeve',.09,(cx,2.6,cz),.5,STEEL,'y',8),
+             torus('Mast glow',.15,.03,(cx,2.3,cz),RED)]
+    for x, y, e in ((-.09,1.0,.05), (.09,1.0,.05), (-.19,.94,.03), (.19,.94,.03)):
+        parts.append(gem('Eye',(e,e*.8,e*.6),(x,y,.94),RED))
+    for s in (-1,1):
+        parts.append(strut('Mast stay',(s*.45,1.4,cz-.25),(cx,2.35,cz),.02,BLACK,4))
+    merge('Radar spider', parts + radome(RADAR_DOME[0], r, MPLATE))
+    fx, fy, fz = RADAR_FINS
+    dish = empty('dish', RADAR_FINS)
+    fins = [torus('Fin ring',.22,.04,RADAR_FINS,BLACK)]
+    for k in range(3):
+        a = k*math.tau/3
+        fins += [tbox('Sensor fin',(.06,.16,.38),(fx+math.cos(a)*.38,fy,fz+math.sin(a)*.38),MPLATE,(0,math.pi/2-a,0),.01),
+                 gem('Fin eye',(.05,.04,.05),(fx+math.cos(a)*.58,fy,fz+math.sin(a)*.58),RED)]
+    merge('Sensor fins', fins, dish)
+    save('m_radar')
+
+
+def mobile_radar(machine=False):
+    if machine:
+        return machine_radar()
+    reset()
+    hull, edge, base, accent = OLIVE, LIGHT, DARK, BLUE
     objects = [box('Six wheel chassis', (1.9,.32,3.2), (0,.68,0), base, .08)]
     for s in (-1,1):
         for z in (-1.1,0,1.1):
@@ -3082,7 +3138,7 @@ def mobile_radar(machine=False):
                 beam('Feed arm',(0,2.56,-.38),(0,2.88,.22),.07,STEEL),
                 cyl('Receiver',.1,.16,(0,2.88,.22),accent,'z')]
     merge('Scanning antenna', rotating, dish)
-    save('m_radar' if machine else 'h_radar')
+    save('h_radar')
 
 
 BUILDERS = {

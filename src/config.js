@@ -174,7 +174,7 @@ U({ id: 'm_harv', team: 'machine', role: 'harv', name: 'Recolector', cost: 700, 
 for (const team of ['human', 'machine']) U({
     id: team === 'human' ? 'h_radar' : 'm_radar', team, role: 'radar', name: 'Radar Móvil',
     cost: 650, time: 16, producer: 'factory', hp: 180, speed: 5.8, turn: 2.8,
-    radius: 1.5, cls: 'armor', height: 3.6, sight: 64, radar: true,
+    radius: 1.5, cls: 'armor', height: 3.6, sight: 64, radar: true, ...(team === 'machine' && { tracks: 'legs' }),
     desc: 'Vehículo de reconocimiento con radio de detección de 64: revela terreno y enemigos, incluso en movimiento. Desarmado.' });
 
 U({ id: 'h_engineer', team: 'human', role: 'engineer', name: 'Ingeniero', cost: 500, time: 10, producer: 'barracks',
