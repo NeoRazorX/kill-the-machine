@@ -8,7 +8,10 @@ import { MODEL_IDS } from '../src/assets.js';
 const frame=document.querySelector('iframe'),out=document.getElementById('results'),lines=[];
 function check(ok,text){if(!ok)throw new Error(text);lines.push('PASS '+text);out.textContent=lines.join('\n');}
 async function until(predicate){const deadline=performance.now()+15000;while(!predicate()){if(performance.now()>deadline)throw new Error('Timed out waiting for startup');await new Promise(r=>setTimeout(r,30));}}
+// These checks assume the default side (humans): set aside a side remembered from the menu, restored after.
+const savedSide=localStorage.getItem('ktm.side');
 try {
+  localStorage.removeItem('ktm.side');
   let html=await (await fetch('../index.html')).text();
   // Run the actual entry point, injecting only a failed network response before it starts.
   const setup=`<base href="${location.origin}/"><script>
@@ -81,5 +84,6 @@ try {
   game.paused=true;
   out.textContent=lines.join('\n')+'\nALL PASSED';
 }catch(error){out.textContent=lines.join('\n')+'\nFAIL '+error.stack;}
+finally{if(savedSide!=null)localStorage.setItem('ktm.side',savedSide);}
 </script>
 </html>
