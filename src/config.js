@@ -168,7 +168,7 @@ U({ id: 'm_welder', team: 'machine', role: 'repair', name: 'Soldador', cost: 500
 U({ id: 'm_harv', team: 'machine', role: 'harv', name: 'Recolector', cost: 700, time: 14, producer: 'factory',
     hp: 330, speed: 4.2, turn: 2.4, radius: 1.6, cls: 'armor', height: 2, harvester: true, capacity: 400,
     gatherRate: 28, unloadRate: 110, sight: 16,
-    desc: 'Taladra mineral y lo transporta a la fundición.' });
+    desc: 'Excava mineral con su rueda de cangilones y lo lleva a la fundición.' });
 
 // Mobile reconnaissance uses the same vision as fog, minimap and AI intelligence.
 for (const team of ['human', 'machine']) U({
