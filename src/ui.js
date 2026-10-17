@@ -731,9 +731,11 @@ export class UI {
   update(dt) {
     const g = this.game, T = g.teams[this.team];
     this.t += dt;
-    // créditos con contador animado
+    // créditos con contador animado; hace tic-tic mientras sube
+    const shown = Math.floor(this.credShown);
     this.credShown += (T.credits - this.credShown) * Math.min(1, dt * 8);
     if (Math.abs(T.credits - this.credShown) < 1) this.credShown = T.credits;
+    if (Math.floor(this.credShown) > shown) g.audio.play('cashup');
     $('credits').textContent = '$ ' + Math.floor(this.credShown).toLocaleString('es-ES');
     const p = T.power, low = p.use > p.prod;
     $('power-fill').style.width = clamp((p.use / Math.max(1, p.prod)) * 100, 0, 100) + '%';
