@@ -24,7 +24,7 @@ export class GameAudio {
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      this.music = new Music(this.ctx, this.master, this.noise);
+      this.music = new Music(this.ctx, this.master);
     } catch (e) { this.ctx = null; }
   }
 
