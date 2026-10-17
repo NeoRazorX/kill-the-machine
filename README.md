@@ -2,6 +2,7 @@
 
 RTS estilo *Command & Conquer* hecho con Three.js (r186, incluido en `lib/`, funciona sin conexión).
 Humanos contra máquinas: construye base, cosecha mineral, produce ejército y destruye todos los edificios enemigos.
+Se puede jugar con cualquiera de los dos bandos; la IA lleva el otro.
 
 ## Ejecutar
 Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
@@ -11,7 +12,14 @@ Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
 
 La dificultad empieza marcada en **Fácil**; se cambia en el menú y no se recuerda entre partidas.
 
-Parámetros opcionales: `?autostart=easy|normal|hard` (empieza sin pasar por el menú, en Fácil si no se indica otra), `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada),
+**Bando**: en el menú, pulsa la tarjeta de **Humanos** o de **Máquinas** para jugar con ese bando (por defecto,
+Humanos). La elección se recuerda entre partidas. La IA toma el bando contrario con la dificultad elegida, y su
+ventaja económica se aplica a ese bando. Cambian la presentación del menú, el saludo y la voz de mando (más
+grave y lenta con las máquinas), los textos de victoria y derrota, y el color de acento del menú y del HUD.
+`?side=human|machine` fija el bando solo para esa visita, sin cambiar lo recordado. En el modo IA contra IA
+se ignora. Pruebas en el navegador: [tests/sides.html](http://localhost:8765/tests/sides.html).
+
+Parámetros opcionales: `?autostart=easy|normal|hard` (empieza sin pasar por el menú, en Fácil si no se indica otra), `&side=machine` (juega con las máquinas), `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada),
 `&spawn=0,2` (fija las esquinas de humanos y máquinas: 0 abajo a la izquierda y después en sentido horario),
 `&map=temperate|desert|ice|random` (aspecto del mapa), `&tech=random|none|t_silo,t_mine,…` (estructuras
 tecnológicas al azar, ninguna o las indicadas; ver más abajo) y `&seed=n` (repite una disposición de árboles y rocas).

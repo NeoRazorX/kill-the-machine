@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Game } from './game.js';
 import { Input } from './input.js';
 import { UI, makeIcons } from './ui.js';
-import { SIZE, TEAMS, DIFFICULTY, DEFS, TECH_IDS } from './config.js';
+import { SIZE, TEAMS, ROLE, PLAYER, DIFFICULTY, DEFS, TECH_IDS } from './config.js';
 import { preloadModels, assetStatus } from './assets.js';
 import { WarFog } from './war-fog.js';
 import { THEMES, resolveTheme } from './themes.js';
@@ -139,8 +139,27 @@ try {
   for (const el of techOpts) el.querySelector('img').src = icons[el.dataset.id];
 } catch { /* solo nombres si no hay WebGL */ }
 
-const techNews = (n) => n === 1 ? 'Hay una estructura tecnológica en ruinas: encuéntrala y captúrala con un ingeniero'
-  : `Hay ${['dos', 'tres', 'cuatro', 'cinco', 'seis'][n - 2] ?? n} estructuras tecnológicas en ruinas: encuéntralas y captúralas con un ingeniero`;
+const techNews = (n, team) => {
+  const who = `un ${ROLE[team].engineer.name.toLowerCase()}`;
+  return n === 1 ? `Hay una estructura tecnológica en ruinas: encuéntrala y captúrala con ${who}`
+    : `Hay ${['dos', 'tres', 'cuatro', 'cinco', 'seis'][n - 2] ?? n} estructuras tecnológicas en ruinas: encuéntralas y captúralas con ${who}`;
+};
+
+// Bando del jugador: se recuerda entre partidas; ?side=human|machine lo fija solo para esa visita.
+const SIDE_KEY = 'ktm.side';
+let side = PLAYER;
+try { if (TEAMS[localStorage.getItem(SIDE_KEY)]) side = localStorage.getItem(SIDE_KEY); } catch { /* sin almacenamiento */ }
+if (TEAMS[params.get('side')]) side = params.get('side');
+const sideEls = [...document.querySelectorAll('.side[data-side]')];
+function showSide() {
+  for (const el of sideEls) { const on = el.dataset.side === side; el.classList.toggle('active', on); el.setAttribute('aria-pressed', on); }
+  document.getElementById('side-tag').textContent = TEAMS[side].tagline;
+  document.body.dataset.side = side;   // tiñe menú y HUD con el color del bando
+}
+sideEls.forEach((el) => {
+  el.onclick = () => { side = el.dataset.side; try { localStorage.setItem(SIDE_KEY, side); } catch { /* no se recuerda */ } showSide(); };
+});
+showSide();
 
 let input = null, ui = null, started = false, speed = 1;
 const diffEls = [...document.querySelectorAll('.diff[data-d]')];
@@ -159,18 +178,19 @@ function spawnSlots() {
 
 function begin(spectate) {
   if (started) return;
-  game.start(difficulty, spectate, spawnSlots(), tech.mode === 'pick' ? tech.ids : null);
-  [...themeEls, ...techModeEls, ...techOpts].forEach((el) => { el.onclick = null; });
+  game.start(difficulty, spectate, spawnSlots(), tech.mode === 'pick' ? tech.ids : null, side);
+  [...themeEls, ...techModeEls, ...techOpts, ...sideEls].forEach((el) => { el.onclick = null; });
+  document.body.dataset.side = game.player;
   input = new Input(game, camera, renderer, sun);
   ui = new UI(game, input, camera);
   game.emit('toast', { text: game.map.name, kind: 'info' });
   if (!spectate) {
     game.emit('toast', { text: 'Se desconoce la posición enemiga: explora las otras esquinas', kind: 'warn' });
     const sites = game.techSites.items.length;
-    if (sites) game.emit('toast', { text: techNews(sites), kind: 'info' });
+    if (sites) game.emit('toast', { text: techNews(sites, game.player), kind: 'info' });
   }
   window.__input = input; window.__ui = ui;
-  const hq = game.teamBuildings(spectate ? 'human' : game.player, 'hq')[0];
+  const hq = game.teamBuildings(game.player, 'hq')[0];
   input.centerOn(hq.x, hq.z - (spectate ? 0 : 8));
   input.dist = spectate ? 120 : 62;
   document.getElementById('menu').classList.add('hidden');
@@ -180,7 +200,7 @@ function begin(spectate) {
   game.audio.init();
   game.audio.play('start');
   game.audio.startMusic();
-  if (!spectate) game.audio.say('Comandante, la base está operativa. Destruye a las máquinas.', 0);
+  if (!spectate) game.audio.say(TEAMS[game.player].greeting, 0);
   started = true;
 }
 

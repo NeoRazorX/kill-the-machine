@@ -1,0 +1,58 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Playing either side</title>
+<style>body{background:#11171c;color:#e5efed;font:13px monospace}iframe{width:100%;height:620px;border:1px solid #334047}pre{white-space:pre-wrap}</style>
+<pre id="results">RUNNING</pre><iframe title="Partida de prueba"></iframe>
+<script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
+<script type="module">
+// Menu faction choice, the AI taking the other side, and side-specific texts, through the real entry point.
+import { TEAMS, DIFFICULTY, CELL } from '../src/config.js';
+const frame=document.querySelector('iframe'),out=document.getElementById('results'),lines=[];
+function check(ok,text){if(!ok)throw new Error(text);lines.push('PASS '+text);out.textContent=lines.join('\n');}
+async function until(predicate,what='startup'){const deadline=performance.now()+20000;while(!predicate()){if(performance.now()>deadline)throw new Error('Timed out waiting for '+what);await new Promise(r=>setTimeout(r,30));}}
+const load=async(src)=>{frame.src=src;await new Promise(r=>frame.onload=r);await until(()=>frame.contentWindow.__game&&!frame.contentDocument.getElementById('btn-start').disabled,'models');return [frame.contentWindow,frame.contentDocument];};
+const saved=localStorage.getItem('ktm.side');
+try {
+  localStorage.removeItem('ktm.side');
+  let [win,doc]=await load('../index.html');
+  const errors=[];win.addEventListener('error',e=>errors.push(e.message));
+  const side=(s)=>doc.querySelector(`.side[data-side="${s}"]`),tag=()=>doc.getElementById('side-tag').textContent;
+  check(side('human').classList.contains('active')&&!side('machine').classList.contains('active')&&tag()===TEAMS.human.tagline,'humans are the default side');
+  side('machine').click();
+  check(side('machine').getAttribute('aria-pressed')==='true'&&side('human').getAttribute('aria-pressed')==='false'&&tag()===TEAMS.machine.tagline,'picking the machines highlights them and changes the briefing');
+  check(localStorage.getItem('ktm.side')==='machine','the chosen side is remembered');
+
+  doc.getElementById('btn-start').click();
+  await until(()=>doc.getElementById('app').classList.contains('playing'));
+  const game=win.__game,input=win.__input,ui=win.__ui;
+  game.audio.play=()=>{};game.audio.say=()=>{};
+  check(game.player==='machine'&&!game.spectate,'the mission starts with the player on the machines');
+  check(game.ais.length===1&&game.ais[0].team==='human','the AI commands the humans');
+  check(game.teams.human.income===DIFFICULTY.easy.income&&game.teams.machine.income===1,'the difficulty economy goes to the AI side');
+  check(ui.faction==='machine'&&[...doc.querySelectorAll('#tabs .tab')].map(t=>t.textContent).includes('Drones'),'the sidebar offers the machine roster');
+  const hq=game.teamBuildings('machine','hq')[0];
+  check(Math.hypot(input.target.x-hq.x,input.target.z-(hq.z-8))<CELL*2||Math.hypot(game.camTarget.x-hq.x,game.camTarget.z-hq.z)<30,'the camera opens on the machine base');
+  check(game.buildings.filter(b=>b.team==='machine').every(b=>b.seen)&&game.isVisibleEntity(hq),'the player sees their own base');
+
+  const before={human:game.buildings.filter(b=>b.team==='human').length,machine:game.buildings.filter(b=>b.team==='machine').length};
+  for(let i=0;i<60;i++){win.__step(20,.05);await new Promise(r=>setTimeout(r,0));}
+  const after={human:game.buildings.filter(b=>b.team==='human'&&!b.dead).length,machine:game.buildings.filter(b=>b.team==='machine'&&!b.dead).length};
+  check(after.human>before.human,'the human AI builds its base');
+  check(after.machine===before.machine&&!game.teams.machine.structQueue,'nobody builds for the player');
+
+  for(const b of game.buildings.filter(b=>b.team==='human'&&!b.dead))game.kill(b,'machine');
+  win.__step(5,.05);
+  await until(()=>!doc.getElementById('endscreen').classList.contains('hidden'),'end screen');
+  check(doc.getElementById('end-title').textContent==='VICTORIA'&&doc.getElementById('end-sub').textContent===TEAMS.machine.victory,'wiping out the humans is a machine victory');
+  check(errors.length===0,'no uncaught errors playing the machines');
+  game.paused=true;
+
+  [win,doc]=await load('../index.html?side=human&autostart=easy');
+  await until(()=>doc.getElementById('app').classList.contains('playing'));
+  win.__game.audio.say=()=>{};
+  check(win.__game.player==='human'&&win.__game.ais[0].team==='machine','?side=human overrides the remembered side for that visit');
+  check(localStorage.getItem('ktm.side')==='machine','the address does not change the remembered side');
+  win.__game.paused=true;
+  out.textContent=lines.join('\n')+'\nALL PASSED';
+}catch(error){out.textContent=lines.join('\n')+'\nFAIL '+error.stack;}
+finally{if(saved==null)localStorage.removeItem('ktm.side');else localStorage.setItem('ktm.side',saved);}
+</script>
+</html>

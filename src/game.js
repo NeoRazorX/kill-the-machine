@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { N, CELL, SIZE, PLAYER, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, HARVEST_QUEUE, DOCK_QUEUE, DOCK_BOUND, other, visionRadius, canRepairBuilding } from './config.js';
+import { N, CELL, SIZE, PLAYER, TEAMS, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, HARVEST_QUEUE, DOCK_QUEUE, DOCK_BOUND, other, visionRadius, canRepairBuilding } from './config.js';
 import { GameMap, MapVisuals } from './map.js';
 import { THEMES } from './themes.js';
 import { Foundations } from './foundations.js';
@@ -65,17 +65,20 @@ export class Game {
   // ------------------------------------------------------------------ inicio
   // slots: corner index per team; by default two different corners are drawn at random.
   // tech: the tech structure ids to place (see techSelection); null draws them at random.
-  start(difficulty = 'normal', spectate = false, slots = null, tech = null) {
+  // player: the side the player commands; the AI takes the other one (spectating, both).
+  start(difficulty = 'normal', spectate = false, slots = null, tech = null, player = PLAYER) {
     this.spectate = spectate;
+    this.player = spectate || !TEAMS[player] ? PLAYER : player;
+    const rival = other(this.player);
     this.difficulty = DIFFICULTY[difficulty] || DIFFICULTY.normal;
-    this.teams.machine.income = this.difficulty.income;
+    this.teams[rival].income = this.difficulty.income;
     this.assignStarts(slots);
     this.techSites.choice = tech;
     // The sites depend on which corners are in play: they sit at the same walking distance from both.
     this.techSites.place();
     for (const team of ['human', 'machine']) this.setupBase(team);
-    this.ais.push(new AI(this, 'machine', this.difficulty));
-    if (spectate) this.ais.push(new AI(this, 'human', DIFFICULTY.normal));
+    this.ais.push(new AI(this, rival, this.difficulty));
+    if (spectate) this.ais.push(new AI(this, this.player, DIFFICULTY.normal));
     this.recomputePower();
     this.updateFog(true);
     this.cashCrates.discover();

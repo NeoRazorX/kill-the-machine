@@ -117,7 +117,7 @@ export class UI {
     el.classList.remove('hidden');
     el.classList.toggle('win', win); el.classList.toggle('lose', !win);
     $('end-title').textContent = g.spectate ? `Ganan ${over.winner === 'human' ? 'los Humanos' : 'las Máquinas'}` : (win ? 'VICTORIA' : 'DERROTA');
-    $('end-sub').textContent = win ? 'Las máquinas han sido destruidas. La humanidad respira.' : 'La red de máquinas ha tomado el control.';
+    $('end-sub').textContent = win ? TEAMS[g.player].victory : TEAMS[g.player].defeat;
     if (g.spectate) $('end-sub').textContent = '';
     const t = g.teams[g.spectate ? over.winner : g.player], m = Math.floor(over.time / 60), s = Math.floor(over.time % 60);
     $('end-stats').innerHTML = `<div><b>${m}:${String(s).padStart(2, '0')}</b><span>Duración</span></div>` +
@@ -401,7 +401,7 @@ export class UI {
       const unit = Object.values(DEFS).find((d) => d.producer === b.def.produces);
       return own ? `Operativa · construye el ${unit.name} desde Vehículos · clic derecho: punto de reunión` : 'Operativa';
     }
-    if (v.state === 'ruin') return 'En ruinas · clic derecho con un ingeniero para capturarla';
+    if (v.state === 'ruin') return `En ruinas · clic derecho con un ${ROLE[this.faction].engineer.name.toLowerCase()} para capturarla`;
     const pct = Math.floor(v.progress * 100);
     if (!own) return `En reparación · ${pct} %`;
     const left = Math.ceil(b.def.repairCost - b.tech.paid);

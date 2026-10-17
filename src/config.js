@@ -3,7 +3,7 @@
 export const N = 192;            // celdas por lado
 export const CELL = 2;           // unidades de mundo por celda
 export const SIZE = N * CELL;    // tamaño del mapa en unidades de mundo
-export const PLAYER = 'human';
+export const PLAYER = 'human';   // bando por defecto; el menú permite jugar con cualquiera
 export const BUILD_RADIUS = 24;  // distancia máxima a un edificio propio para construir
 export const START_CREDITS = 4000;
 
@@ -20,9 +20,24 @@ export const DOCK_BOUND = new Set(['toRefinery', ...DOCK_QUEUE]);
 
 export const other = (t) => (t === 'human' ? 'machine' : 'human');
 
+// Textos y voz de mando de cada bando cuando lo lleva el jugador.
 export const TEAMS = {
-  human:   { id: 'human',   name: 'Humanos',  color: 0x3d8bff, css: '#3d8bff' },
-  machine: { id: 'machine', name: 'Máquinas', color: 0xff3b30, css: '#ff3b30' },
+  human: {
+    id: 'human', name: 'Humanos', color: 0x3d8bff, css: '#3d8bff',
+    tagline: 'El año 2187. La red de máquinas despertó. Tú eres el último comandante humano.',
+    greeting: 'Comandante, la base está operativa. Destruye a las máquinas.',
+    victory: 'Las máquinas han sido destruidas. La humanidad respira.',
+    defeat: 'La red de máquinas ha tomado el control.',
+    voice: { rate: 1.1, pitch: 0.8 },
+  },
+  machine: {
+    id: 'machine', name: 'Máquinas', color: 0xff3b30, css: '#ff3b30',
+    tagline: 'El año 2187. La red ha despertado y tú eres su mente de mando. Quedan humanos por borrar.',
+    greeting: 'Núcleo en línea. Inicia la erradicación humana.',
+    victory: 'La resistencia humana ha caído. La red lo controla todo.',
+    defeat: 'Los humanos han desconectado la red.',
+    voice: { rate: 0.95, pitch: 0.3 },
+  },
 };
 
 // The fixed gameplay camera looks from +Z. Every base can start in any corner, so all

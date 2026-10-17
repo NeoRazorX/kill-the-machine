@@ -1,5 +1,6 @@
 // Sonido 100% sintetizado con WebAudio + voz de la "computadora de mando" (speechSynthesis).
 import { Music } from './music.js';
+import { TEAMS } from './config.js';
 
 const MIN_GAP = { rifle: 45, zap: 45, rocket: 90, cannon: 90, plasma: 90, howitzer: 150, laser: 90, explosion: 60, bigexplosion: 150 };
 
@@ -153,7 +154,8 @@ export class GameAudio {
     this.lastVoice = now;
     try {
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'es-ES'; u.rate = 1.1; u.pitch = 0.8; u.volume = 0.9;
+      const v = TEAMS[this.game.player]?.voice ?? TEAMS.human.voice;   // las máquinas, más graves y lentas
+      u.lang = 'es-ES'; u.rate = v.rate; u.pitch = v.pitch; u.volume = 0.9;
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     } catch (e) { /* sin voz */ }
