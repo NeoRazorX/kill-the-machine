@@ -2,6 +2,19 @@
 import { Music } from './music.js';
 import { TEAMS } from './config.js';
 
+const MASTER = 0.5;   // ganancia general con el volumen al 100 %
+const VOLUME_KEY = 'ktm.audio';
+// Volúmenes del menú de pausa (0–1), recordados entre partidas.
+export const VOLUME_DEFAULTS = { master: 1, music: 1, sfx: 1, voice: 1 };
+function loadVolumes() {
+  const v = { ...VOLUME_DEFAULTS };
+  try {
+    const saved = JSON.parse(localStorage.getItem(VOLUME_KEY));
+    for (const k in v) if (Number.isFinite(saved?.[k])) v[k] = Math.max(0, Math.min(1, saved[k]));
+  } catch { /* sin almacenamiento: valores por defecto */ }
+  return v;
+}
+
 const MIN_GAP = { rifle: 45, zap: 45, rocket: 90, cannon: 90, plasma: 90, howitzer: 150, laser: 90, explosion: 60, bigexplosion: 150 };
 
 export class GameAudio {
@@ -11,6 +24,23 @@ export class GameAudio {
     this.muted = false; this.last = {};
     this.lastVoice = 0; this.voiceQueue = [];
     this.music = null; this.musicTimer = null;
+    this.volumes = loadVolumes();
+  }
+
+  setVolume(kind, value) {
+    if (!(kind in this.volumes)) return;
+    this.volumes[kind] = Math.max(0, Math.min(1, value));
+    try { localStorage.setItem(VOLUME_KEY, JSON.stringify(this.volumes)); } catch { /* no se recuerda */ }
+    this.applyVolumes();
+    if (kind === 'voice' && !this.volumes.voice && window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  applyVolumes() {
+    if (!this.ctx) return;
+    const v = this.volumes, t = this.ctx.currentTime;
+    this.master.gain.setTargetAtTime(this.muted ? 0 : MASTER * v.master, t, 0.02);
+    this.sfx.gain.setTargetAtTime(v.sfx, t, 0.02);
+    this.music?.setVolume(v.music);
   }
 
   init() {
@@ -18,14 +48,16 @@ export class GameAudio {
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       this.ctx = new AC();
-      this.master = this.ctx.createGain(); this.master.gain.value = 0.5;
+      this.master = this.ctx.createGain(); this.master.gain.value = MASTER;
       const comp = this.ctx.createDynamicsCompressor();
       this.master.connect(comp); comp.connect(this.ctx.destination);
+      this.sfx = this.ctx.createGain(); this.sfx.connect(this.master);   // efectos, aparte de la música
       const len = this.ctx.sampleRate;
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       this.music = new Music(this.ctx, this.master);
+      this.applyVolumes();
     } catch (e) { this.ctx = null; }
   }
 
@@ -42,7 +74,7 @@ export class GameAudio {
 
   toggleMute() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    this.applyVolumes();
     if (this.music) this.music.muted = this.muted;
     if (this.muted && window.speechSynthesis) window.speechSynthesis.cancel();
     return this.muted;
@@ -74,7 +106,7 @@ export class GameAudio {
     o.type = type; o.frequency.setValueAtTime(f0, t);
     o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
     g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(this.master);
+    o.connect(g); g.connect(this.sfx);
     o.start(t); o.stop(t + dur + 0.02);
   }
 
@@ -86,7 +118,7 @@ export class GameAudio {
     o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + dur);
     g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.05);
-    o.connect(g); g.connect(this.master);
+    o.connect(g); g.connect(this.sfx);
     o.start(t); o.stop(t + dur + 0.08);
   }
 
@@ -97,7 +129,7 @@ export class GameAudio {
     f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
     const g = c.createGain();
     g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(g); g.connect(this.master);
+    s.connect(f); f.connect(g); g.connect(this.sfx);
     s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
   }
 
@@ -148,14 +180,14 @@ export class GameAudio {
 
   // ----------------------------------------------------------------- voz
   say(text, minGap = 4000) {
-    if (this.muted || !window.speechSynthesis) return;
+    if (this.muted || !window.speechSynthesis || !this.volumes.voice) return;
     const now = performance.now();
     if (now - this.lastVoice < minGap) return;
     this.lastVoice = now;
     try {
       const u = new SpeechSynthesisUtterance(text);
       const v = TEAMS[this.game.player]?.voice ?? TEAMS.human.voice;   // las máquinas, más graves y lentas
-      u.lang = 'es-ES'; u.rate = v.rate; u.pitch = v.pitch; u.volume = 0.9;
+      u.lang = 'es-ES'; u.rate = v.rate; u.pitch = v.pitch; u.volume = 0.9 * this.volumes.voice * this.volumes.master;
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     } catch (e) { /* sin voz */ }

@@ -96,6 +96,9 @@ export class Music {
 
   get combat() { return this.monitor.combat; }
 
+  // volume 0–1 del menú, sobre el nivel base del bus
+  setVolume(volume) { this.bus.gain.setTargetAtTime(MUSIC.level * volume, this.ctx.currentTime, 0.02); }
+
   start() { if (!this.mode) this.setMode('ambient'); }
 
   // Siguiente pista de la cola del modo, empezando en `at`.

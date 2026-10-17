@@ -1,0 +1,99 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Pause menu</title>
+<style>body{background:#11171c;color:#e5efed;font:13px monospace}iframe{width:100%;height:700px;border:1px solid #334047}pre{white-space:pre-wrap}</style>
+<pre id="results">RUNNING</pre><iframe title="Partida de prueba"></iframe>
+<script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
+<script type="module">
+// The Esc pause menu: pause, blocked orders, volumes, restart with the same settings and quit.
+import { MUSIC } from '../src/music.js';
+const frame=document.querySelector('iframe'),out=document.getElementById('results'),lines=[];
+function check(ok,text){if(!ok)throw new Error(text);lines.push('PASS '+text);out.textContent=lines.join('\n');}
+async function until(predicate,what){const deadline=performance.now()+20000;while(!predicate()){if(performance.now()>deadline)throw new Error('Timed out waiting for '+what);await new Promise(r=>setTimeout(r,30));}}
+const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+const saved={side:localStorage.getItem('ktm.side'),audio:localStorage.getItem('ktm.audio')};
+async function load(src){
+  frame.src=src;await new Promise(r=>frame.onload=r);
+  await until(()=>frame.contentWindow.__menu&&frame.contentDocument.getElementById('app').classList.contains('playing'),'game start');
+  const win=frame.contentWindow;win.__game.audio.init();return [win,frame.contentDocument,win.__game,win.__menu];
+}
+const key=(win,code,target=win)=>{target.dispatchEvent(new win.KeyboardEvent('keydown',{code,key:code,bubbles:true}));target.dispatchEvent(new win.KeyboardEvent('keyup',{code,key:code,bubbles:true}));};
+try {
+  localStorage.removeItem('ktm.audio');
+  let [win,doc,game,menu]=await load('../index.html?autostart=easy&side=machine&map=desert&tech=t_mine&spawn=0,2&seed=4242');
+  const errors=[];win.addEventListener('error',e=>errors.push(e.message));
+  const el=doc.getElementById('game-menu'),visible=(id)=>!doc.getElementById(id).classList.contains('hidden');
+  check(!visible('game-menu')&&!game.paused,'the game starts without the menu');
+
+  key(win,'Escape');
+  check(menu.open&&visible('game-menu')&&game.paused,'Esc opens the menu and pauses the game');
+  check(doc.getElementById('gm-info').textContent.includes('Fácil')&&doc.getElementById('gm-info').textContent.includes('Desierto'),'the menu shows difficulty and map');
+  check(!visible('pause'),'the plain pause banner stays hidden behind the menu');
+  const t0=game.time,cam={...win.__input.target};
+  win.__step(40,.05);
+  check(game.time===t0,'time stands still while the menu is open');
+  win.dispatchEvent(new win.KeyboardEvent('keydown',{code:'ArrowRight',bubbles:true}));win.__step(20,.05);win.dispatchEvent(new win.KeyboardEvent('keyup',{code:'ArrowRight',bubbles:true}));
+  check(win.__input.target.x===cam.x&&win.__input.target.z===cam.z,'the camera does not move under the menu');
+  key(win,'KeyP');
+  check(menu.open&&game.paused,'other shortcuts are ignored in the menu');
+  key(win,'Escape');
+  check(!menu.open&&!visible('game-menu')&&!game.paused,'Esc again closes it and resumes');
+
+  // A game paused with P stays paused after the menu.
+  key(win,'KeyP');key(win,'Escape');key(win,'Escape');
+  check(game.paused&&visible('pause'),'a game paused before the menu stays paused after it');
+  key(win,'KeyP');
+  // Esc first cancels a building placement instead of opening the menu.
+  game.teams.machine.structQueue={def:win.__game.buildings.find(b=>b.team==='machine'&&b.def.role==='power').def,ready:true,progress:1,paid:300};
+  win.__input.beginPlacement(game.teams.machine.structQueue.def);
+  check(!!win.__input.placing,'placing a building');
+  key(win,'Escape');
+  check(!win.__input.placing&&!menu.open,'Esc cancels the placement first');
+  game.teams.machine.structQueue=null;
+  doc.getElementById('btn-menu').click();
+  check(menu.open,'the ☰ button opens the menu');
+
+  // Volumes.
+  const slider=(k)=>el.querySelector(`input[data-vol="${k}"]`),setSlider=(k,v)=>{slider(k).value=v;slider(k).dispatchEvent(new win.Event('input',{bubbles:true}));};
+  check(['master','music','sfx','voice'].every(k=>slider(k).value==='100'&&slider(k).parentElement.querySelector('output').textContent==='100 %'),'all volumes start at 100 %');
+  setSlider('music',30);setSlider('sfx',0);setSlider('master',80);
+  await wait(250);
+  const a=game.audio;
+  check(Math.abs(a.music.bus.gain.value-MUSIC.level*.3)<1e-3,'the music slider scales the music bus');
+  check(a.sfx.gain.value<1e-3,'the effects slider silences the effects');
+  check(Math.abs(a.master.gain.value-.5*.8)<1e-3,'the general slider scales everything');
+  check(JSON.parse(localStorage.getItem('ktm.audio')).music===.3,'volumes are remembered');
+  let spoke=0;const real=win.speechSynthesis.speak.bind(win.speechSynthesis);win.speechSynthesis.speak=()=>{spoke++;};
+  setSlider('voice',0);a.lastVoice=0;a.say('Prueba',0);
+  setSlider('voice',100);a.lastVoice=0;a.say('Prueba',0);
+  win.speechSynthesis.speak=real;
+  check(spoke===1,'with the command voice at 0 nothing is spoken');
+
+  // Help from the menu, closed by Esc before the menu.
+  el.querySelector('[data-act="help"]').click();
+  check(visible('help'),'Controls opens the help over the menu');
+  key(win,'Escape');
+  check(!visible('help')&&menu.open,'Esc closes the help first');
+
+  // Restart and quit ask first, then leave with the right address.
+  let went=null;menu.navigate=(url)=>{went=url;};
+  el.querySelector('[data-act="restart"]').click();
+  check(!doc.getElementById('gm-confirm').hidden&&doc.getElementById('gm-actions').hidden&&went===null,'restart asks for confirmation');
+  key(win,'Escape');
+  check(doc.getElementById('gm-confirm').hidden&&menu.open,'Esc backs out of the confirmation');
+  el.querySelector('[data-act="quit"]').click();el.querySelector('[data-act="confirm"]').click();
+  check(went===new URL('../index.html',location).pathname,'quitting goes back to the main menu');
+  went=null;el.querySelector('[data-act="restart"]').click();el.querySelector('[data-act="confirm"]').click();
+  const p=new URL(went,location).searchParams;
+  check(p.get('autostart')==='easy'&&p.get('side')==='machine'&&p.get('map')==='desert'&&p.get('seed')==='4242'&&p.get('spawn')==='0,2'&&p.get('tech')==='t_mine','the restart address keeps difficulty, side, map, scenery, corners and tech sites');
+  check(errors.length===0,'no uncaught errors in the first game');
+
+  // Follow the restart address for real.
+  [win,doc,game,menu]=await load(went);
+  check(game.player==='machine'&&game.theme.id==='desert'&&game.map.seed===4242&&game.startSlots.human===0&&game.startSlots.machine===2,'the restarted game has the same setup');
+  check(game.techSites.items.length===1&&game.techSites.items[0].def.id==='t_mine'&&game.time<1,'with the same tech site, from the start');
+  check(doc.querySelector('#game-menu input[data-vol="music"]').value==='30','the remembered volumes carry over');
+  win.__game.paused=true;
+  out.textContent=lines.join('\n')+'\nALL PASSED';
+}catch(error){out.textContent=lines.join('\n')+'\nFAIL '+error.stack;}
+finally{for(const [k,v] of [['ktm.side',saved.side],['ktm.audio',saved.audio]])if(v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}
+</script>
+</html>

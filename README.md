@@ -235,6 +235,17 @@ Three.js r186, con licencia MIT en `lib/LICENSE`.
 | Grupos | `Ctrl+1-9` crear · `1-9` seleccionar (doble = centrar) |
 | Construcción | barra lateral: clic = construir, clic en «LISTO» = colocar, clic derecho = cancelar, Shift = ×5 |
 | Reparar / vender edificio | `R` / `Supr` o botones del panel · `P` pausa · `M` sonido |
+| Menú de pausa | `Esc` (si no estás colocando un edificio ni apuntando) o el botón ☰ |
+
+**Menú de pausa**: `Esc` cancela primero lo que esté en curso (colocar un edificio, atacar-mover puntual
+o apuntar una superarma); si no hay nada, abre el menú y pausa la partida. Mientras está abierto no se dan
+órdenes ni se mueve la cámara; `Esc` cierra primero la ayuda o una confirmación y después el menú, y la
+partida vuelve al estado anterior (si estaba pausada con `P`, sigue pausada). Ofrece **Continuar**,
+**Reiniciar partida** (misma dificultad, bando, mapa, escenario, esquinas y estructuras tecnológicas; las
+cajas se reparten de nuevo), **Controles** y **Abandonar partida** (vuelve al menú principal). Reiniciar y
+abandonar piden confirmación salvo con la partida terminada. Los volúmenes **General**, **Música**,
+**Efectos** y **Voz de mando** se ajustan en vivo y se recuerdan entre partidas. Código en
+`src/game-menu.js`; pruebas en [tests/game-menu.html](http://localhost:8765/tests/game-menu.html).
 
 ## Mecánicas
 - **Modo de movimiento**: el panel de las unidades propias permite elegir **Mover** o **Atacar-mover** y **Detener**. Cada unidad conserva su modo al cambiar de selección; el clic derecho, también en el minimapa, lo respeta. Cambiar el modo durante una marcha conserva el destino y cambia si se detiene a combatir por el camino. Las órdenes explícitas de atacar, capturar, curar o recoger una caja mantienen su función. `A` + clic permite dar una orden puntual de atacar-mover, y `S` detiene al grupo.
@@ -300,7 +311,7 @@ estrecha.
 ## Estructura
 `src/config.js` definiciones · `map.js` terreno · `pathfinding.js` A* · `units.js` / `buildings.js` entidades ·
 `game.js` simulación · `tech-sites.js` estructuras tecnológicas · `ai.js` IA · `fx.js` efectos y proyectiles · `models.js` modelos procedurales ·
-`input.js` cámara y órdenes · `ui.js` interfaz y minimapa · `audio.js` sonido sintetizado · `music.js` música procedural (`synth.js` sintetizador, `music-tracks.js` pistas) · `results.js` pantalla de resultados.
+`input.js` cámara y órdenes · `ui.js` interfaz y minimapa · `audio.js` sonido sintetizado · `music.js` música procedural (`synth.js` sintetizador, `music-tracks.js` pistas) · `results.js` pantalla de resultados · `game-menu.js` menú de pausa.
 
 ## Pruebas de experiencia
 

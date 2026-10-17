@@ -21,7 +21,7 @@ export class Input {
     this.ndc = new THREE.Vector2();
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.box = new THREE.Box3(); this.tmp = new THREE.Vector3(); this.tmp2 = new THREE.Vector3();
-    this.ui = null;
+    this.ui = null; this.menu = null;
     this.onSelectionChange = null;
     this.bind();
     this.updateCamera();
@@ -460,13 +460,20 @@ export class Input {
   }
 
   onKey(e, down) {
-    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') && e.code !== 'Escape') return;
     const code = e.code;
     if (e.target?.tagName === 'BUTTON' && (code === 'Space' || code === 'Enter')) return;
     if (down) this.keys.add(code); else this.keys.delete(code);
     if (!down) return;
     const g = this.game;
-    if (code === 'Escape') { this.cancelPlacement(); this.attackMode = false; this.superTarget = null; this.setSelection([], true); return; }
+    // Esc cancela primero lo que esté en curso; si no hay nada, abre el menú de pausa.
+    if (code === 'Escape') {
+      if (this.menu?.open) { this.menu.back(); return; }
+      if (this.placing || this.attackMode || this.superTarget) { this.cancelPlacement(); this.attackMode = false; this.superTarget = null; return; }
+      if (!document.getElementById('help').classList.contains('hidden')) { document.getElementById('help').classList.add('hidden'); return; }
+      this.menu?.show(); return;
+    }
+    if (this.menu?.open) return;   // en el menú no se dan órdenes
     if (code === 'KeyP') { if (this.ui) this.ui.togglePause(); return; }
     if (code === 'KeyM') { if (this.ui) this.ui.toggleMute(); return; }
     if (g.over) return;
@@ -513,8 +520,9 @@ export class Input {
     if (k.has('ArrowRight')) mx += 1;
     if (k.has('KeyQ')) this.dist = clamp(this.dist * (1 + dt * 1.2), 32, 130);
     if (k.has('KeyE')) this.dist = clamp(this.dist / (1 + dt * 1.2), 32, 130);
+    if (this.menu?.open) { k.clear(); mx = mz = 0; }   // con el menú abierto la cámara no se mueve
     const ed = this.mouse.edge;
-    if (ed && this.mouse.inside && !this.pan) {
+    if (ed && this.mouse.inside && !this.pan && !this.menu?.open) {
       if (ed.l) mx -= 1; if (ed.r) mx += 1; if (ed.t) mz -= 1; if (ed.b) mz += 1;
     }
     if (mx || mz) { const l = Math.hypot(mx, mz); this.centerOn(this.target.x + (mx / l) * sp, this.target.z + (mz / l) * sp); }

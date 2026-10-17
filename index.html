@@ -17,6 +17,30 @@
   <div id="selpanel" class="hidden"></div>
   <div id="pause" class="hidden"><div>PAUSA</div><small>pulsa P para continuar</small></div>
 
+  <div id="game-menu" class="hidden" role="dialog" aria-modal="true" aria-labelledby="gm-title">
+    <div class="gm-card">
+      <header><h2 id="gm-title">Partida en pausa</h2><small id="gm-info"></small></header>
+      <div class="gm-actions" id="gm-actions">
+        <button data-act="resume" class="primary">Continuar</button>
+        <button data-act="restart">Reiniciar partida</button>
+        <button data-act="help">Controles</button>
+        <button data-act="quit">Abandonar partida</button>
+      </div>
+      <div class="gm-confirm" id="gm-confirm" hidden>
+        <p id="gm-confirm-text"></p>
+        <div><button data-act="confirm" class="primary"></button><button data-act="cancel">Cancelar</button></div>
+      </div>
+      <section class="gm-audio" aria-labelledby="gm-audio-title">
+        <h3 id="gm-audio-title">Sonido</h3>
+        <label><span>General</span><input type="range" min="0" max="100" step="1" data-vol="master"><output></output></label>
+        <label><span>Música</span><input type="range" min="0" max="100" step="1" data-vol="music"><output></output></label>
+        <label><span>Efectos</span><input type="range" min="0" max="100" step="1" data-vol="sfx"><output></output></label>
+        <label><span>Voz de mando</span><input type="range" min="0" max="100" step="1" data-vol="voice"><output></output></label>
+      </section>
+      <small class="gm-hint">Esc para volver a la partida</small>
+    </div>
+  </div>
+
   <aside id="sidebar">
     <canvas id="minimap" width="256" height="256"></canvas>
     <div id="stats">
@@ -27,6 +51,7 @@
     <div id="tabs"></div>
     <div id="build"></div>
     <div id="side-btns">
+      <button id="btn-menu" title="Menú (Esc)" aria-haspopup="dialog">☰</button>
       <button id="btn-pause" title="Pausa (P)">⏸</button>
       <button id="btn-mute" title="Silenciar (M)">🔊</button>
       <button id="btn-help" title="Controles">?</button>
@@ -43,7 +68,7 @@
         <li><b>A</b> + clic: atacar-mover puntual · <b>S</b> detener · <b>R</b> reparar edificio · <b>Supr</b> vender edificio</li>
         <li><b>Flechas</b> o bordes de pantalla: mover cámara · <b>rueda</b> / <b>Q E</b>: zoom · botón central: arrastrar</li>
         <li><b>Ctrl + 1-9</b> crear grupo · <b>1-9</b> seleccionar (doble = centrar)</li>
-        <li><b>H</b> ir al cuartel · <b>Espacio</b> ir a la última alerta · <b>P</b> pausa · <b>M</b> sonido</li>
+        <li><b>H</b> ir al cuartel · <b>Espacio</b> ir a la última alerta · <b>P</b> pausa · <b>M</b> sonido · <b>Esc</b> menú (volumen, reiniciar)</li>
         <li>Clic derecho sobre un botón de la barra: cancelar · Shift + clic: ×5 unidades</li>
         <li><b>Cajas de dinero:</b> explora y acerca cualquier unidad para recogerlas. Se marcan en dorado al descubrirlas.</li>
         <li><b>Superarmas:</b> con el silo o el cañón de iones reparados y cargados, pulsa su botón en la barra lateral y haz clic en una zona explorada.</li>

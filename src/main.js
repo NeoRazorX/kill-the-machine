@@ -7,6 +7,7 @@ import { preloadModels, assetStatus } from './assets.js';
 import { WarFog } from './war-fog.js';
 import { THEMES, resolveTheme } from './themes.js';
 import { techSelection, TECH_PICK_MAX } from './tech-sites.js';
+import { GameMenu } from './game-menu.js';
 
 const params = new URLSearchParams(location.search);
 const startButton = document.getElementById('btn-start');
@@ -183,6 +184,8 @@ function begin(spectate) {
   document.body.dataset.side = game.player;
   input = new Input(game, camera, renderer, sun);
   ui = new UI(game, input, camera);
+  input.menu = new GameMenu(game);
+  window.__menu = input.menu;
   game.emit('toast', { text: game.map.name, kind: 'info' });
   if (!spectate) {
     game.emit('toast', { text: 'Se desconoce la posición enemiga: explora las otras esquinas', kind: 'warn' });
