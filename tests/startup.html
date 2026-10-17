@@ -3,7 +3,7 @@
 <pre id="results">RUNNING</pre><iframe title="Partida de prueba"></iframe>
 <script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
 <script type="module">
-import { DEFS, N } from '../src/config.js';
+import { DEFS, N, TECH_SITE_COUNT } from '../src/config.js';
 import { MODEL_IDS } from '../src/assets.js';
 const frame=document.querySelector('iframe'),out=document.getElementById('results'),lines=[];
 function check(ok,text){if(!ok)throw new Error(text);lines.push('PASS '+text);out.textContent=lines.join('\n');}
@@ -32,7 +32,12 @@ try {
   const game=win.__game,input=win.__input;
   // Avoid unnecessary audio and automatic enemy building while testing production deterministically.
   game.audio.play=()=>{};game.audio.say=()=>{};game.ais=[];
-  check(game.units.length>0&&game.buildings.length===6,'real game starts after retry');
+  // Each side starts with HQ, power plant and refinery; the neutral tech sites are counted apart.
+  const roles=(team)=>game.buildings.filter(b=>b.team===team&&!b.def.tech).map(b=>b.def.role).sort().join();
+  check(game.units.length>0&&['human','machine'].every(t=>roles(t)==='hq,power,refinery'),'real game starts after retry');
+  const tech=game.buildings.filter(b=>b.def.tech);
+  check(tech.length===TECH_SITE_COUNT&&tech.every(b=>b.team===null),'neutral tech sites placed at startup');
+  check(game.buildings.length===6+TECH_SITE_COUNT,'no other buildings at startup');
   check(game.units.concat(game.buildings).every(e=>e.mesh.userData.modelSource==='glb'),'all initial entities use imported models');
   check(win.__graphics().loaded.length===MODEL_IDS.length,'full graphics catalog in main entry point');
   for(const def of Object.values(DEFS).filter(d=>d.kind==='building')) {
@@ -58,7 +63,9 @@ try {
   check(pad(sold)[0]===0,'sold building takes its pad');
   check(pad(burnt)[0]===255&&pad(burnt)[1]===255,'destroyed building leaves a scorched pad');
   for(const team of ['human','machine'])game.teams[team].credits=100000;
-  const before=new Map(Object.values(DEFS).filter(d=>d.kind==='unit').map(d=>[d.id,game.units.filter(u=>u.def.id===d.id).length]));
+  // Tech-factory units (Mammoth, Juggernaut) need a captured, repaired site; tests/tech.mjs covers them.
+  const baseProducers=new Set(Object.values(DEFS).filter(d=>d.kind==='building'&&!d.tech&&d.produces).map(d=>d.produces));
+  const before=new Map(Object.values(DEFS).filter(d=>d.kind==='unit'&&baseProducers.has(d.producer)).map(d=>[d.id,game.units.filter(u=>u.def.id===d.id).length]));
   for(const id of before.keys())check(game.queueUnit(DEFS[id].team,id),id+': production queued');
   const mover=game.units.find(u=>u.def.id==='h_tank'),origin={x:mover.x,z:mover.z};
   mover.cmdMove(mover.x+7,mover.z-4);
