@@ -161,7 +161,7 @@ U({ id: 'm_siege', team: 'machine', role: 'arty', name: 'Araña de Asedio', cost
     sight: 20,
     weapon: { range: 40, damage: 50, cd: 3.8, proj: 'plasmalob', lob: 0.25, splash: 5, mult: { light: 1, armor: 0.8, building: 1.3 } },
     desc: 'Mortero de plasma de largo alcance.' });
-U({ id: 'm_welder', team: 'machine', role: 'repair', name: 'Soldador', cost: 500, time: 12, producer: 'factory',
+U({ id: 'm_welder', team: 'machine', role: 'repair', name: 'Soldador', cost: 500, time: 12, producer: 'factory', tracks: 'legs',
     hp: 250, speed: 3.5, turn: 2.6, radius: 1.4, cls: 'armor', height: 2.4, sight: 20,
     repair: { targets: 'factory', rate: 16, range: 6 },
     desc: 'Repara máquinas pesadas aliadas cercanas. Desarmado.' });

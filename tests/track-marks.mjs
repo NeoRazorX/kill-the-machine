@@ -46,9 +46,9 @@ for (const theme of ['temperate', 'desert', 'ice']) {
   game.spectate = true; travel(fx, u);
   assert(fx.count > 0, 'spectators see every mark');
 }
-for (const id of ['h_tank', 'h_harv', 'm_harv', 'h_radar', 'h_mech', 'm_welder', 'h_mammoth', 'h_arty']) assert(trackStyle(DEFS[id]) === 'tread', `${id}: leaves tread marks`);
+for (const id of ['h_tank', 'h_harv', 'm_harv', 'h_radar', 'h_mech', 'h_mammoth', 'h_arty']) assert(trackStyle(DEFS[id]) === 'tread', `${id}: leaves tread marks`);
 for (const id of ['h_juggernaut', 'm_juggernaut']) assert(trackStyle(DEFS[id]) === 'feet', `${id}: leaves footprints`);
-for (const id of ['m_crusher', 'm_siege', 'm_radar']) assert(trackStyle(DEFS[id]) === 'legs', `${id}: leaves spider leg prints`);
+for (const id of ['m_crusher', 'm_siege', 'm_radar', 'm_welder']) assert(trackStyle(DEFS[id]) === 'legs', `${id}: leaves spider leg prints`);
 for (const id of ['h_rifle', 'h_medic', 'm_sentinel', 'm_drone', 'm_engineer']) {
   const { fx } = fixture(); travel(fx, unit(id));
   assert(fx.count === 0, `${id}: infantry and drones leave no vehicle marks`);
