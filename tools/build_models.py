@@ -43,6 +43,7 @@ PRIMER = '#a39a84'
 GUNMETAL = '#555b57'
 SHEET = '#868d83'
 VEST = '#e98a2b'
+DEEP = '#0b0f15'      # unlit recesses: intake pits, bucket mouths, bay interiors
 
 
 def xyz(v):
@@ -864,29 +865,103 @@ def human_refinery():
     save('h_refinery')
 
 
-def refinery(machine=False):
-    if not machine:
-        return human_refinery()
+def canopy_panel(name, a0, a1, r0, y0, r1, y1, cx, cz, tint, t=.06):
+    # Sloped canopy panel between angles a0..a1 (0 = +X, pi/2 = +Z), from (r0, y0) out to (r1, y1).
+    P = lambda a, r, y: (cx + math.cos(a)*r, y, cz + math.sin(a)*r)
+    top = [P(a0, r0, y0), P(a1, r0, y0), P(a1, r1, y1), P(a0, r1, y1)]
+    bot = [(x, y - t, z) for x, y, z in top]
+    faces = [(0,1,2,3), (7,6,5,4), (0,4,5,1), (1,5,6,2), (2,6,7,3), (3,7,4,0)]
+    return solid(name, top + bot, faces, tint)
+
+
+def machine_refinery():
+    # Smelter after the Tiberian Sun Nod refinery: a conical canopy of plates between glowing red
+    # ribs under a round deck carrying the refining towers. The canopy opens at the front onto a
+    # docking bay; a striped ramp runs down from it to the pad where the harvesters unload.
     reset()
-    hull, edge, base, accent = MACHINE,MPLATE,BLACK,RED
-    objects = platform(machine=True)
-    objects += [armor('Processing hall',3.2,3.35,.3,2.57,.3,(-1.05,-.73),hull),
-                box('Roof vent',(1.8,.24,1.5),(-1.05,2.64,-.73),base,.05),
-                box('Dock',(3.9,.13,1.65),(0,.37,1.94),base),
-                box('Intake',(2.1,1.42,.1),(-.65,1.15,1.03),ORANGE)]
-    for i in range(6):
-        objects.append(box('Loading stripe',(.29,.025,1.58),(-1.6+i*.64,.45,1.94),accent,.005))
-    objects += [cone('Smelter hopper',.43,1.03,1.28,(1.79,2.31,-1.09),MPLATE,8),
-                    cyl('Furnace neck',.43,1.3,(1.79,1.02,-1.09),BLACK),
-                    torus('Furnace rim',1.06,.08,(1.79,2.97,-1.09),ORANGE),
-                    cyl('Slag tank',.63,1.6,(1.88,1.18,.72),BLACK),
-                    torus('Slag band',.65,.055,(1.88,1.78,.72),RED)]
-    for x in (-2.13,-1.35):
-        objects += [cyl('Exhaust',.21,1.28,(x,3.29,-1.91),base,vertices=8),
-                    torus('Exhaust lip',.23,.05,(x,3.92,-1.91),ORANGE)]
-    objects.append(beam('Transfer pipe',(.22,1.85,-.56),(1.68,1.85,-.56),.21,STEEL))
-    merge('Refinery',objects)
+    o = platform(machine=True)
+    top = .28
+    cx, cz = -.2, -.3
+    R0, R1, RM = 1.45, 2.5, 2.08        # deck edge, canopy foot, plate colour break
+    Y0, Y1 = 1.62, top + .04
+    ym = Y0 + (Y1 - Y0) * (RM - R0) / (R1 - R0)
+    front, gap, n = math.pi/2, math.radians(34), 14    # bay opening centred on +Z, half-width gap
+    angle = lambda i: front + gap + i * (math.tau - 2*gap) / n
+    for i in range(n):
+        a0, a1 = angle(i) + .012, angle(i+1) - .012
+        o += [canopy_panel('Canopy plate', a0, a1, R0, Y0, RM, ym, cx, cz, MPLATE),
+              canopy_panel('Canopy skirt', a0, a1, RM, ym, R1, Y1, cx, cz, MACHINE)]
+    for i in range(n+1):
+        a = angle(i)
+        P = lambda r, y: (cx + math.cos(a)*r, y, cz + math.sin(a)*r)
+        o += [beam('Canopy rib', P(R0-.05, Y0+.06), P(R1+.08, Y1-.02), .11, RED, 0),
+              box('Rib foot', (.2,.14,.2), P(R1+.08, top+.07), BLACK, .01)]
+        if i % 2 == 0:
+            o.append(gem('Rib light', (.05,.04,.05), P(R0+.05, Y0+.12), RED))
+    # Deck: dark disc with a red rim and a ring of grates round the towers.
+    o += [rod('Deck', R0+.05, (cx,Y0+.04,cz), .14, BLACK, 'y', 28),
+          torus('Deck rim', R0+.06, .05, (cx,Y0+.11,cz), RED),
+          rod('Deck core', .9, (cx,Y0+.13,cz), .04, MACHINE, 'y', 20)]
+    for k in range(10):
+        a = k*math.tau/10
+        o.append(tbox('Deck grate', (.6,.02,.05), (cx+math.cos(a)*1.15, Y0+.12, cz+math.sin(a)*1.15), BLACK, (0,-a,0), 0))
+    # Docking bay: dark interior under the deck between two cheeks.
+    o += [box('Bay interior', (2.2,1.1,.1), (cx,top+.55,cz+.55), DEEP, 0),
+          box('Bay roof', (2.0,.1,1.0), (cx,Y0-.1,cz+.75), DEEP, 0)]
+    for s in (-1,1):
+        bx, bz = cx + math.cos(front+s*gap)*R1, cz + math.sin(front+s*gap)*R1
+        o.append(prism('Bay cheek', [(cz+.4,top),(bz+.05,top),(cz+.95,Y0-.05),(cz+.4,Y0-.05)], bx-.07, bx+.07, MACHINE, 'zy', .01))
+    # Ramp from the bay down to the pad, with red hazard bars.
+    rz0, rz1, rw = cz+1.0, 2.55, 1.9
+    ramp = lambda z: top+.32 + (z-rz0)/(rz1-rz0)*(.06-.32)
+    o.append(prism('Intake ramp', [(rz0,top+.32),(rz1,top+.06),(rz1,top),(rz0,top)], cx-rw/2, cx+rw/2, BLACK, 'zy'))
+    for i in range(5):
+        z0, z1 = rz0 + (rz1-rz0)*(i+.2)/5, rz0 + (rz1-rz0)*(i+.7)/5
+        o.append(prism('Hazard bar', [(z0,ramp(z0)+.005),(z1,ramp(z1)+.005),(z1,ramp(z1)+.02),(z0,ramp(z0)+.02)],
+                       cx-rw/2+.12, cx+rw/2-.12, RED, 'zy'))
+    # Octagonal docking pad along the front edge of the lot.
+    o += [armor('Docking pad', 4.4, 1.9, top, top+.05, .1, (.1,1.98), '#30373f', .01),
+          armor('Pad edge', 4.6, 2.05, top-.01, top+.03, .05, (.1,1.96), MPLATE, 0)]
+    for s in (-1,1):
+        o.append(gem('Pad light', (.06,.04,.06), (cx+s*1.15, top+.08, 2.75), RED))
+    # Refining towers: a tall banded column on a flared base with a flare stack, two shorter stills
+    # and a cluster of vent pipes.
+    tx, tz = cx-.55, cz-.55
+    o += [cone('Column base', .5, .24, .9, (tx,Y0+.55,tz), MACHINE, 12),
+          rod('Column', .2, (tx,3.15,tz), 3.0, MPLATE, 'y', 12),
+          cone('Column cap', .23, .08, .3, (tx,4.5,tz), MPLATE, 12),
+          rod('Flare pipe', .06, (tx+.32,3.6,tz-.1), 1.7, BLACK, 'y', 6),
+          gem('Flare', (.08,.1,.08), (tx+.32,4.5,tz-.1), ORANGE)]
+    for y in (2.6, 3.25, 3.85):
+        o.append(rod('Column ring', .3, (tx,y,tz), .1, BLACK, 'y', 12))
+    for sx, sz, h in ((cx+.45,cz-.6,3.6), (cx+.1,cz+.35,3.05)):
+        o += [rod('Still', .17, (sx,(Y0+h)/2,sz), h-Y0, MPLATE, 'y', 10),
+              cone('Still cap', .19, .06, .22, (sx,h+.1,sz), MPLATE, 10),
+              rod('Still ring', .26, (sx,h-.45,sz), .09, BLACK, 'y', 10),
+              rod('Still ring', .24, (sx,h-.95,sz), .08, BLACK, 'y', 10),
+              rod('Still footing', .28, (sx,Y0+.2,sz), .2, MACHINE, 'y', 10)]
+    for k in range(4):
+        o.append(rod('Vent pipe', .05, (cx-1.2+k*.12, Y0+.35, cz+.2-k*.08), .55+.12*(k % 2), MPLATE, 'y', 6))
+    # Storage behind the canopy: a domed tank at the back right and a capsule on saddles at the back left.
+    dx, dz = 2.15, -2.15
+    o += [rod('Tank skirt', .78, (dx,top+.3,dz), .6, MACHINE, 'y', 16),
+          rod('Storage tank', .72, (dx,.95,dz), .8, MACHINE, 'y', 16),
+          gem('Tank dome', (.72,.45,.72), (dx,1.35,dz), MACHINE),
+          rod('Tank cap', .3, (dx,1.78,dz), .1, MPLATE, 'y', 12),
+          torus('Tank band', .73, .04, (dx,1.2,dz), RED),
+          rod('Capsule', .5, (-2.0,1.1,-2.35), 1.4, MACHINE, 'x', 14),
+          gem('Capsule end', (.25,.5,.5), (-1.3,1.1,-2.35), MACHINE),
+          gem('Capsule end', (.25,.5,.5), (-2.7,1.1,-2.35), MACHINE)]
+    for x in (-2.5,-1.5):
+        o.append(box('Capsule saddle', (.18,.6,.9), (x,top+.3,-2.35), BLACK, .01))
+    o += [pipe('Transfer pipe', (dx-.5,1.0,dz+.4), (cx+1.6,1.0,cz-.6), .1, BLACK),
+          pipe('Transfer pipe', (-1.6,1.5,-2.2), (tx,1.9,tz), .08, BLACK)]
+    merge('Refinery', o)
     save('m_refinery')
+
+
+def refinery(machine=False):
+    return machine_refinery() if machine else human_refinery()
 
 
 def barracks(machine=False):
@@ -2550,7 +2625,7 @@ HARV_BIN = (.55,-1.72,-.2,1.42,1.98)    # hopper interior: half width, rear z, f
 HARV_BOOM = .1, 1.42            # boom pivot z, y (the girders run from here to the wheel axle)
 HARV_BELT = ((0,1.12,.92), (0,2.02,-.3))   # conveyor belt surface: tail behind the wheel, head over the hopper
 HARV_TRACK = [(-1.3,0),(.8,0),(1.1,.14),(1.2,.36),(1.1,.56),(.88,.66),(-1.38,.66),(-1.6,.56),(-1.7,.36),(-1.6,.14)]
-BELT_DARK, DEEP = '#1a2028', '#0b0f15'
+BELT_DARK = '#1a2028'
 
 
 def crawler(s, x0, x1, outline, wheels, sprockets, step=.19):
