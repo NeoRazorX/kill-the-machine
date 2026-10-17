@@ -15,7 +15,7 @@ function loadVolumes() {
   return v;
 }
 
-const MIN_GAP = { rifle: 45, zap: 45, rocket: 90, cannon: 90, plasma: 90, howitzer: 150, laser: 90, explosion: 60, bigexplosion: 150, cashup: 70 };
+const MIN_GAP = { rifle: 45, zap: 45, rocket: 90, cannon: 90, plasma: 90, howitzer: 150, laser: 90, explosion: 60, bigexplosion: 150, cashup: 60 };
 
 export class GameAudio {
   constructor(game) {
@@ -162,13 +162,12 @@ export class GameAudio {
   s_error(v) { this.tone(160, 120, 0.18, 'square', 0.12); }
   s_ready(v) { this.tone(660, 660, 0.12, 'triangle', 0.14); this.tone(990, 990, 0.2, 'triangle', 0.14, 0.12); }
   s_place(v) { this.tone(110, 50, 0.3, 'sine', 0.4); this.burst(0.18, 600, 100, 0.25); }
-  // Contador de créditos subiendo: tics metálicos cortos que alternan dos tonos, como la caja
-  // registradora de C&C.
+  // Contador de créditos subiendo: chasquido metálico seco, sin tono definido, como la caja
+  // registradora de C&C; alterna dos brillos para que suene tic-tic.
   s_cashup(v) {
     this.cashTick = !this.cashTick;
-    const f = this.cashTick ? 2400 : 2050;
-    this.tone(f, f * 0.92, 0.035, 'square', 0.035);
-    this.burst(0.02, 6000, 3000, 0.05, 'highpass');
+    this.burst(0.018, this.cashTick ? 4600 : 4000, 2400, 0.1, 'bandpass');
+    this.tone(3300, 2900, 0.018, 'triangle', 0.025);
   }
   s_sell(v) { this.tone(1200, 1200, 0.07, 'square', 0.08); this.tone(1600, 1600, 0.1, 'square', 0.08, 0.08); }
   s_alert(v) { this.tone(880, 880, 0.12, 'square', 0.1); this.tone(660, 660, 0.12, 'square', 0.1, 0.14); }
