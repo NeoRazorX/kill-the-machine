@@ -260,6 +260,7 @@ export class TechSites {
     // Work in progress belonged to the old owner and is lost with the building.
     b.target = null; b.lastHit = -99; b.queue = []; b.rally = null;
     g.consumeUnit(unit);
+    g.bump?.(unit.team, 'captured');
     g.recomputePower();
     if (this.inSight(b)) g.fx.marker(b.x, b.z, 'rally');
     // The player learns at once about their own losses; anything else only when seen.
@@ -328,7 +329,7 @@ export class TechSites {
     t.incomeT = Math.max(0, elapsed - payments * income.interval);
     if (payments) {
       const g = this.game, amount = payments * income.amount;
-      g.addCredits(b.team, amount);
+      g.addCredits(b.team, amount, 'mined');
       if (b.team === g.player || g.spectate) g.emit('income', {
         team: b.team, amount: amount * g.teams[b.team].income, x: b.x, z: b.z, height: b.def.height,
       });

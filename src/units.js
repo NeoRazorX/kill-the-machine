@@ -533,7 +533,7 @@ export class Unit {
         this.heading += clamp(angleDiff(want, this.heading), -d.turn * dt, d.turn * dt);
         const amt = Math.min(this.load, d.unloadRate * dt);
         this.load -= amt;
-        g.addCredits(this.team, amt, this);
+        g.addCredits(this.team, amt, 'harvested');
         if (this.load <= 0.01) { this.load = 0; this.hstate = 'idle'; this.refinery = null; }
         break;
       }

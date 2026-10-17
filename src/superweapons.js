@@ -65,6 +65,7 @@ export class Superweapons {
     if (!this.isReady(b) || !this.canTarget(b.team, x, z)) return false;
     const sw = b.def.superweapon;
     this.reset(b);
+    g.bump?.(b.team, 'strikes');
     const s = { sw, team: b.team, x, z, sx: b.x, sz: b.z, t: 0, meshes: [] };
     // Everybody sees where a strike is coming, so units can still get clear.
     const ring = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: sw.kind === 'ion' ? 0x6fd8ff : 0xff4a3a,

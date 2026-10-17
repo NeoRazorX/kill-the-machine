@@ -14,9 +14,14 @@ import { Superweapons } from './superweapons.js';
 import { nearestFreeCell, canOccupy } from './pathfinding.js';
 
 const HASH = 8, HN = SIZE / HASH;
+const HISTORY_STEP = 10;   // s entre muestras de la evolución de la partida
 const newTeam = () => ({
   credits: START_CREDITS, income: 1, structQueue: null,
-  stats: { killed: 0, lost: 0, built: 0, earned: 0 },
+  // killed/lost cuentan unidades y edificios juntos; el resto desglosa para la pantalla de resultados.
+  stats: {
+    killed: 0, lost: 0, built: 0, earned: 0, unitsKilled: 0, unitsLost: 0, buildingsKilled: 0, buildingsLost: 0,
+    trained: 0, harvested: 0, mined: 0, crates: 0, crateCredits: 0, captured: 0, strikes: 0,
+  },
   power: { prod: 0, use: 0 }, lastAttacked: null, lowPowerFlag: false,
 });
 
@@ -41,6 +46,7 @@ export class Game {
     this.buckets = Array.from({ length: HN * HN }, () => []);
     this._q = [];
     this.over = null; this.paused = false;
+    this.history = []; this.historyT = 0;
     this.camTarget = { x: SIZE / 2, z: SIZE / 2 };
     this.onEvent = null;
     this.lastAlert = -99; this.oreT = 0;
@@ -84,6 +90,7 @@ export class Game {
     this.cashCrates.discover();
     this.cashCrates.update();
     this.techSites.discover();
+    this.sampleHistory();
   }
 
   assignStarts(slots = null) {
@@ -308,10 +315,31 @@ export class Game {
   hasRole(team, role) { return this.buildings.some((b) => b.team === team && !b.dead && b.complete && b.def.role === role); }
 
   // --------------------------------------------------------------- economía
-  addCredits(team, amt) {
+  // kind: la partida de las estadísticas a la que suma ('harvested', 'mined').
+  addCredits(team, amt, kind = null) {
     const t = this.teams[team];
     t.credits += amt * t.income;
     t.stats.earned += amt * t.income;
+    if (kind) this.bump(team, kind, amt * t.income);
+  }
+
+  bump(team, key, n = 1) {
+    const s = this.teams[team]?.stats;
+    if (s) s[key] = (s[key] || 0) + n;
+  }
+
+  // Cada HISTORY_STEP s, valor del ejército (coste de las unidades vivas, sin cosechadoras) y
+  // créditos ganados por bando: las curvas de la pantalla de resultados.
+  sampleHistory() {
+    const h = (this.history ??= []), last = h[h.length - 1];
+    if (last && last.t === this.time) return;
+    const s = { t: this.time };
+    for (const team of ['human', 'machine']) {
+      let army = 0;
+      for (const u of this.units) if (u.team === team && !u.dead && !u.def.harvester) army += u.def.cost;
+      s[team] = { army, earned: Math.round(this.teams[team].stats.earned) };
+    }
+    h.push(s);
   }
 
   recomputePower() {
@@ -414,6 +442,7 @@ export class Game {
   spawnProduced(b, def) {
     const spot = this.findSpawnSpot(b, def.radius);
     const u = this.spawnUnit(def, b.team, spot.x, spot.z);
+    this.bump(b.team, 'trained');
     if (def.harvester) u.cmdHarvest(null);
     else {
       const r = b.rally || { x: spot.x + (Math.random() - 0.5) * 6, z: spot.z + b.front * (7 + Math.random() * 3) };
@@ -494,7 +523,7 @@ export class Game {
     this.setCells(b, 2);
     this.navVersion++;
     this.displaceUnits(b);
-    if (team) this.teams[team].stats.built++;
+    if (team && !instant) this.teams[team].stats.built++;   // la base inicial no cuenta
     if (instant) { b.announced = true; this.onBuildingComplete(b); }
     this.recomputePower();
     return b;
@@ -576,8 +605,9 @@ export class Game {
   kill(e, byTeam, source = null) {
     if (e.dead) return;
     e.hp = 0;
-    this.teams[e.team].stats.lost++;
-    if (byTeam && this.teams[byTeam]) this.teams[byTeam].stats.killed++;
+    const what = e.kind === 'unit' ? 'units' : 'buildings';
+    this.teams[e.team].stats.lost++; this.bump(e.team, what + 'Lost');
+    if (byTeam && this.teams[byTeam]) { this.teams[byTeam].stats.killed++; this.bump(byTeam, what + 'Killed'); }
     if (source?.team === byTeam) source.recordKill?.(e);
     if (e.kind === 'unit') {
       e.dead = true;
@@ -631,6 +661,7 @@ export class Game {
       // Tech structures do not keep a defeated side in the game.
       if (!this.buildings.some((b) => b.team === team && !b.dead && !b.selling && !b.def.tech)) {
         this.over = { winner: other(team), loser: team, time: this.time };
+        this.sampleHistory();
         this.emit('over', this.over);
         return;
       }
@@ -657,6 +688,8 @@ export class Game {
     this.cashCrates.update();
     this.techSites.update(dt);
     this.superweapons?.update(dt);
+    this.historyT = (this.historyT || 0) + dt;
+    if (this.historyT >= HISTORY_STEP && !this.over) { this.historyT = 0; this.sampleHistory(); }   // la curva acaba con la partida
 
     this.oreT += dt;
     if (this.oreT >= 1) {

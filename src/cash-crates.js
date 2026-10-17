@@ -77,6 +77,7 @@ export class CashCrates {
     const team = g.teams[unit.team];
     team.credits += crate.amount;
     team.stats.earned += crate.amount;
+    g.bump?.(unit.team, 'crates'); g.bump?.(unit.team, 'crateCredits', crate.amount);
     if (g.visibleAt(crate.x, crate.z) || g.spectate) g.fx.marker(crate.x, crate.z, 'rally');
     if (unit.team === g.player && !g.spectate) {
       g.audio.play('sell');

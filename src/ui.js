@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { DEFS, ROLE, TEAMS, N, SIZE, CELL, STRUCT_ROLES, UNIT_ROLES, ROLE_NAMES, PLAYER, globalRadarActive, buildingRepairCost, canRepairBuilding } from './config.js';
+import { renderResults } from './results.js';
 import { buildUnitModel, buildBuildingModel } from './models.js';
 import { isCombatUnit, experienceText } from './experience.js';
 import { SelectionRings } from './selection-rings.js';
@@ -119,10 +120,7 @@ export class UI {
     $('end-title').textContent = g.spectate ? `Ganan ${over.winner === 'human' ? 'los Humanos' : 'las Máquinas'}` : (win ? 'VICTORIA' : 'DERROTA');
     $('end-sub').textContent = win ? TEAMS[g.player].victory : TEAMS[g.player].defeat;
     if (g.spectate) $('end-sub').textContent = '';
-    const t = g.teams[g.spectate ? over.winner : g.player], m = Math.floor(over.time / 60), s = Math.floor(over.time % 60);
-    $('end-stats').innerHTML = `<div><b>${m}:${String(s).padStart(2, '0')}</b><span>Duración</span></div>` +
-      `<div><b>${t.stats.killed}</b><span>Bajas enemigas</span></div><div><b>${t.stats.lost}</b><span>Pérdidas</span></div>` +
-      `<div><b>${Math.round(t.stats.earned)}</b><span>Créditos ganados</span></div>`;
+    renderResults($('end-stats'), g);
     g.audio.play(win ? 'win' : 'lose');
     g.audio.say(win ? 'Misión cumplida. Victoria.' : 'Misión fallida. Derrota.', 0);
   }

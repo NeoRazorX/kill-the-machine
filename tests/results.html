@@ -1,0 +1,78 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Results screen</title>
+<style>body{background:#11171c;color:#e5efed;font:13px monospace}iframe{width:100%;height:760px;border:1px solid #334047}pre{white-space:pre-wrap}</style>
+<pre id="results">RUNNING</pre><iframe title="Partida de prueba"></iframe>
+<script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
+<script type="module">
+// Per-side statistics, the timeline and the end-of-game results screen, through the real entry point.
+import { ROLE } from '../src/config.js';
+const frame=document.querySelector('iframe'),out=document.getElementById('results'),lines=[];
+function check(ok,text){if(!ok)throw new Error(text);lines.push('PASS '+text);out.textContent=lines.join('\n');}
+async function until(predicate,what){const deadline=performance.now()+20000;while(!predicate()){if(performance.now()>deadline)throw new Error('Timed out waiting for '+what);await new Promise(r=>setTimeout(r,30));}}
+const savedSide=localStorage.getItem('ktm.side');
+try {
+  frame.src='../index.html?autostart=easy&side=human&tech=t_mine';
+  await new Promise(r=>frame.onload=r);
+  await until(()=>frame.contentWindow.__game&&frame.contentDocument.getElementById('app').classList.contains('playing'),'startup');
+  const win=frame.contentWindow,doc=frame.contentDocument,game=win.__game;
+  const errors=[];win.addEventListener('error',e=>errors.push(e.message));
+  game.audio.say=()=>{};game.audio.play=()=>{};
+  const S=(t)=>game.teams[t].stats;
+  check(S('human').built===0&&S('machine').built===0&&S('human').trained===0,'the starting base and units are not counted as built or produced');
+  check(game.history.length===1&&game.history[0].t===0&&game.history[0].human.army>0,'the timeline starts with a sample of both armies');
+
+  // Production, a kill and a crate, through the game's own paths.
+  game.teams.human.credits=100000;
+  const bdef=ROLE.human.barracks,hq=game.teamBuildings('human','hq')[0];let spot=null;
+  for(let r=4;r<30&&!spot;r++)for(let dz=-r;dz<=r&&!spot;dz++)for(let dx=-r;dx<=r;dx++)if(game.canPlace('human',bdef,hq.cx+dx,hq.cz+dz,true)){spot=[hq.cx+dx,hq.cz+dz];break;}
+  game.placeBuilding('human',bdef.id,spot[0],spot[1],true);
+  check(game.queueUnit('human',ROLE.human.inf1.id),'infantry queued at a new barracks');
+  for(let i=0;i<40&&!S('human').trained;i++){win.__step(20,.05);await new Promise(r=>setTimeout(r,0));}
+  check(S('human').trained>=1,'a unit coming out of the barracks counts as produced');
+  const victim=game.units.find(u=>u.team==='machine'&&!u.def.harvester);
+  const before={k:S('human').unitsKilled,l:S('machine').unitsLost};
+  game.kill(victim,'human');
+  check(S('human').unitsKilled===before.k+1&&S('machine').unitsLost===before.l+1,'a destroyed unit counts for the killer and against its owner');
+  const crate=game.cashCrates.items.find(c=>!c.collected),unit=game.units.find(u=>u.team==='human'&&!u.dead);
+  const cr={n:S('human').crates,c:S('human').crateCredits,e:S('human').earned};
+  game.cashCrates.claim(crate,unit);
+  check(S('human').crates===cr.n+1&&S('human').crateCredits===cr.c+crate.amount&&S('human').earned===cr.e+crate.amount,'a crate counts once with its credits');
+  for(let i=0;i<40&&!S('human').harvested;i++){win.__step(20,.05);await new Promise(r=>setTimeout(r,0));}
+  check(S('human').harvested>0&&S('human').harvested<=S('human').earned,'harvested credits are tracked within the earnings');
+  check(game.history.length>=3&&game.history.every((s,i)=>!i||s.t>game.history[i-1].t),'the timeline samples the game every few seconds');
+
+  // End the game: the player's side wins.
+  for(const b of game.buildings.filter(b=>b.team==='machine'&&!b.dead))game.kill(b,'human');
+  win.__step(2,.05);
+  await until(()=>!doc.getElementById('endscreen').classList.contains('hidden'),'end screen');
+  const last=game.history[game.history.length-1];
+  check(last.t===game.over.time,'the timeline closes with a sample at the end of the game');
+  const samples=game.history.length;win.__step(400,.05);
+  check(game.history.length===samples,'no more samples once the game is over');
+  const rows=[...doc.querySelectorAll('#end-stats .res-table:not(.small) tbody tr:not(.res-group)')];
+  const row=(label)=>rows.find(r=>r.querySelector('th').textContent===label);
+  const cells=(label)=>[...row(label).querySelectorAll('td')].map(td=>td.firstChild.textContent);
+  check(doc.querySelectorAll('#end-stats .res-side').length===2&&doc.querySelector('.res-side.human small').textContent==='Tú','the table compares both sides and marks the player');
+  check(cells('Edificios destruidos')[0]===S('human').buildingsKilled.toLocaleString('es-ES')&&S('human').buildingsKilled>=3,'destroyed buildings match the stats');
+  check(cells('Unidades producidas')[0]===String(S('human').trained),'produced units match the stats');
+  check(row('Edificios destruidos').querySelector('td.best')===row('Edificios destruidos').querySelectorAll('td')[0],'the better value of a row is highlighted');
+  check(row('Unidades perdidas').querySelector('td.best')!==row('Unidades perdidas').querySelectorAll('td')[1]||S('machine').unitsLost<S('human').unitsLost,'for losses, fewer is better');
+  check(/caja/.test(row('· de cajas de dinero').textContent),'crate credits come with the number of crates');
+  const svg=doc.querySelector('.res-plot svg');
+  check(svg&&svg.querySelectorAll('.res-line').length===2,'the chart draws one line per side');
+  const tabs=[...doc.querySelectorAll('.res-tabs button')];
+  check(tabs.length===2&&tabs[0].classList.contains('active'),'the chart opens on army value');
+  const pathBefore=svg.querySelector('.res-line.human').getAttribute('d');
+  tabs[1].click();
+  check(tabs[1].classList.contains('active')&&doc.querySelector('.res-plot svg .res-line.human').getAttribute('d')!==pathBefore,'switching to earned credits redraws the chart');
+  const hit=doc.querySelector('.res-hit'),r=hit.getBoundingClientRect();
+  hit.dispatchEvent(new win.PointerEvent('pointermove',{clientX:r.left+r.width/2,clientY:r.top+r.height/2,bubbles:true}));
+  const tip=doc.querySelector('.res-tip');
+  check(tip.classList.contains('on')&&tip.querySelectorAll('.res-tip-row').length===2,'hovering the chart shows both sides at that moment');
+  check(doc.querySelectorAll('.res-data tbody tr').length===game.history.length,'the data table lists every sample');
+  check(errors.length===0,'no uncaught errors');
+  game.paused=true;
+  out.textContent=lines.join('\n')+'\nALL PASSED';
+}catch(error){out.textContent=lines.join('\n')+'\nFAIL '+error.stack;}
+finally{if(savedSide==null)localStorage.removeItem('ktm.side');else localStorage.setItem('ktm.side',savedSide);}
+</script>
+</html>
