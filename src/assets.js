@@ -17,7 +17,7 @@ const requiredNodes = {
   t_mine: ['drill'],
   t_radar: ['dish'],
   m_crusher: Array.from({length: 4}, (_,i) => `spider_${i}`),
-  m_siege: Array.from({length: 6}, (_,i) => `spider_${i}`),
+  m_siege: [...Array.from({length: 6}, (_,i) => `spider_${i}`), ...Array.from({length: 8}, (_,i) => `muzzle_${i}`)],
   h_hq: ['dish'], m_hq: ['crystal', 'ring', 'dish'], m_power: ['rotor'],
   h_engineer: ['body', 'leg_0', 'leg_1'], m_engineer: ['bob', 'ring'],
   h_mammoth: ['muzzle_0', 'muzzle_1'], m_mammoth: ['muzzle_0', 'muzzle_1'],

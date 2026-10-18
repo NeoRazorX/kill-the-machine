@@ -156,11 +156,13 @@ U({ id: 'm_crusher', team: 'machine', role: 'tank', name: 'Segador', cost: 580, 
     sight: 22,
     weapon: { range: 17, damage: 30, cd: 1.4, proj: 'plasma', splash: 2.5, mult: { light: 0.85, armor: 1, building: 1 } },
     desc: 'Máquina de guerra arácnida con cañón de plasma.' });
-U({ id: 'm_siege', team: 'machine', role: 'arty', name: 'Araña de Asedio', cost: 750, time: 16, producer: 'factory', tracks: 'legs',
-    hp: 130, speed: 4, turn: 2.2, radius: 1.4, cls: 'armor', height: 2.8, turret: true, turretTurn: 2,
+// spread: each rocket of the volley lands anywhere within this distance of the aim point.
+U({ id: 'm_siege', team: 'machine', role: 'arty', name: 'Araña Lanzacohetes', cost: 750, time: 16, producer: 'factory', tracks: 'legs',
+    hp: 130, speed: 4, turn: 2.2, radius: 1.4, cls: 'armor', height: 2.9, turret: true, turretTurn: 2,
     sight: 20,
-    weapon: { range: 40, damage: 50, cd: 3.8, proj: 'plasmalob', lob: 0.25, splash: 5, mult: { light: 1, armor: 0.8, building: 1.3 } },
-    desc: 'Mortero de plasma de largo alcance.' });
+    weapon: { range: 40, damage: 7, cd: 3.8, proj: 'rocketlob', lob: 0.25, splash: 3.5, spread: 2, salvo: 8, salvoGap: 0.12,
+      mult: { light: 1, armor: 0.8, building: 1.15 } },
+    desc: 'Artillería de cohetes de largo alcance: lanza salvas de ocho cohetes sin guiado que saturan la zona.' });
 U({ id: 'm_welder', team: 'machine', role: 'repair', name: 'Soldador', cost: 500, time: 12, producer: 'factory', tracks: 'legs',
     hp: 250, speed: 3.5, turn: 2.6, radius: 1.4, cls: 'armor', height: 2.4, sight: 20,
     repair: { targets: 'factory', rate: 16, range: 6 },

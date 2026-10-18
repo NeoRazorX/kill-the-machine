@@ -2256,21 +2256,7 @@ def juggernaut(accent=BLUE):
     save('m_juggernaut' if accent == RED else 'h_juggernaut')
 
 
-# ---------------------------------------------------------------- Siege spider (m_siege)
-# Machine plasma mortar on a low, long six-legged arachnid: armoured cephalothorax with a
-# sensor-eyed head, a segmented reactor abdomen, wide-stanced articulated legs, and a
-# rotating deck carrying a short, thick plasma mortar between two trunnion cheeks.
-SIEGE_DECK = (0, 1.38, -.05)    # turret pivot: top of the body, on the yaw axis
-SIEGE_TRUNNION = (2.0, .08)     # world y, z of the mortar's elevation axis
-SIEGE_REST = .35                # rest elevation (rad); the game raises it to ~0.9 when firing
-SIEGE_MOUTH = 1.75              # muzzle distance along the tube from the trunnion
-# Legs as (side, hip x, hip z, splay in degrees, reach); even and odd indices step in turn.
-SIEGE_LEGS = ((-1,.64,.75,38,.97), (1,.64,.75,38,.97), (1,.6,.12,86,.76),
-              (-1,.6,.12,86,.76), (-1,.62,-.38,140,1.0), (1,.62,-.38,140,1.0))
-SIEGE_ABDOMEN = ((-.7,.34,.8,1.12), (-.95,.6,.72,1.3), (-1.25,.74,.68,1.46),
-                 (-1.6,.72,.7,1.58), (-1.86,.55,.78,1.5), (-2.0,.3,.92,1.28))
-
-
+# ---------------------------------------------------------------- Walker parts
 def loft(name, rings, tint, bevel=.02):
     # Chamfered octagonal hull lofted along Z through (z, half width, bottom, top) sections.
     verts = []
@@ -2296,158 +2282,6 @@ def bone(name, a, b, width, depth, inset, tint, bevel=0):
     tilt = math.atan2(b[2]-a[2], b[1]-a[1])
     seg = armor(name, width, depth, 0, math.hypot(b[2]-a[2], b[1]-a[1]), inset, (0,0), tint, bevel)
     return xform(seg, (tilt,0,0), (0,0,0), a)
-
-
-def abdomen_top(z):
-    for (z0,_,_,t0), (z1,_,_,t1) in zip(SIEGE_ABDOMEN, SIEGE_ABDOMEN[1:]):
-        if z1 <= z <= z0:
-            return t0 + (t1-t0)*(z-z0)/(z1-z0)
-    return SIEGE_ABDOMEN[-1][3]
-
-
-def siege_leg(i, side, hx, hz, splay, k):
-    # Authored pointing +Z from the hip; the pivot then splays it about the vertical axis.
-    hx *= side
-    pivot = empty(f'spider_{i}', (hx,1.0,hz))
-    P = lambda u, y: (hx, y, hz + u*k)
-    profile = lambda name, pts, w, tint: prism(name, [(hz+u*k, y) for u,y in pts], hx-w, hx+w, tint, 'zy')
-    parts = [box('Coxa',(.26,.22,.42*k),P(.21,1.02),MPLATE,0),
-             rod('Coxa joint',.12,P(.4,1.04),.32,BLACK,'x',8),
-             bone('Femur',P(.4,1.04),P(.9,1.82),.24,.2,.07,MACHINE,.02),
-             beam('Femur spine',P(.47,1.2),P(.86,1.86),.09,MPLATE,0),
-             strut('Femur ram',P(.28,.92),P(.6,1.33),.05,BLACK),
-             strut('Femur ram rod',P(.6,1.33),P(.8,1.62),.028,STEEL,5),
-             rod('Knee joint',.14,P(.9,1.82),.3,BLACK,'x',8),
-             rod('Knee hub',.08,P(.9,1.82),.36,MPLATE,'x',6),
-             profile('Knee spike',[(.76,1.9),(1.0,1.92),(.84,2.03)],.05,MPLATE),
-             bone('Tibia armor',P(.9,1.82),P(1.2,.66),.26,.24,.11,MPLATE,.02),
-             beam('Tibia strut',P(1.17,.8),P(1.3,.34),.13,BLACK,0),
-             strut('Knee actuator',P(.7,1.56),P(1.06,1.3),.045,BLACK),
-             rod('Ankle joint',.085,P(1.3,.34),.24,MACHINE,'x',6),
-             profile('Foot pad',[(1.16,.4),(1.42,.24),(1.48,0),(1.18,0),(1.1,.2)],.11,MACHINE)]
-    for dx in (-.07,.07):
-        parts.append(prism('Toe claw',[(hz+1.4*k,.14),(hz+1.58*k,0),(hz+1.42*k,0)],hx+dx-.03,hx+dx+.03,BLACK,'zy'))
-    merge('Leg', parts, pivot)
-    pivot.rotation_euler.z = side*math.radians(splay)
-    return pivot
-
-
-def siege_body():
-    parts = [armor('Belly',1.1,1.8,.64,.84,.1,(0,.3),BLACK,0),
-             armor('Thorax',1.5,1.9,.82,1.3,.4,(0,.3),MACHINE),
-             armor('Dorsal plate',1.08,1.48,1.3,1.335,.06,(0,.3),MPLATE,0),
-             loft('Head',[(1.1,.46,.72,1.2),(1.45,.4,.74,1.16),(1.7,.27,.8,1.04)],MACHINE),
-             tbox('Head plate',(.5,.04,.34),(0,1.165,1.36),MPLATE,(.12,0,0),0),
-             rod('Waist',.22,(0,1.0,-.68),.3,BLACK,'z',8)]
-    # Spider eye cluster: two big sensors, four small ones on the face and two on the crown.
-    for s in (-1,1):
-        parts += [gem('Main eye',(.075,.075,.05),(s*.1,.94,1.7),RED),
-                  gem('Side eye',(.042,.042,.03),(s*.21,.9,1.665),RED),
-                  gem('Upper eye',(.035,.035,.03),(s*.07,1.02,1.67),RED),
-                  gem('Crown eye',(.045,.03,.045),(s*.13,1.19,1.27),RED),
-                  xform(box('Chelicera',(.09,.34,.13),(s*.13,.63,1.6),MPLATE,0),(.45,0,0),(s*.13,.8,1.6)),
-                  box('Fang tip',(.06,.08,.07),(s*.13,.5,1.5),BLACK,0)]
-    for s, hx, hz, _, _ in SIEGE_LEGS:
-        parts += [rod('Hip socket',.17,(s*hx,1.0,hz),.36,BLACK,'y',8),
-                  rod('Hip cap',.2,(s*hx,1.2,hz),.05,MPLATE,'y',8)]
-    # Segmented reactor abdomen: dorsal armour plates with plasma vents between them.
-    parts.append(loft('Abdomen',SIEGE_ABDOMEN,MACHINE))
-    for z, w in ((-1.08,.86),(-1.42,1.0),(-1.74,.86)):
-        t = abdomen_top(z)
-        parts.append(armor('Abdomen plate',w,.3,t-.05,t+.045,.1,(0,z),MPLATE,0))
-    for z in (-1.25,-1.58):
-        parts.append(box('Plasma vent',(.34,.03,.05),(0,abdomen_top(z)+.008,z),RED,0))
-    for s in (-1,1):
-        for z in (-1.18,-1.36,-1.54,-1.72):
-            parts.append(box('Cooling fin',(.06,.3,.08),(s*.735,1.1,z),BLACK,0))
-        parts.append(strut('Reactor feed',(s*.2,1.12,-1.0),(s*.3,1.2,-.5),.045,BLACK))
-    parts += [rod('Tail exhaust',.12,(0,1.1,-1.98),.1,BLACK,'z',8),
-              rod('Exhaust ring',.145,(0,1.1,-1.96),.04,MPLATE,'z',8)]
-    return parts
-
-
-def siege_deck():
-    ty, tz = SIEGE_TRUNNION
-    parts = [rod('Turret bearing',.7,(0,1.39,-.05),.1,BLACK,'y',16),
-             armor('Deck glacis',.74,.3,1.44,1.58,.1,(0,.5),MPLATE,0),
-             armor('Power cell',.74,.25,1.44,1.66,.08,(0,-.66),MACHINE,0)]
-    for x in (-.2,0,.2):
-        parts.append(box('Cell grille',(.12,.02,.14),(x,1.66,-.66),BLACK,0))
-    for s in (-1,1):
-        cheek = [(tz-.42,1.44),(tz+.4,1.44),(tz+.4,ty-.06),(tz+.2,ty+.2),(tz-.16,ty+.2),(tz-.42,ty-.02)]
-        # Sponsons flare outward so the legs' femurs pass beneath them as the deck turns.
-        parts += [armor('Sponson',.44,.84,1.44,1.7,-.16,(s*.66,-.05),MACHINE),
-                  armor('Sponson plate',.54,.9,1.7,1.74,.06,(s*.66,-.05),MPLATE,0),
-                  prism('Trunnion cheek',cheek,s*.37,s*.5,MPLATE,'zy'),
-                  rod('Trunnion bearing',.19,(s*.56,ty,tz),.14,BLACK,'x',12),
-                  rod('Bearing cap',.12,(s*.645,ty,tz),.03,MPLATE,'x',8),
-                  rod('Trunnion pin',.1,(s*.4225,ty,tz),.155,STEEL,'x',8),
-                  # Plasma capacitor tank on each sponson, with a charge sight-glass.
-                  rod('Capacitor tank',.15,(s*.74,1.9,.05),.8,BLACK,'z',12),
-                  box('Tank saddle',(.3,.08,.12),(s*.74,1.77,-.2),MACHINE,0),
-                  box('Tank saddle',(.3,.08,.12),(s*.74,1.77,.3),MACHINE,0),
-                  rod('Tank band',.158,(s*.74,1.9,.05),.05,MPLATE,'z',12),
-                  box('Charge glass',(.02,.05,.4),(s*.893,1.9,.05),RED,0),
-                  strut('Charge cable',(s*.68,1.95,.44),(s*.6,1.93,.22),.03,BLACK,5),
-                  strut('Tank feed',(s*.66,1.84,-.36),(s*.34,1.62,-.62),.03,BLACK,5)]
-        for z in (-.35,.45):
-            parts.append(rod('Tank cap',.165,(s*.74,1.9,z),.06,MPLATE,'z',12))
-    # Targeting mast and ranging dish (left), radiator block (right).
-    dish = xform(bowl('Ranging dish',dish_profile(.2,.07,3),MPLATE,.03,10),(math.pi/2-.5,0,0),(0,0,0),(-.74,2.62,-.48))
-    parts += [box('Mast base',(.18,.08,.18),(-.74,1.77,-.48),BLACK,0),
-              rod('Sensor mast',.05,(-.74,2.08,-.48),.66,MACHINE,'y',6),
-              box('Sensor head',(.24,.15,.2),(-.74,2.46,-.48),MPLATE,.02),
-              box('Sensor lens',(.12,.06,.02),(-.74,2.47,-.375),RED,0),
-              dish,
-              box('Radiator',(.3,.16,.3),(.74,1.82,-.48),MACHINE,.02)]
-    for z in (-.58,-.48,-.38):
-        parts.append(box('Radiator fin',(.28,.05,.035),(.74,1.92,z),BLACK,0))
-    return parts
-
-
-def siege_mortar():
-    # Authored level along +Z from the trunnion; the `barrel` pivot supplies the elevation.
-    ty, z0 = SIEGE_TRUNNION
-    house = [(-.3,ty-.18),(-.2,ty-.28),(.2,ty-.28),(.3,ty-.18),(.3,ty+.18),(.2,ty+.28),(-.2,ty+.28),(-.3,ty+.18)]
-    cap = [(x*.8, ty+(y-ty)*.8) for x,y in house]
-    parts = [prism('Breech housing',house,z0-.42,z0+.36,MACHINE,'xy',.02),
-             prism('Breech cap',cap,z0-.47,z0-.42,BLACK,'xy'),
-             box('Accelerator spine',(.3,.08,.6),(0,ty+.31,z0-.05),MPLATE,.015),
-             rod('Trunnion collar',.17,(0,ty,z0),.64,BLACK,'x',10),
-             rod('Recoil jacket',.27,(0,ty,z0+.51),.3,MPLATE,'z',12),
-             rod('Mortar tube',.21,(0,ty,z0+.9),1.2,MACHINE,'z',12),
-             xform(cone('Muzzle bell',.24,.31,.22,(0,ty,z0+1.6),MACHINE,12),(math.pi/2,0,0),(0,ty,z0+1.6)),
-             rod('Muzzle lip',.32,(0,ty,z0+1.71),.06,MPLATE,'z',12),
-             rod('Bore',.22,(0,ty,z0+1.744),.012,BLACK,'z',12),
-             rod('Plasma charge',.13,(0,ty,z0+SIEGE_MOUTH),.012,RED,'z',10)]
-    for s in (-1,1):
-        parts += [box('Breech plate',(.03,.3,.62),(s*.31,ty,z0-.04),MPLATE,0),
-                  strut('Power conduit',(s*.24,ty+.18,z0+.2),(s*.2,ty+.2,z0+.77),.035,BLACK),
-                  rod('Recoil buffer',.06,(s*.1,ty-.24,z0+.58),.55,MPLATE,'z',8)]
-    for x in (-.12,0,.12):
-        parts.append(box('Heat sink',(.04,.34,.05),(x,ty,z0-.48),BLACK,0))
-    # Accelerator collars with the plasma glow showing between them.
-    for z in (.82,1.04,1.26):
-        parts.append(rod('Charge collar',.28,(0,ty,z0+z),.1,MPLATE,'z',12))
-    for z in (.93,1.15):
-        parts.append(rod('Charge glow',.235,(0,ty,z0+z),.11,RED,'z',12))
-    return parts
-
-
-def siege_spider():
-    reset()
-    for i, leg in enumerate(SIEGE_LEGS):
-        siege_leg(i, *leg)
-    merge('Carapace', siege_body())
-    t = empty('turret', SIEGE_DECK)
-    ty, tz = SIEGE_TRUNNION
-    b = empty('barrel', (0, ty-SIEGE_DECK[1], tz-SIEGE_DECK[2]), t)
-    merge('Gun deck', siege_deck(), t)
-    merge('Plasma mortar', siege_mortar(), b)
-    empty('muzzle', (0,0,SIEGE_MOUTH), b)
-    # Game Y-up tilt: native X rotation has the same sign.
-    b.rotation_euler.x = -SIEGE_REST
-    save('m_siege')
 
 
 # ---------------------------------------------------------------- Soldador (m_welder)
@@ -2476,7 +2310,7 @@ def aim(objs, origin, target):
 
 
 def welder_leg(i, side, hx, hz, splay):
-    # Same convention as siege_leg: authored pointing +Z from the hip, splayed by the pivot.
+    # Authored pointing +Z from the hip; the pivot then splays it about the vertical axis.
     # The hip sits under the shell rim, so only the femur and knee rise past the carapace edge.
     hx *= side
     h = WELD_HIP
@@ -2878,7 +2712,7 @@ def side_offset(a, b, t, k):
 
 
 def crusher_leg(i, side, hx, hz, splay):
-    # Same convention as siege_leg: authored pointing +Z from the hip, splayed by the pivot.
+    # Same convention as welder_leg: authored pointing +Z from the hip, splayed by the pivot.
     hx *= side
     h = CRUSH_HIP
     pivot = empty(f'spider_{i}', (hx,h,hz))
@@ -2995,6 +2829,109 @@ def crusher():
     merge('Plasma cannon', crusher_cannon(), b)
     empty('muzzle', (0,0,CRUSH_MOUTH), b)
     save('m_crusher')
+
+
+# ---------------------------------------------------------------- Araña Lanzacohetes (m_siege)
+# Machine rocket artillery on the Segador's chassis, lengthened to carry six of its legs. A low
+# traverse mount with two cheek brackets holds an armoured box launcher of eight tubes in two
+# rows of four on its trunnions; the `barrel` pivot elevates the box, and each tube has its own
+# `muzzle_<i>` so a volley ripples across the face. The axis sits near the box's rear so it can
+# rise to its steepest launch angle without dipping into the mount.
+ROCKET_LEGS = ((-1,.86,.78,34), (1,.86,.78,34), (1,.9,0,90), (-1,.9,0,90), (-1,.86,-.78,146), (1,.86,-.78,146))
+ROCKET_DECK = (0,1.42,-.1)      # turret pivot on the yaw axis
+ROCKET_AXIS = (2.04,-.42)       # world y, z of the launcher's elevation axis
+ROCKET_REST = .3                # rest elevation (rad); the game raises it to the launch angle
+ROCKET_BOX = (.58,-.12,.52,-.18,1.32)   # half width, bottom, top, rear, front (from the axis)
+ROCKET_TUBES = [(x, y) for y in (.08,.31) for x in (-.4,-.135,.135,.4)]   # tube centres (x, y above the axis)
+
+
+def rocket_hull():
+    h = CRUSH_HIP
+    parts = [armor('Belly',1.4,2.7,.5,.72,.15,(0,0),BLACK,0),
+             loft('Upper hull',[(-1.42,.72,.68,1.22),(-1.2,.84,.64,1.4),(.65,.84,.64,1.42),(1.15,.8,.66,1.26),
+                                (1.44,.62,.74,1.0)],MACHINE,0),
+             tbox('Glacis plate',(1.1,.05,.5),(0,1.33,1.02),MPLATE,(.32,0,0),.01),
+             rod('Turret ring',.7,(0,1.44,-.1),.06,BLACK,'y',20),
+             box('Nose visor',(.56,.16,.04),(0,.98,1.44),BLACK,0)]
+    for x in (-.17,-.06,.06,.17):
+        parts.append(gem('Nose eye',(.035,.035,.02),(x,.99,1.465),RED))
+    for s in (-1,1):
+        parts += [box('Headlight',(.1,.07,.04),(s*.42,1.0,1.41),STEEL,.01),
+                  box('Front fender',(.36,.06,.4),(s*.62,1.36,1.08),MPLATE,.015),
+                  box('Exhaust',(.16,.18,.1),(s*.45,1.05,-1.46),BLACK,.02)]
+        # Red-flashed skirts between the hips on each flank.
+        zs = sorted(hz for ss, _, hz, _ in ROCKET_LEGS if ss == s)
+        for a, b in zip(zs, zs[1:]):
+            m, L = (a+b)/2, (b-a)-.56
+            parts += [box('Side skirt',(.06,.34,L),(s*.86,1.0,m),MACHINE,.01),
+                      box('Skirt paint',(.02,.18,L-.12),(s*.895,1.02,m),WARPAINT,0)]
+    for z in (-1.0,-1.12,-1.24):
+        parts.append(box('Engine louvre',(.9,.03,.07),(0,1.42,z),BLACK,0))
+    for s, hx, hz, _ in ROCKET_LEGS:
+        parts += [box('Hip housing',(.3,.42,.5),(s*(hx-.08),h+.06,hz),MPLATE,.03),
+                  tbox('Hip armor',(.44,.06,.6),(s*(hx-.04),h+.3,hz),MACHINE,(0,0,-s*.3),.02)]
+    return parts
+
+
+def rocket_mount():
+    ty, tz = ROCKET_AXIS
+    parts = [armor('Mount base',1.24,1.5,1.46,1.72,.3,(0,-.12),MACHINE),
+             armor('Mount roof',.86,1.0,1.71,1.75,.08,(0,-.14),MPLATE,0),
+             box('Ammo hatch',(.5,.04,.36),(0,1.76,.3),BLACK,.01)]
+    for s in (-1,1):
+        parts += [prism('Bracket',[(tz-.42,1.62),(tz+.42,1.62),(tz+.2,ty+.08),(tz-.22,ty+.08)],s*.66,s*.78,MPLATE,'zy',.02),
+                  rod('Trunnion',.12,(s*.74,ty,tz),.14,BLACK,'x',10),
+                  box('Mount paint',(.02,.14,.6),(s*.62,1.6,-.4),WARPAINT,0)]
+    # Fire-control box on the left with a red lens, whip antenna behind the right bracket.
+    parts += [box('Fire control',(.24,.2,.34),(-.46,1.84,.44),MACHINE,.02),
+              box('FC lens',(.15,.09,.02),(-.46,1.85,.615),RED,0),
+              rod('Antenna base',.05,(.5,1.66,-1.02),.06,BLACK,'y',6),
+              strut('Antenna',(.5,1.66,-1.02),(.56,2.22,-1.16),.016,BLACK,4)]
+    return parts
+
+
+def rocket_box():
+    # Authored level from the elevation axis.
+    ty, tz = ROCKET_AXIS
+    hw, yb, yt, zr, zf = ROCKET_BOX
+    yc, zc = ty + (yb+yt)/2, tz + (zr+zf)/2
+    parts = [box('Launcher box',(2*hw,yt-yb,zf-zr),(0,yc,zc),MACHINE,.04),
+             box('Box lid',(2*hw-.1,.05,zf-zr-.2),(0,ty+yt+.02,zc-.04),MPLATE,.01),
+             box('Face frame',(2*hw+.04,yt-yb+.04,.08),(0,yc,tz+zf-.02),MPLATE,.02),
+             box('Rear cap',(2*hw-.08,yt-yb-.08,.06),(0,yc,tz+zr-.02),BLACK,.01),
+             rod('Box axle',.1,(0,ty,tz),2*hw+.12,BLACK,'x',10)]
+    for x, y in ROCKET_TUBES:
+        parts += [rod('Tube mouth',.11,(x,ty+y,tz+zf+.02),.04,BLACK,'z',10),
+                  rod('Tube bore',.085,(x,ty+y,tz+zf+.035),.02,DEEP,'z',10),
+                  rod('Rocket nose',.05,(x,ty+y,tz+zf+.04),.02,RED,'z',8)]
+    for s in (-1,1):
+        parts += [box('Side armor',(.05,yt-yb-.1,zf-zr-.3),(s*(hw+.025),yc,zc+.05),MPLATE,.015),
+                  box('Box paint',(.02,.14,.7),(s*(hw+.05),yc+.04,tz+.62),WARPAINT,0)]
+        for z in (.2,.6,1.0):
+            parts.append(box('Box rib',(.03,yt-yb+.02,.05),(s*(hw+.05),yc,tz+z),BLACK,0))
+    for x in (-.3,-.1,.1,.3):
+        parts.append(box('Lid vent',(.08,.02,.3),(x,ty+yt+.05,tz+.3),BLACK,0))
+    return parts
+
+
+def rocket_spider():
+    reset()
+    for i, leg in enumerate(ROCKET_LEGS):
+        crusher_leg(i, *leg)
+    merge('Hull', rocket_hull())
+    t = empty('turret', ROCKET_DECK)
+    ty, tz = ROCKET_AXIS
+    b = empty('barrel', (0, ty-ROCKET_DECK[1], tz-ROCKET_DECK[2]), t)
+    merge('Launcher mount', rocket_mount(), t)
+    merge('Rocket launcher', rocket_box(), b)
+    # `muzzle` is the first tube, where a volley starts.
+    mouth = ROCKET_BOX[4] + .06
+    empty('muzzle', (*ROCKET_TUBES[0], mouth), b)
+    for i, (x, y) in enumerate(ROCKET_TUBES):
+        empty(f'muzzle_{i}', (x, y, mouth), b)
+    # Game Y-up tilt: native X rotation has the same sign.
+    b.rotation_euler.x = -ROCKET_REST
+    save('m_siege')
 
 
 # ---------------------------------------------------------------- Dron (m_drone)
@@ -3148,7 +3085,7 @@ BUILDERS = {
     'h_harv': harvester, 'm_harv': bucket_excavator,
     'h_medic': lambda: infantry(medic=True), 'h_mech': repair_truck,
     'm_nanite': nanite, 'm_welder': welder,
-    'm_drone': drone, 'm_crusher': crusher, 'm_siege': siege_spider,
+    'm_drone': drone, 'm_crusher': crusher, 'm_siege': rocket_spider,
     'h_turret': lambda: turret_building(), 'm_turret': lambda: turret_building(True),
     'h_hq': human_hq, 'm_hq': machine_hq,
     'h_power': lambda: power(), 'm_power': lambda: power(True),

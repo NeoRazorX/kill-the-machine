@@ -23,7 +23,8 @@ const PROJ_STYLE = {
   shell:     { speed: 60, color: 0xffb040, geo: 'ball', size: 0.28, trail: null },
   plasma:    { speed: 44, color: 0xff5040, geo: 'ball', size: 0.38, trail: 'red' },
   arty:      { speed: 26, color: 0x2a2a2a, geo: 'ball', size: 0.4, trail: 'smoke', arc: true },
-  plasmalob: { speed: 26, color: 0xff3a60, geo: 'ball', size: 0.5, trail: 'red', arc: true },
+  // Unguided artillery rocket: flies the lobbed arc to where it was aimed and noses along it.
+  rocketlob: { speed: 26, color: 0xd8dcdc, geo: 'rocket', trail: 'smoke', arc: true },
 };
 
 export class FX {
@@ -269,12 +270,20 @@ export class FX {
     muzzle.updateWorldMatrix(true, false);
     const e = muzzle.matrixWorld.elements;
     const mx = e[12], my = e[13], mz = e[14];
-    const sp = target.kind === 'building' ? 1.2 : 0.35;
-    const tx = target.x + (Math.random() - 0.5) * sp, tz = target.z + (Math.random() - 0.5) * sp, ty = this.hitY(target);
+    let tx, tz;
+    if (w.spread) {
+      // Saturation weapons scatter each round anywhere within `spread` of the aim point.
+      const a = Math.random() * Math.PI * 2, r = w.spread * Math.sqrt(Math.random());
+      tx = target.x + Math.cos(a) * r; tz = target.z + Math.sin(a) * r;
+    } else {
+      const sp = target.kind === 'building' ? 1.2 : 0.35;
+      tx = target.x + (Math.random() - 0.5) * sp; tz = target.z + (Math.random() - 0.5) * sp;
+    }
+    const ty = this.hitY(target);
     att.recoil = 1;
-    const big = w.proj === 'shell' || w.proj === 'plasma' || w.proj === 'arty' || w.proj === 'plasmalob';
+    const big = w.proj === 'shell' || w.proj === 'plasma' || w.proj === 'arty';
     this.muzzle(mx, my, mz, big);
-    const sfx = { bullet: 'rifle', laserbolt: 'zap', rocket: 'rocket', shell: 'cannon', plasma: 'plasma', arty: 'howitzer', plasmalob: 'howitzer', beam: 'laser' }[w.proj];
+    const sfx = { bullet: 'rifle', laserbolt: 'zap', rocket: 'rocket', rocketlob: 'rocket', shell: 'cannon', plasma: 'plasma', arty: 'howitzer', beam: 'laser' }[w.proj];
     this.game.audio.play(sfx, att.x, att.z);
 
     const p = {
