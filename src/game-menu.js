@@ -6,12 +6,13 @@ const $ = (id) => document.getElementById(id);
 const pct = (v) => `${Math.round(v * 100)} %`;
 const clock = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
-// Dirección que repite esta partida: dificultad, bando, aspecto y escenario del mapa, esquinas
+// Dirección que repite esta partida: dificultad, bando, mapa, aspecto y escenario, esquinas
 // y estructuras tecnológicas. Las cajas de dinero se vuelven a repartir.
 export function restartUrl(game, base = location) {
   const p = new URLSearchParams();
   p.set('autostart', Object.keys(DIFFICULTY).find((k) => DIFFICULTY[k] === game.difficulty) || 'normal');
   if (game.spectate) p.set('spectate', '1'); else p.set('side', game.player);
+  p.set('layout', game.map.layout.id);
   p.set('map', game.theme.id);
   if (Number.isFinite(game.map.seed)) p.set('seed', game.map.seed);
   if (game.startSlots) p.set('spawn', `${game.startSlots.human},${game.startSlots.machine}`);
@@ -54,7 +55,7 @@ export class GameMenu {
     this.open = true; this.wasPaused = g.paused; g.paused = true;
     $('pause').classList.add('hidden');
     $('gm-title').textContent = g.over ? 'Partida terminada' : 'Partida en pausa';
-    $('gm-info').textContent = [g.difficulty?.label, g.theme?.label, clock(g.over?.time ?? g.time)].filter(Boolean).join(' · ');
+    $('gm-info').textContent = [g.difficulty?.label, g.map?.layout?.label, g.theme?.label, clock(g.over?.time ?? g.time)].filter(Boolean).join(' · ');
     this.confirm(null);
     this.el.classList.remove('hidden');
     this.el.querySelector('[data-act="resume"]').focus();

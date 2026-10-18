@@ -20,20 +20,40 @@ grave y lenta con las máquinas), los textos de victoria y derrota, y el color d
 se ignora. Pruebas en el navegador: [tests/sides.html](http://localhost:8765/tests/sides.html).
 
 Parámetros opcionales: `?autostart=easy|normal|hard` (empieza sin pasar por el menú, en Fácil si no se indica otra), `&side=machine` (juega con las máquinas), `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada),
-`&spawn=0,2` (fija las esquinas de humanos y máquinas: 0 abajo a la izquierda y después en sentido horario),
+`&spawn=0,2` (fija las esquinas de humanos y máquinas: 0 abajo a la izquierda y después en sentido horario;
+en Río Partido deben estar en orillas opuestas), `&layout=quarry|river|random` (mapa),
 `&map=temperate|desert|ice|random` (aspecto del mapa), `&tech=random|none|t_silo,t_mine,…` (estructuras
 tecnológicas al azar, ninguna o las indicadas; ver más abajo) y `&seed=n` (repite una disposición de árboles y rocas).
 
+## Mapas
+
+En el menú, la fila **Mapa** elige el trazado; se recuerda entre partidas y `?layout=quarry|river|random`
+lo fija solo para esa visita. El fondo del menú cambia al momento para previsualizarlo.
+
+- **Cuatro Vientos** (por defecto): cuatro esquinas idénticas, giradas 90°, alrededor de un yacimiento
+  central rico. Los dos bandos pueden empezar en cualquier par de esquinas.
+- **Río Partido**: un río cruza el mapa de oeste a este y separa dos orillas; los rivales empiezan siempre
+  en orillas opuestas, y la salida libre de cada orilla queda como expansión. El agua profunda no la cruza
+  ninguna unidad: solo se pasa por dos vados laterales estrechos y por el centro, donde una isla guarda el
+  yacimiento más rico. En los vados toda unidad va más despacio (`FORD_SPEED` en `src/config.js`) y no se
+  puede construir sobre el agua. El río mide unas 10 celdas: los fusileros, tanques y lanzacohetes no
+  alcanzan la otra orilla, pero las torretas y la artillería sí. El mapa es simétrico respecto a los dos
+  ejes, así que cualquier emparejamiento permitido es justo.
+
+Los trazados están en `LAYOUTS` (`src/map.js`): salidas, caminos, yacimientos, obstáculos y agua de una
+esquina, que la simetría del mapa repite en las demás.
+
 ## Aspecto del mapa
 
-En el menú se elige el mapa: **Templado**, **Desierto**, **Helado** o **Aleatorio** (opción por defecto).
-El fondo del menú cambia al momento para previsualizarlo. Los tres comparten trazado, yacimientos,
-caminos y obstáculos, así que la elección no altera el equilibrio; cambian el suelo, la luz, el cielo,
-el minimapa y la vegetación: el desierto tiene dunas onduladas, arenisca y saguaros; el helado tiene
-nieve, placas de hielo, pinos y nieve acumulada en las caras superiores de rocas y riscos.
-Además, cada carga elige una semilla distinta para la disposición de árboles y rocas, que sigue siendo
-simétrica en las cuatro esquinas. Los temas están en `src/themes.js`;
-[tools/map-preview.html](http://localhost:8765/tools/map-preview.html?map=desert) acepta `?map=`.
+La fila **Aspecto** elige **Templado**, **Desierto**, **Helado** o **Aleatorio** (opción por defecto).
+Todos los mapas admiten los tres aspectos, que no cambian trazado, yacimientos, caminos ni obstáculos,
+así que la elección no altera el equilibrio; cambian el suelo, la luz, el cielo,
+el minimapa, la vegetación y el agua: el desierto tiene dunas onduladas, arenisca, saguaros y un oasis
+turquesa; el helado tiene nieve, placas de hielo, pinos, nieve acumulada en las caras superiores de rocas
+y riscos, y agua de deshielo. Además, cada carga elige una semilla distinta para la disposición de árboles
+y rocas, que sigue siendo simétrica. Los temas están en `src/themes.js`;
+[tools/map-preview.html](http://localhost:8765/tools/map-preview.html?map=desert&layout=river) acepta
+`?map=` y `?layout=`.
 
 Cada partida reparte 12 cajas de dinero en posiciones aleatorias accesibles, fuera
 de las cuatro esquinas de salida y los yacimientos. Explora para descubrirlas: aparecen con una marca

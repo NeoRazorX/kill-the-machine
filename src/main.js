@@ -6,6 +6,7 @@ import { SIZE, TEAMS, ROLE, PLAYER, DIFFICULTY, DEFS, TECH_IDS } from './config.
 import { preloadModels, assetStatus } from './assets.js';
 import { WarFog } from './war-fog.js';
 import { THEMES, resolveTheme } from './themes.js';
+import { LAYOUTS, resolveLayout } from './map.js';
 import { techSelection, TECH_PICK_MAX } from './tech-sites.js';
 import { GameMenu } from './game-menu.js';
 
@@ -72,7 +73,12 @@ const themeEls = [...document.querySelectorAll('.theme')];
 let themeChoice = THEMES[params.get('map')] ? params.get('map') : 'random';
 const seedParam = parseInt(params.get('seed'), 10);
 const seed = Number.isFinite(seedParam) ? seedParam : 20260 + Math.floor(Math.random() * 100000);
-const game = new Game(scene, seed, resolveTheme(themeChoice));
+// Mapa (trazado): se recuerda entre partidas; ?layout=quarry|river|random lo fija solo para esa visita.
+const LAYOUT_KEY = 'ktm.layout';
+let layoutChoice = 'quarry';
+try { const saved = localStorage.getItem(LAYOUT_KEY); if (LAYOUTS[saved] || saved === 'random') layoutChoice = saved; } catch { /* sin almacenamiento */ }
+if (LAYOUTS[params.get('layout')] || params.get('layout') === 'random') layoutChoice = params.get('layout');
+const game = new Game(scene, seed, resolveTheme(themeChoice), resolveLayout(layoutChoice));
 window.__game = game;
 const warFog = new WarFog(game);
 
@@ -92,6 +98,21 @@ function chooseTheme(choice) {
 themeEls.forEach((el) => { el.onclick = () => chooseTheme(el.dataset.map); });
 themeEls.forEach((e) => e.classList.toggle('active', e.dataset.map === themeChoice));
 applyTheme(game.theme);
+
+const layoutEls = [...document.querySelectorAll('.layout[data-layout]')];
+function showLayout() {
+  for (const el of layoutEls) { const on = el.dataset.layout === layoutChoice; el.classList.toggle('active', on); el.setAttribute('aria-pressed', on); }
+}
+function chooseLayout(choice) {
+  layoutChoice = choice;
+  try { localStorage.setItem(LAYOUT_KEY, choice); } catch { /* no se recuerda */ }
+  // Random draws a different layout from the one on screen, so the click always shows a change.
+  const others = Object.values(LAYOUTS).filter((l) => l !== game.map.layout);
+  game.setLayout(LAYOUTS[choice] || others[Math.floor(Math.random() * others.length)]);
+  showLayout();
+}
+layoutEls.forEach((el) => { el.onclick = () => chooseLayout(el.dataset.layout); });
+showLayout();
 
 // ?tech=random|none|t_silo,t_mine,… places random or chosen tech structures. The menu choice is
 // remembered between matches; the address only overrides it for this visit.
@@ -170,17 +191,18 @@ diffEls.forEach((el) => {
   el.onclick = () => { difficulty = el.dataset.d; diffEls.forEach((e) => e.classList.toggle('active', e === el)); };
 });
 
-// ?spawn=h,m fixes the corners (0 bottom-left, then clockwise) instead of drawing them.
+// ?spawn=h,m fixes the corners (0 bottom-left, then clockwise) instead of drawing them. On Río Partido
+// they must be on opposite banks.
 function spawnSlots() {
   const [human, machine] = (params.get('spawn') || '').split(',').map(Number);
   const valid = (i) => Number.isInteger(i) && i >= 0 && i < game.map.spawns.length;
-  return valid(human) && valid(machine) && human !== machine ? { human, machine } : null;
+  return valid(human) && valid(machine) && game.map.rivalSlots(human).includes(machine) ? { human, machine } : null;
 }
 
 function begin(spectate) {
   if (started) return;
   game.start(difficulty, spectate, spawnSlots(), tech.mode === 'pick' ? tech.ids : null, side);
-  [...themeEls, ...techModeEls, ...techOpts, ...sideEls].forEach((el) => { el.onclick = null; });
+  [...themeEls, ...layoutEls, ...techModeEls, ...techOpts, ...sideEls].forEach((el) => { el.onclick = null; });
   document.body.dataset.side = game.player;
   input = new Input(game, camera, renderer, sun);
   ui = new UI(game, input, camera);

@@ -18,7 +18,7 @@ export function generateCashCrates(map, seed) {
     if (starts.some(s => Math.hypot(x - s.x, z - s.z) < 48)) continue;
     if (map.fields.some(f => Math.hypot(x - f.x, z - f.z) < f.r + 6)) continue;
     if (items.some(c => Math.hypot(x - c.x, z - c.z) < 24)) continue;
-    if (!canOccupy(map.grid, x, z, 1.8)) continue;
+    if (!canOccupy(map.grid, x, z, 1.8) || map.waterXZ?.(x, z)) continue;
     // Even the largest vehicle must be able to reach the exact pickup position.
     const reachable = starts.every(s => {
       const path = findPath(map.grid, s.x, s.z, x, z, 1.6), end = path?.at(-1);
@@ -42,6 +42,11 @@ export class CashCrates {
       crate.mesh.visible = false;
       game.scene.add(crate.mesh);
     }
+  }
+
+  // Removes the crates from the scene, when the menu swaps the map before a match.
+  dispose() {
+    for (const crate of this.items) this.game.scene.remove(crate.mesh);
   }
 
   at(x, z) {

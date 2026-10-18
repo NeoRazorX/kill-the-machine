@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { N, CELL, SIZE, PLAYER, TEAMS, DEFS, ROLE, DIFFICULTY, BUILD_RADIUS, START_CREDITS, HARVEST_QUEUE, DOCK_QUEUE, DOCK_BOUND, other, visionRadius, canRepairBuilding } from './config.js';
-import { GameMap, MapVisuals } from './map.js';
+import { GameMap, MapVisuals, LAYOUTS } from './map.js';
 import { THEMES } from './themes.js';
 import { Foundations } from './foundations.js';
 import { Unit } from './units.js';
@@ -31,11 +31,11 @@ export function rectDist(px, pz, r) {
 }
 
 export class Game {
-  constructor(scene, seed, theme = THEMES.temperate) {
+  constructor(scene, seed, theme = THEMES.temperate, layout = LAYOUTS.quarry) {
     this.scene = scene;
     this.player = PLAYER; this.spectate = false;
     this.time = 0; this.navVersion = 1;
-    this.map = new GameMap(seed);
+    this.map = new GameMap(seed, layout);
     this.foundations = new Foundations(this);
     this.setTheme(theme);
     this.units = []; this.buildings = [];
@@ -62,14 +62,25 @@ export class Game {
     if (this.theme === theme) return;
     this.visuals?.dispose();
     this.theme = theme;
-    this.map.name = theme.name;
+    this.map.name = this.map.layout.names[theme.id];
     this.visuals = new MapVisuals(this.map, this.scene, theme, this.foundations.mask);
+  }
+
+  // The layout can also be swapped from the menu, before the match starts: same seed, new terrain.
+  setLayout(layout) {
+    if (this.map.layout === layout || this.units.length || this.buildings.length) return;
+    this.map = new GameMap(this.map.seed, layout);
+    this.cashCrates.dispose();
+    this.cashCrates = new CashCrates(this);
+    const theme = this.theme;
+    this.theme = null;
+    this.setTheme(theme);
   }
 
   emit(type, data) { if (this.onEvent) this.onEvent(type, data); }
 
   // ------------------------------------------------------------------ inicio
-  // slots: corner index per team; by default two different corners are drawn at random.
+  // slots: corner index per team; by default two corners the layout lets face each other are drawn at random.
   // tech: the tech structure ids to place (see techSelection); null draws them at random.
   // player: the side the player commands; the AI takes the other one (spectating, both).
   start(difficulty = 'normal', spectate = false, slots = null, tech = null, player = PLAYER) {
@@ -95,8 +106,8 @@ export class Game {
 
   assignStarts(slots = null) {
     if (!slots) {
-      const n = this.map.spawns.length, human = Math.floor(Math.random() * n);
-      slots = { human, machine: (human + 1 + Math.floor(Math.random() * (n - 1))) % n };
+      const human = Math.floor(Math.random() * this.map.spawns.length), rivals = this.map.rivalSlots(human);
+      slots = { human, machine: rivals[Math.floor(Math.random() * rivals.length)] };
     }
     this.startSlots = slots;
     this.starts = { human: this.map.spawns[slots.human], machine: this.map.spawns[slots.machine] };
@@ -484,7 +495,8 @@ export class Game {
   canPlace(team, def, cx, cz, margin = false) {
     if (cx < 1 || cz < 1 || cx + def.w > N - 1 || cz + def.h > N - 1) return false;
     const g = this.map.grid;
-    for (let z = cz; z < cz + def.h; z++) for (let x = cx; x < cx + def.w; x++) if (g[z * N + x] !== 0) return false;
+    const water = this.map.water;
+    for (let z = cz; z < cz + def.h; z++) for (let x = cx; x < cx + def.w; x++) if (g[z * N + x] !== 0 || water?.[z * N + x]) return false;
     const r = { x0: cx * CELL, z0: cz * CELL, x1: (cx + def.w) * CELL, z1: (cz + def.h) * CELL };
     for (const crate of this.cashCrates?.items ?? []) {
       if (!crate.collected && rectDist(crate.x, crate.z, r) < CASH_CRATE_RADIUS) return false;

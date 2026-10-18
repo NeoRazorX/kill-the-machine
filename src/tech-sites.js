@@ -89,7 +89,7 @@ export function techCandidates(map, starts, crates = [], slack = 1) {
       let ok = true;
       for (let z = cz - m; z < cz + f + m && ok; z++) for (let x = cx - m; x < cx + f + m; x++) {
         const inside = x >= cx && x < cx + f && z >= cz && z < cz + f;
-        if (grid[z * N + x] !== 0 || (inside && road[z * N + x] < ROAD_CLEARANCE)) { ok = false; break; }
+        if (grid[z * N + x] !== 0 || map.water?.[z * N + x] || (inside && road[z * N + x] < ROAD_CLEARANCE)) { ok = false; break; }
       }
       if (!ok) continue;
       const rect = { x0: cx * CELL, z0: cz * CELL, x1: (cx + f) * CELL, z1: (cz + f) * CELL };

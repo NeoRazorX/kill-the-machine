@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { preloadModels } from '../src/assets.js';
-import { GameMap, MapVisuals } from '../src/map.js';
+import { GameMap, MapVisuals, resolveLayout } from '../src/map.js';
 import { checkMap } from '../tests/map.js';
 import { SIZE } from '../src/config.js';
 import { THEMES } from '../src/themes.js';
@@ -9,11 +9,21 @@ const status = document.querySelector('#checks');
 try {
   await preloadModels();
   const checked = checkMap();
-  // ?map=temperate|desert|ice
-  const theme = THEMES[new URLSearchParams(location.search).get('map')] || THEMES.temperate;
-  const map = new GameMap(), scene = new THREE.Scene();
+  // ?map=temperate|desert|ice&layout=quarry|river
+  const params = new URLSearchParams(location.search);
+  const theme = THEMES[params.get('map')] || THEMES.temperate;
+  const map = new GameMap(undefined, resolveLayout(params.get('layout') || 'quarry')), scene = new THREE.Scene();
   scene.background = new THREE.Color(theme.sky);
-  document.querySelector('h1').textContent = theme.name;
+  document.querySelector('h1').textContent = map.layout.names[theme.id];
+  document.querySelector('#blurb').textContent = map.layout.blurb;
+  // Theme and layout links keep the other choice; Play starts on this map and look.
+  for (const a of document.querySelectorAll('a[href^="?"]')) {
+    const p = new URLSearchParams(a.getAttribute('href'));
+    if (!p.has('map')) p.set('map', theme.id);
+    if (!p.has('layout')) p.set('layout', map.layout.id);
+    a.href = `?${p}`;
+  }
+  document.querySelector('#play').href = `/?autostart=easy&layout=${map.layout.id}&map=${theme.id}`;
   const renderer = new THREE.WebGLRenderer({canvas:document.querySelector('#map'),antialias:true});
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;

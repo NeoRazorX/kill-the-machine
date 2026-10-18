@@ -44,9 +44,10 @@ export class AI {
     this.waveTimer = diff.firstWave; this.waveNo = 0;
     this.group = []; this.placeFail = 0; this.lastDefend = -99;
     this.scout = null; this.scoutGoal = null; this.scoutCorner = null; this.explored = new Set();
-    // La IA no sabe en qué esquina empezó el rival: solo conoce lo que ha visto.
-    const [ox, oz] = game.starts[team];
-    this.corners = game.map.spawns.filter(([x, z]) => x !== ox || z !== oz).map(([x, z]) => ({ x: x * CELL, z: z * CELL }));
+    // La IA no sabe en qué esquina empezó el rival: solo conoce lo que ha visto y dónde puede estar.
+    const { spawns } = game.map, [ox, oz] = game.starts[team], own = spawns.findIndex(([x, z]) => x === ox && z === oz);
+    const rivals = game.map.rivalSlots?.(own) ?? spawns.map((_, i) => i).filter((i) => i !== own);
+    this.corners = rivals.map((i) => spawns[i]).map(([x, z]) => ({ x: x * CELL, z: z * CELL }));
     this.known = new Set(); this.enemyBase = null;
     this.engineer = null; this.techRetry = 0;
     this.crateHunt = new Map(); this.refineryBlocked = -99;

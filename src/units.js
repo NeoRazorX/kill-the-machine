@@ -1,4 +1,4 @@
-import { SIZE, HARVEST_QUEUE, canRepair, canCapture } from './config.js';
+import { SIZE, HARVEST_QUEUE, FORD_SPEED, canRepair, canCapture } from './config.js';
 import { findPath, clearLine } from './pathfinding.js';
 import { buildUnitModel } from './models.js';
 import { RANKS, isCombatUnit } from './experience.js';
@@ -186,6 +186,8 @@ export class Unit {
     const maxTurn = this.def.turn * dt;
     this.heading += clamp(diff, -maxTurn, maxTurn);
     let sp = this.def.speed * this.speedMul;
+    // Wading through a ford is slow, for every unit.
+    if (g.map.hasWater && g.map.waterXZ(this.x, this.z) === 2) sp *= FORD_SPEED;
     const ad = Math.abs(diff);
     if (ad > 0.5 && this.def.turn < 4) sp *= Math.max(0.15, 1 - ad / 1.6);
     // Near a waypoint it must actually reach, slow down until the turning circle fits in the

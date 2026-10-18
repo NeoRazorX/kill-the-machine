@@ -439,7 +439,12 @@ export class UI {
     // The ground texture extends past the playable square; the minimap shows only the square.
     const v = this.game.visuals, g = v.groundCanvas, m = g.width * v.groundMargin / (SIZE + 2 * v.groundMargin);
     x.drawImage(g, m, m, g.width - 2 * m, g.height - 2 * m, 0, 0, W, W);
-    const colors = v.theme.mini;
+    const colors = v.theme.mini, map = this.game.map;
+    if (map.hasWater) for (let i = 0; i < N * N; i++) {
+      if (!map.water[i]) continue;
+      x.fillStyle = map.water[i] === 2 ? colors.ford : colors.water;
+      x.fillRect((i % N) * CELL * k, ((i / N) | 0) * CELL * k, CELL * k + .5, CELL * k + .5);
+    }
     x.fillStyle = colors.tree;
     for (const t of this.game.map.trees) x.fillRect(t.x * k - 1, t.z * k - 1, 2.2, 2.2);
     x.fillStyle = colors.rock;

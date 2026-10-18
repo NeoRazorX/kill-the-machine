@@ -83,7 +83,7 @@ try {
   check(went===new URL('../index.html',location).pathname,'quitting goes back to the main menu');
   went=null;el.querySelector('[data-act="restart"]').click();el.querySelector('[data-act="confirm"]').click();
   const p=new URL(went,location).searchParams;
-  check(p.get('autostart')==='easy'&&p.get('side')==='machine'&&p.get('map')==='desert'&&p.get('seed')==='4242'&&p.get('spawn')==='0,2'&&p.get('tech')==='t_mine','the restart address keeps difficulty, side, map, scenery, corners and tech sites');
+  check(p.get('autostart')==='easy'&&p.get('side')==='machine'&&p.get('map')==='desert'&&p.get('seed')==='4242'&&p.get('spawn')==='0,2'&&p.get('tech')==='t_mine'&&p.get('layout')===game.map.layout.id,'the restart address keeps difficulty, side, layout, look, scenery, corners and tech sites');
   check(errors.length===0,'no uncaught errors in the first game');
 
   // Follow the restart address for real.

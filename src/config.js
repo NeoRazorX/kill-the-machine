@@ -6,6 +6,7 @@ export const SIZE = N * CELL;    // tamaño del mapa en unidades de mundo
 export const PLAYER = 'human';   // bando por defecto; el menú permite jugar con cualquiera
 export const BUILD_RADIUS = 24;  // distancia máxima a un edificio propio para construir
 export const START_CREDITS = 4000;
+export const FORD_SPEED = 0.6;   // multiplicador de velocidad al cruzar un vado
 
 // Refinery dock queue (C&C style): one harvester unloads, the rest park beside the dock.
 export const HARVEST_QUEUE = {
