@@ -4,6 +4,16 @@ import { buildBuildingModel } from './models.js';
 import { concreteTexture, CONCRETE_TILE, SLAB_MARGIN } from './foundations.js';
 import { nearestFreeCell } from './pathfinding.js';
 
+// Unarmed units that back the army up: radars, repairers, medics and engineers.
+const isSupport = (u) => !!u.def && !u.def.weapon && !u.def.harvester;
+// Formation order from the front: armour, other direct fire, artillery, support.
+function formationRank(u) {
+  const w = u.def?.weapon;
+  if (!w) return 3;
+  if (w.lob) return 2;
+  return u.def.cls === 'armor' ? 0 : 1;
+}
+
 const PITCH = 0.98;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
@@ -192,22 +202,32 @@ export class Input {
     for (const u of units) { cx += u.x; cz += u.z; }
     cx /= n; cz /= n;
     let dx = x - cx, dz = z - cz; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
-    const slots = [];
-    for (let i = 0; i < n; i++) {
-      const row = Math.floor(i / cols), col = i % cols;
-      let sx = x + (col - (cols - 1) / 2) * sp, sz = z + (row - (rows - 1) / 2) * sp;
-      const c = nearestFreeCell(this.game.map.grid, sx, sz, 8);
-      if (c >= 0 && this.game.map.blockedXZ(sx, sz)) { sx = ((c % N) + 0.5) * CELL; sz = (((c / N) | 0) + 0.5) * CELL; }
-      slots.push({ x: sx, z: sz });
+    // Rows face the direction of travel. Armour fills the front rows, then the other direct-fire
+    // units, artillery and finally support; within a row units keep their side, so paths don't cross.
+    const queue = units.map((u, i) => ({ i, rank: formationRank(u),
+      fwd: (u.x - cx) * dx + (u.z - cz) * dz, side: (cx - u.x) * dz + (u.z - cz) * dx }))
+      .sort((a, b) => a.rank - b.rank || b.fwd - a.fwd);
+    const slots = new Array(n);
+    for (let row = 0; row < rows; row++) {
+      const members = queue.slice(row * cols, (row + 1) * cols).sort((a, b) => a.side - b.side);
+      members.forEach((e, k) => {
+        const lat = (k - (members.length - 1) / 2) * sp, fwd = ((rows - 1) / 2 - row) * sp;
+        let sx = x + dx * fwd - dz * lat, sz = z + dz * fwd + dx * lat;
+        const c = nearestFreeCell(this.game.map.grid, sx, sz, 8);
+        if (c >= 0 && this.game.map.blockedXZ(sx, sz)) { sx = ((c % N) + 0.5) * CELL; sz = (((c / N) | 0) + 0.5) * CELL; }
+        slots[e.i] = { x: sx, z: sz };
+      });
     }
-    const us = units.slice().sort((a, b) => ((b.x - cx) * dx + (b.z - cz) * dz) - ((a.x - cx) * dx + (a.z - cz) * dz));
-    slots.sort((a, b) => ((b.x - x) * dx + (b.z - z) * dz) - ((a.x - x) * dx + (a.z - z) * dz));
-    const map = new Map();
-    us.forEach((u, i) => map.set(u, slots[i]));
-    return units.map((u) => map.get(u));
+    return slots;
   }
 
   orderMove(units, x, z, attackMove = null) {
+    // On the offensive, unarmed support escorts the armed units instead of taking a place in the formation.
+    const fighters = units.filter((u) => u.def?.weapon && (attackMove ?? !!u.attackMoveDefault));
+    const escorts = fighters.length ? units.filter(isSupport) : [];
+    escorts.forEach((u, i) => u.cmdEscort(fighters, { x, z }, i, escorts.length));
+    units = units.filter((u) => !escorts.includes(u));
+    if (!units.length) return;
     const pts = this.formation(units, x, z);
     const crate = attackMove !== true && this.game.cashCrates?.at(x, z);
     let collector = -1;
@@ -244,7 +264,11 @@ export class Input {
     }
     // Neutral ruins cannot be attacked: a click on them is a move order.
     if (hit && hit.team && hit.team !== this.player) {
-      for (const u of units) u.cmdAttack(hit);
+      // Support selected with the attackers follows behind them rather than driving at the target.
+      const fighters = units.filter((u) => u.def.weapon);
+      const escorts = fighters.length ? units.filter(isSupport) : [];
+      for (const u of units) if (!escorts.includes(u)) u.cmdAttack(hit);
+      escorts.forEach((u, i) => u.cmdEscort(fighters, hit, i, escorts.length));
       g.fx.marker(hit.x, hit.z, 'attack');
       g.audio.play('attack');
       return;

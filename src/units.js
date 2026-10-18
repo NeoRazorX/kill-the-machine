@@ -15,6 +15,8 @@ export function angleDiff(to, from) {
 }
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const refineryUp = (r) => !!r && !r.dead && !r.selling;
+// How far behind the rearmost escorted unit support keeps; the radar sees far, so it hangs further back.
+const ESCORT_GAP = 5, ESCORT_GAP_RADAR = 12;
 
 export class Unit {
   constructor(game, def, x, z, team) {
@@ -88,6 +90,14 @@ export class Unit {
     this.order = { type: 'capture', target: t };
     this.target = t; this.path = null; this.dest = null; this.repathT = 0;
   }
+  // Follow a group of allies from behind, on the side away from where it is heading (goal: point or entity).
+  cmdEscort(group, goal, slot = 0, slots = 1) {
+    const mates = group.filter((u) => u !== this && !u.dead);
+    if (!mates.length) { this.cmdMove(goal.x, goal.z); return; }
+    this.order = { type: 'escort', group: mates, goal, slot, slots, dx: 0, dz: 1 };
+    this.target = null; this.path = null; this.dest = null; this.repathT = 0;
+    this.escortSpot(true);
+  }
   cmdStop() {
     this.becomeIdle();
     if (this.def.harvester) { this.order = { type: 'idle' }; }
@@ -116,6 +126,33 @@ export class Unit {
     if (!recovering) this.stuckCount = 0;
     this.lastPX = this.x; this.lastPZ = this.z;
     return !!this.path;
+  }
+
+  // Spot behind the escorted group; null once the whole group is gone.
+  escortSpot(aim = false) {
+    const o = this.order, live = o.group.filter((u) => !u.dead);
+    if (!live.length) return null;
+    let cx = 0, cz = 0;
+    for (const u of live) { cx += u.x; cz += u.z; }
+    cx /= live.length; cz /= live.length;
+    // Keep the last heading once the group arrives, so the escort doesn't swing round it.
+    const gx = o.goal.x - cx, gz = o.goal.z - cz, gl = Math.hypot(gx, gz);
+    if (aim || gl > 8) { o.dx = gx / (gl || 1); o.dz = gl ? gz / gl : 1; }
+    let rear = 0;
+    for (const u of live) rear = Math.min(rear, (u.x - cx) * o.dx + (u.z - cz) * o.dz - u.radius);
+    const back = rear - this.radius - (this.def.radar ? ESCORT_GAP_RADAR : ESCORT_GAP);
+    const side = (o.slot - (o.slots - 1) / 2) * (this.radius * 2 + 1.5);
+    return { x: clamp(cx + o.dx * back - o.dz * side, 4, SIZE - 4), z: clamp(cz + o.dz * back + o.dx * side, 4, SIZE - 4) };
+  }
+
+  followEscort(dt) {
+    const spot = this.escortSpot();
+    if (!spot) { this.becomeIdle(); return; }
+    this.repathT -= dt;
+    const away = Math.hypot(spot.x - this.x, spot.z - this.z) > 2.5;
+    const drifted = !this.dest || Math.hypot(spot.x - this.dest.x, spot.z - this.dest.z) > 2;
+    if (away && (!this.path || (this.repathT <= 0 && drifted))) { this.repathT = 0.6; this.pathTo(spot.x, spot.z); }
+    if (this.path) this.followPath(dt);
   }
 
   // ----------------------------------------------------------- movimiento
@@ -329,6 +366,7 @@ export class Unit {
         this.engage(dt);
         break;
       }
+      case 'escort': this.followEscort(dt); break;
     }
   }
 
@@ -399,6 +437,14 @@ export class Unit {
         if (!this.tend(dt)) this.becomeIdle();
         break;
       }
+      case 'escort': {
+        // Mends the wounded it comes across; otherwise keeps to its place behind the group.
+        this.scanT -= dt;
+        if (!this.target && this.scanT <= 0) { this.scanT = 0.4 + Math.random() * 0.2; this.target = this.findPatient(sight); }
+        if (this.tend(dt)) break;
+        this.followEscort(dt);
+        break;
+      }
     }
   }
 
@@ -407,6 +453,7 @@ export class Unit {
   updateEngineer(dt) {
     const o = this.order, g = this.game;
     if (o.type === 'move') { if (this.followPath(dt)) this.becomeIdle(); return; }
+    if (o.type === 'escort') { this.followEscort(dt); return; }
     if (o.type !== 'capture') return;
     const t = o.target;
     if (!canCapture(this, t)) { this.becomeIdle(); return; }
