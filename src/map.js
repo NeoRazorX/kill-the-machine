@@ -56,6 +56,21 @@ const MIRRORS = {
   rockAngle: (r, k) => (k === 1 || k === 2 ? -r : r),
 };
 
+// The diagonal from the top-left corner to the bottom-right one stays in place: bit 0 of k swaps
+// x and z (reflection across that diagonal), bit 1 turns 180°. Both together reflect across the other diagonal.
+const swapTurn = (a, b, k, edge) => {
+  const [x, z] = k & 1 ? [b, a] : [a, b];
+  return k & 2 ? [edge - x, edge - z] : [x, z];
+};
+const DIAGONALS = {
+  n: 4,
+  point: ([x, z], k) => swapTurn(x, z, k, N),
+  cell: (cx, cz, k) => swapTurn(cx, cz, k, N - 1),
+  world: (x, z, k) => swapTurn(x, z, k, SIZE),
+  angle: (r, k) => (k & 1 ? -r : r) + (k & 2 ? Math.PI : 0),
+  rockAngle: (r, k) => (k & 1 ? -r : r) + (k & 2 ? Math.PI : 0),
+};
+
 // --------------------------------------------------------------- layouts
 // A layout is the authored part of a map: starts, routes, ore and large obstacles, all given for one
 // start and repeated by its symmetry. Trees and rocks are scattered per seed, symmetrically too.
@@ -120,6 +135,34 @@ export const LAYOUTS = {
     },
   },
 };
+// Duelo del Paso: a ridge of overlapping cliffs along the diagonal, from corner to corner, given as
+// positions t along it (cell t, t). Only the top-left half is authored; the 180° turn repeats it.
+const PASS_RIDGE_RADIUS = 6;   // blocks 13 cells across: only turrets right at the foot and artillery reach over it
+const ridgeRun = (from, to, n) => Array.from({ length: n }, (_, i) => from + (to - from) * i / (n - 1));
+const PASS_RIDGE = [...ridgeRun(7, 40, 8), ...ridgeRun(56, 85.6, 7)];
+const PASS_START = [30, N - 30];
+
+// A duel across a ridge with three passes: the corner a base starts in is always opposite the other's.
+LAYOUTS.pass = {
+  id: 'pass', label: 'Duelo del Paso',
+  blurb: 'Una sierra cruza el mapa en diagonal y separa dos bases en esquinas opuestas. Solo se pasa por dos pasos laterales estrechos y por el paso central, que guarda un campo rico en medio del camino.',
+  names: { temperate: 'Puerto del Duelo', desert: 'Desfiladero del Duelo', ice: 'Collado del Duelo' },
+  intro: 'El enemigo ocupa la esquina opuesta, al otro lado de la sierra: controla los pasos',
+  symmetry: DIAGONALS,
+  // Bottom-left, then top-right.
+  spawns: [PASS_START, DIAGONALS.point(PASS_START, 1)],
+  routes: [
+    [PASS_START, [64, 128], [90, 102], [N / 2, N / 2]],
+    [PASS_START, [30, 100], [36, 66], [42, 54], [48, 48]],
+  ],
+  // Home fields, the field beside each side pass, a protected expansion and the rich centre of the middle pass.
+  fields: [[[52, 166], 4, 6500], [[40, 60], 4.5, 7000], [[64, 128], 5, 9000], [[N / 2, N / 2], 4, 12000]],
+  landmarks: [...PASS_RIDGE.map((t) => [[t, t], PASS_RIDGE_RADIUS, 'env_cliff']),
+    // Outcrops that split each side into a middle lane and two flank lanes.
+    [[54, 104], 4, 'env_cliff'], [[14, 178], 4, 'env_cliff'], [[100, 176], 3, 'env_ruin']],
+  rivals: (spawns, i) => spawns.map((_, j) => j).filter((j) => j !== i),
+};
+
 export const LAYOUT_IDS = Object.keys(LAYOUTS);
 
 // 'random' (or anything unknown) draws one of the layouts.
@@ -207,8 +250,9 @@ export class GameMap {
       for (let z = Math.floor(cz - radius - 1); z <= Math.ceil(cz + radius); z++) {
         for (let x = Math.floor(cx - radius - 1); x <= Math.ceil(cx + radius); x++) {
           if (Math.hypot(x + .5 - cx, z + .5 - cz) > radius + .7) continue;
-          if (!this.inBounds(x, z) || reserved(x, z) || this.blockedCell(x, z)) return;
-          cells.push([x, z]);
+          if (!this.inBounds(x, z) || reserved(x, z)) return;
+          // Cliffs may overlap each other or lean on the boundary, sharing those cells.
+          if (!this.blockedCell(x, z)) cells.push([x, z]);
         }
       }
       for (const [x, z] of cells) this.grid[z * N + x] = 1;

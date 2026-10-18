@@ -36,8 +36,8 @@ export function checkMap() {
   assert(a.grid.every((value, i) => value === b.grid[i]), 'repeatable navigation');
   assert(JSON.stringify(a.trees) === JSON.stringify(b.trees), 'repeatable decoration');
   assert(!a.hasWater && a.water.every((w) => w === 0), 'the quarry has no water');
-  const river = checkRiver();
-  return `PASS: 32 seeds; four-fold symmetry, formation clearance, resource paths from every start, boundaries, landmarks, perimeter scenery and reproducibility. ${river}`;
+  const river = checkRiver(), pass = checkPass();
+  return `PASS: 32 seeds; four-fold symmetry, formation clearance, resource paths from every start, boundaries, landmarks, perimeter scenery and reproducibility. ${river} ${pass}`;
 }
 
 // Río Partido: mirror symmetry on both axes, rivals on opposite banks, and the river crossed only at fords.
@@ -81,4 +81,52 @@ export function checkRiver() {
     for (const t of map.trees) assert(!map.waterXZ(t.x, t.z), `river ${seed}: no trees in the water`);
   }
   return 'River: 16 seeds; mirror symmetry, deep water blocks and fords stay open, rivals across the river, crossings through fords, resources reachable.';
+}
+
+// Duelo del Paso: two opposite corners, a ridge sealed from corner to corner and three passes through it.
+export function checkPass() {
+  const assert = (ok, message) => { if (!ok) throw new Error(message); };
+  const passes = [48, N / 2, N - 48];
+  for (let seed = 20260; seed < 20276; seed++) {
+    const map = new GameMap(seed, LAYOUTS.pass);
+    assert(map.checkConnectivity(), `pass ${seed}: bases and resources connected`);
+    assert(map.spawns.length === 2 && map.rivalSlots(0).join() === '1' && map.rivalSlots(1).join() === '0', `pass ${seed}: two starts that always face each other`);
+    assert(map.landmarks.length === 40, `pass ${seed}: every authored landmark, the whole ridge included`);
+    assert(!map.hasWater, `pass ${seed}: no water`);
+    for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+      const v = map.grid[z * N + x];
+      assert(v === map.grid[x * N + z] && v === map.grid[(N - 1 - z) * N + N - 1 - x], `pass ${seed}: terrain symmetric about both diagonals`);
+    }
+    for (const route of map.routes) for (let i = 1; i < route.length; i++) {
+      const [ax, az] = route[i - 1], [bx, bz] = route[i];
+      assert(clearLine(map.grid, ax * CELL, az * CELL, bx * CELL, bz * CELL, 5), `pass ${seed}: formation corridor blocked`);
+    }
+    // Sealing each pass in turn leaves the others open; sealing all three cuts the map in two.
+    const reach = (sealed) => {
+      const grid = map.grid.slice();
+      for (const t of sealed) for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+        if (Math.abs(x + .5 - (z + .5)) < 20 && Math.abs((x + z + 1) / 2 - t) < 12) grid[z * N + x] = 1;
+      }
+      // Flood fill over every free cell, diagonals only between two free sides, as units move.
+      const [[ax, az], [bx, bz]] = map.spawns, seen = new Uint8Array(N * N), queue = [az * N + ax];
+      const free = (x, z) => x >= 0 && z >= 0 && x < N && z < N && !grid[z * N + x];
+      seen[queue[0]] = 1;
+      for (let h = 0; h < queue.length; h++) {
+        const x = queue[h] % N, z = (queue[h] / N) | 0;
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+          const i = (z + dz) * N + x + dx;
+          if ((!dx && !dz) || !free(x + dx, z + dz) || seen[i] || (dx && dz && (!free(x + dx, z) || !free(x, z + dz)))) continue;
+          seen[i] = 1; queue.push(i);
+        }
+      }
+      return seen[bz * N + bx] === 1;
+    };
+    assert(!reach(passes), `pass ${seed}: the ridge can only be crossed at its three passes`);
+    for (const open of passes) assert(reach(passes.filter((t) => t !== open)), `pass ${seed}: the pass at ${open} crosses the ridge`);
+    for (const [x, z] of map.spawns) for (const field of map.fields) {
+      const route = findPath(map.grid, x * CELL, z * CELL, field.x, field.z, 1.6);
+      assert(route?.length && Math.hypot(route.at(-1).x - field.x, route.at(-1).z - field.z) < .01, `pass ${seed}: unreachable mineral`);
+    }
+  }
+  return 'Pass: 16 seeds; symmetry about both diagonals, ridge crossed only at its three passes, each pass open, resources reachable.';
 }

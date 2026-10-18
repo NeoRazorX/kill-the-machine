@@ -21,14 +21,14 @@ se ignora. Pruebas en el navegador: [tests/sides.html](http://localhost:8765/tes
 
 Parámetros opcionales: `?autostart=easy|normal|hard` (empieza sin pasar por el menú, en Fácil si no se indica otra), `&side=machine` (juega con las máquinas), `&spectate=1` (IA contra IA), `&speed=4` (simulación acelerada),
 `&spawn=0,2` (fija las esquinas de humanos y máquinas: 0 abajo a la izquierda y después en sentido horario;
-en Río Partido deben estar en orillas opuestas), `&layout=quarry|river|random` (mapa),
+en Río Partido deben estar en orillas opuestas; Duelo del Paso solo tiene 0 y 1), `&layout=quarry|river|pass|random` (mapa),
 `&map=temperate|desert|ice|random` (aspecto del mapa), `&tech=random|none|t_silo,t_mine,…` (estructuras
 tecnológicas al azar, ninguna o las indicadas; ver más abajo) y `&seed=n` (repite una disposición de árboles y rocas).
 
 ## Mapas
 
-En el menú, la fila **Mapa** elige el trazado; se recuerda entre partidas y `?layout=quarry|river|random`
-lo fija solo para esa visita. El fondo del menú cambia al momento para previsualizarlo.
+En el menú, la fila **Mapa** elige el trazado; se recuerda entre partidas y `?layout=quarry|river|pass|random`
+lo fija solo para esa visita (`pass` para Duelo del Paso). El fondo del menú cambia al momento para previsualizarlo.
 
 - **Cuatro Vientos** (por defecto): cuatro esquinas idénticas, giradas 90°, alrededor de un yacimiento
   central rico. Los dos bandos pueden empezar en cualquier par de esquinas.
@@ -39,6 +39,14 @@ lo fija solo para esa visita. El fondo del menú cambia al momento para previsua
   puede construir sobre el agua. El río mide unas 10 celdas: los fusileros, tanques y lanzacohetes no
   alcanzan la otra orilla, pero las torretas y la artillería sí. El mapa es simétrico respecto a los dos
   ejes, así que cualquier emparejamiento permitido es justo.
+- **Duelo del Paso**: un duelo en esquinas opuestas (abajo a la izquierda y arriba a la derecha), así que
+  los dos bandos saben desde el principio dónde está el rival. Una sierra de 13 celdas de grosor cruza el
+  mapa en diagonal, de esquina a esquina, y solo se atraviesa por tres pasos: dos laterales estrechos
+  (unas 9 celdas), cada uno con un campo de expansión a su lado, y uno central más ancho con un campo rico
+  en medio del camino. Unas peñas separan en cada lado el carril central de los laterales, y cada bando
+  tiene una expansión protegida lejos de los pasos. Los obstáculos no tapan la vista ni los disparos, pero
+  la sierra es tan gruesa que solo la artillería y las torretas pegadas a ella alcanzan el otro lado. El
+  mapa es simétrico respecto a las dos diagonales, así que los dos pasos laterales son equivalentes.
 
 Los trazados están en `LAYOUTS` (`src/map.js`): salidas, caminos, yacimientos, obstáculos y agua de una
 esquina, que la simetría del mapa repite en las demás.

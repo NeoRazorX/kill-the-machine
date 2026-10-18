@@ -9,7 +9,7 @@ const status = document.querySelector('#checks');
 try {
   await preloadModels();
   const checked = checkMap();
-  // ?map=temperate|desert|ice&layout=quarry|river
+  // ?map=temperate|desert|ice&layout=quarry|river|pass
   const params = new URLSearchParams(location.search);
   const theme = THEMES[params.get('map')] || THEMES.temperate;
   const map = new GameMap(undefined, resolveLayout(params.get('layout') || 'quarry')), scene = new THREE.Scene();

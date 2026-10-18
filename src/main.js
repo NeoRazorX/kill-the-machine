@@ -73,7 +73,7 @@ const themeEls = [...document.querySelectorAll('.theme')];
 let themeChoice = THEMES[params.get('map')] ? params.get('map') : 'random';
 const seedParam = parseInt(params.get('seed'), 10);
 const seed = Number.isFinite(seedParam) ? seedParam : 20260 + Math.floor(Math.random() * 100000);
-// Mapa (trazado): se recuerda entre partidas; ?layout=quarry|river|random lo fija solo para esa visita.
+// Mapa (trazado): se recuerda entre partidas; ?layout=quarry|river|pass|random lo fija solo para esa visita.
 const LAYOUT_KEY = 'ktm.layout';
 let layoutChoice = 'quarry';
 try { const saved = localStorage.getItem(LAYOUT_KEY); if (LAYOUTS[saved] || saved === 'random') layoutChoice = saved; } catch { /* sin almacenamiento */ }
@@ -210,7 +210,7 @@ function begin(spectate) {
   window.__menu = input.menu;
   game.emit('toast', { text: game.map.name, kind: 'info' });
   if (!spectate) {
-    game.emit('toast', { text: 'Se desconoce la posición enemiga: explora las otras esquinas', kind: 'warn' });
+    game.emit('toast', { text: game.map.layout.intro ?? 'Se desconoce la posición enemiga: explora las otras esquinas', kind: 'warn' });
     const sites = game.techSites.items.length;
     if (sites) game.emit('toast', { text: techNews(sites, game.player), kind: 'info' });
   }
