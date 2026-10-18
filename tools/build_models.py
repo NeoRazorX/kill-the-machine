@@ -2851,17 +2851,20 @@ def bucket_excavator():
 
 
 # ---------------------------------------------------------------- Segador (m_crusher)
-# Machine front-line assault spider: a compact, wedge-fronted armoured hull with a red-visored
-# head, four tall arched legs with scythe-crested knees and spear feet, and a heavy turret
-# carrying a long plasma cannon: twin accelerator rails framing black coils with the red plasma
-# core glowing between them, ending in a forked emitter. The knees stay below the cannon and the
-# turret's overhangs inside the knees, so the turret can traverse freely over the legs.
+# Machine main battle walker: a boxy tank hull carried on four heavy armoured legs. The hull has
+# a sloped glacis with a slit visor of red optics, an engine deck and red-flashed side skirts
+# between armoured hip housings. A large angular turret with a rear bustle, sight box, cupola and
+# smoke dischargers carries a long plasma cannon with a fume extractor and a slotted muzzle brake,
+# laid a few degrees up. Each leg rises from a hip drum to a capped knee at hull-top height and
+# drops on a near-vertical shin to a heavy hoof; the knees stay under the cannon's sweep.
 # Legs as (side, hip x, hip z, splay in degrees); 0/2 and 1/3 are the diagonal gait pairs.
-CRUSH_LEGS = ((-1,.58,.46,42), (1,.58,.46,42), (1,.58,-.42,132), (-1,.58,-.42,132))
-CRUSH_HIP = .85
-CRUSH_DECK = (0,1.4,-.05)       # turret pivot on the yaw axis
-CRUSH_GUN = (1.98,.42)          # world y, z of the cannon's `barrel` pivot, inside the mantlet
-CRUSH_MOUTH = 1.8               # muzzle distance along the cannon from the pivot
+CRUSH_LEGS = ((-1,.86,.62,40), (1,.86,.62,40), (1,.86,-.62,140), (-1,.86,-.62,140))
+CRUSH_HIP = .92
+CRUSH_DECK = (0,1.42,-.15)      # turret pivot on the yaw axis
+CRUSH_GUN = (1.82,.64)          # world y, z of the cannon's `barrel` pivot, inside the mantlet
+CRUSH_LAY = math.radians(6)     # rest elevation of the cannon
+CRUSH_MOUTH = 2.5               # muzzle distance along the cannon from the pivot
+WARPAINT = '#8a2c25'            # dull red armour paint (not a glowing signal colour)
 
 
 def side_offset(a, b, t, k):
@@ -2876,32 +2879,36 @@ def side_offset(a, b, t, k):
 
 def crusher_leg(i, side, hx, hz, splay):
     # Same convention as siege_leg: authored pointing +Z from the hip, splayed by the pivot.
-    # The hip sits low on the hull so the knee arches well above the body.
     hx *= side
     h = CRUSH_HIP
     pivot = empty(f'spider_{i}', (hx,h,hz))
     P = lambda u, y: (hx, y, hz + u)
     profile = lambda name, pts, w, tint, dx=0: prism(name, [(hz+u, y) for u,y in pts], hx+dx-w, hx+dx+w, tint, 'zy')
-    hip, knee, ankle = (.3,h+.02), (.72,1.58), (1.32,.42)
-    blade = [side_offset(knee, ankle, t, k) for t, k in
-             ((.06,.06),(.92,.03),(.86,.1),(.6,.19),(.3,.21),(.1,.15))]
-    parts = [box('Coxa',(.3,.26,.4),P(.15,h),MPLATE,0),
-             rod('Coxa joint',.13,P(*hip),.34,BLACK,'x',8),
-             bone('Femur',P(*hip),P(*knee),.34,.28,.09,MACHINE,.02),
-             bone('Femur plate',P(*side_offset(hip,knee,.16,.15)),P(*side_offset(hip,knee,.86,.15)),.26,.05,.06,MPLATE),
-             strut('Femur ram',P(.1,h-.1),P(.34,1.2),.05,BLACK),
-             strut('Femur ram rod',P(.34,1.2),P(.48,1.42),.028,STEEL,5),
-             rod('Knee joint',.15,P(*knee),.34,BLACK,'x',10),
-             rod('Knee hub',.09,P(*knee),.4,MPLATE,'x',6),
-             # Scythe crest over the knee, kept below the cannon's sweep.
-             profile('Knee crest',[(.56,1.62),(.7,1.72),(.94,1.7),(1.06,1.52),(.86,1.62)],.05,MPLATE),
-             bone('Tibia',P(*knee),P(*ankle),.3,.26,.14,MPLATE,.02),
-             profile('Tibia blade',blade,.025,BLACK),
-             strut('Knee actuator',P(.52,1.3),P(.94,1.18),.045,BLACK),
-             rod('Ankle joint',.085,P(*ankle),.24,MACHINE,'x',6),
-             # Spear foot: a long black spike with a short heel claw.
-             profile('Spear foot',[(1.2,.52),(1.42,.46),(1.56,0),(1.38,.12)],.08,BLACK),
-             profile('Heel claw',[(1.26,.3),(1.2,0),(1.34,.16)],.04,BLACK)]
+    O = lambda a, b, t, k: P(*side_offset(a, b, t, k))
+    hip, knee, ankle = (.26,h+.04), (.7,1.5), (1.1,.4)
+    ku, ky = knee
+    parts = [rod('Hip drum',.22,P(0,h),.42,BLACK,'y',12),
+             rod('Drum cap',.16,P(0,h+.23),.04,MPLATE,'y',10),
+             box('Coxa',(.36,.34,.34),P(.16,h),MACHINE,.03),
+             rod('Hip joint',.16,P(*hip),.44,BLACK,'x',10),
+             bone('Femur',P(*hip),P(*knee),.38,.32,.08,MACHINE,.025),
+             bone('Thigh plate',O(hip,knee,.12,.17),O(hip,knee,.8,.17),.42,.06,.08,MPLATE,.01),
+             bone('Thigh paint',O(hip,knee,.3,.205),O(hip,knee,.66,.205),.3,.02,.04,WARPAINT),
+             strut('Thigh ram',P(.1,h-.16),O(hip,knee,.7,-.16),.06,BLACK),
+             strut('Thigh ram rod',O(hip,knee,.45,-.16),O(hip,knee,.86,-.15),.035,STEEL,5),
+             rod('Knee joint',.19,P(*knee),.46,BLACK,'x',12),
+             rod('Knee hub',.115,P(*knee),.52,MPLATE,'x',8),
+             profile('Knee cap',[(ku-.18,ky+.1),(ku+.04,ky+.2),(ku+.26,ky+.1),(ku+.24,ky-.12),(ku+.08,ky+.03)],.22,MPLATE),
+             bone('Shin',P(*knee),P(*ankle),.36,.32,.06,MACHINE,.025),
+             bone('Shin plate',O(knee,ankle,.1,.17),O(knee,ankle,.78,.17),.4,.06,.1,MPLATE,.01),
+             bone('Shin paint',O(knee,ankle,.2,.205),O(knee,ankle,.5,.205),.28,.02,.04,WARPAINT),
+             strut('Shin ram',O(knee,ankle,.12,-.17),O(knee,ankle,.75,-.16),.045,BLACK),
+             rod('Ankle joint',.12,P(*ankle),.38,BLACK,'x',10)]
+    # Hoof: an armoured block on a black sole, toe sloping forward.
+    ua, ya = ankle
+    parts += [profile('Hoof',[(ua-.17,ya-.04),(ua+.06,ya+.02),(ua+.24,.14),(ua+.22,.04),(ua-.19,.04),(ua-.22,.13)],.18,MACHINE),
+              profile('Hoof plate',[(ua-.11,ya+.02),(ua+.08,ya+.07),(ua+.2,.19),(ua-.16,.16)],.19,MPLATE),
+              profile('Sole',[(ua-.2,.045),(ua+.24,.045),(ua+.2,0),(ua-.19,0)],.2,BLACK)]
     merge('Leg', parts, pivot)
     pivot.rotation_euler.z = side*math.radians(splay)
     return pivot
@@ -2909,89 +2916,81 @@ def crusher_leg(i, side, hx, hz, splay):
 
 def crusher_body():
     h = CRUSH_HIP
-    parts = [armor('Belly',.9,1.8,.36,.52,.12,(0,0),BLACK,0),
-             loft('Hull',[(-1.05,.34,.62,1.0),(-.85,.56,.5,1.2),(-.3,.66,.46,1.34),(.3,.64,.46,1.34),
-                          (.8,.5,.5,1.22),(1.0,.38,.56,1.1)],MACHINE,0),
-             rod('Race collar',.74,(0,1.36,-.05),.05,MPLATE,'y',16),
-             # Low wedge head: a brow overhanging an angry red V visor, black mandibles below.
-             loft('Head',[(.78,.44,.46,1.18),(1.12,.4,.46,1.06),(1.34,.3,.5,.88)],MPLATE,0),
-             tbox('Brow',(.74,.06,.42),(0,1.04,1.18),MACHINE,(.42,0,0),.01),
-             box('Visor plate',(.5,.2,.02),(0,.72,1.345),BLACK,0)]
+    parts = [armor('Belly',1.4,2.5,.5,.72,.15,(0,0),BLACK,0),
+             loft('Upper hull',[(-1.32,.72,.68,1.22),(-1.1,.84,.64,1.4),(.55,.84,.64,1.42),(1.05,.8,.66,1.26),
+                                (1.36,.62,.74,1.0)],MACHINE,0),
+             tbox('Glacis plate',(1.1,.05,.5),(0,1.33,.92),MPLATE,(.32,0,0),.01),
+             rod('Turret ring',.7,(0,1.44,-.15),.06,BLACK,'y',20),
+             # Slit visor in the nose with four red optics, flanked by headlights.
+             box('Nose visor',(.56,.16,.04),(0,.98,1.36),BLACK,0)]
+    for x in (-.17,-.06,.06,.17):
+        parts.append(gem('Nose eye',(.035,.035,.02),(x,.99,1.385),RED))
     for s in (-1,1):
-        parts += [tbox('Visor slit',(.19,.045,.02),(s*.12,.74,1.36),RED,(0,0,s*.38),0),
-                  gem('Side eye',(.04,.04,.03),(s*.31,.66,1.27),RED),
-                  prism('Mandible',[(s*.16,1.2),(s*.32,1.3),(s*.33,1.5),(s*.2,1.66),(s*.22,1.48),(s*.2,1.32)],.46,.54,BLACK,'xz'),
-                  # Flank armour between the hips, with cooling slats.
-                  box('Flank armor',(.08,.38,.6),(s*.67,.86,.02),MPLATE,.015)]
-        for z in (-.13,.02,.17):
-            parts.append(box('Flank slat',(.03,.26,.05),(s*.72,.86,z),BLACK,0))
+        parts += [box('Headlight',(.1,.07,.04),(s*.42,1.0,1.33),STEEL,.01),
+                  box('Front fender',(.36,.06,.4),(s*.62,1.36,.98),MPLATE,.015),
+                  box('Exhaust',(.16,.18,.1),(s*.45,1.05,-1.36),BLACK,.02),
+                  box('Side skirt',(.06,.34,.68),(s*.86,1.0,0),MACHINE,.01),
+                  box('Skirt paint',(.02,.18,.56),(s*.895,1.02,0),WARPAINT,0)]
+    # Louvred engine deck behind the turret ring.
+    for z in (-.9,-1.02,-1.14):
+        parts.append(box('Engine louvre',(.9,.03,.07),(0,1.42,z),BLACK,0))
+    # Armoured housing over each hip.
     for s, hx, hz, _ in CRUSH_LEGS:
-        parts += [rod('Hip socket',.18,(s*hx,h,hz),.32,BLACK,'y',8),
-                  tbox('Pauldron',(.34,.07,.48),(s*.55,1.2,hz),MPLATE,(0,0,-s*.42),.015)]
-    # Short reactor tail: a black drum with a red core, ringed by heat sinks.
-    parts += [rod('Reactor drum',.28,(0,.86,-1.1),.22,BLACK,'z',12),
-              rod('Reactor core',.16,(0,.86,-1.215),.02,RED,'z',10)]
-    for k in range(6):
-        a = k*math.tau/6 + math.pi/6
-        parts.append(tbox('Heat sink',(.05,.14,.2),(math.sin(a)*.3,.86+math.cos(a)*.3,-1.1),MPLATE,(0,0,-a),0))
+        parts += [box('Hip housing',(.3,.42,.5),(s*(hx-.08),h+.06,hz),MPLATE,.03),
+                  tbox('Hip armor',(.44,.06,.6),(s*(hx-.04),h+.3,hz),MACHINE,(0,0,-s*.3),.02)]
     return parts
 
 
 def crusher_turret():
-    # Low, wide wedge on a race; armour skirts over the flank radiators, cheeks around the gun.
     gy, gz = CRUSH_GUN
-    parts = [rod('Turret race',.66,(0,1.43,-.05),.08,BLACK,'y',16),
-             armor('Turret hull',1.36,1.62,1.44,2.06,.52,(0,-.22),MACHINE),
-             armor('Roof plate',.7,.94,2.05,2.1,.1,(0,-.3),MPLATE,0),
-             rod('Mantlet',.3,(0,gy,.64),.2,MPLATE,'z',10),
-             box('Reactor bustle',(.66,.24,.2),(0,1.72,-1.0),BLACK,.02)]
+    parts = [armor('Turret',1.36,1.62,1.46,2.04,.34,(0,-.22),MACHINE),
+             armor('Turret roof',.94,1.14,2.03,2.08,.08,(0,-.26),MPLATE,0),
+             box('Bustle',(1.08,.42,.42),(0,1.74,-1.14),MACHINE,.03),
+             box('Bustle rack',(1.14,.06,.5),(0,1.98,-1.16),BLACK,0),
+             box('Mantlet',(.6,.46,.3),(0,gy,gz-.04),MPLATE,.04)]
     for s in (-1,1):
-        parts += [prism('Gun cheek',[(.1,1.5),(.68,1.56),(.84,1.78),(.74,2.12),(.24,2.16)],s*.28,s*.42,MPLATE,'zy',.015),
-                  box('Radiator',(.12,.3,.8),(s*.7,1.62,-.3),BLACK,0),
-                  tbox('Side skirt',(.34,.06,.96),(s*.76,1.82,-.28),MPLATE,(0,0,-s*.55),.015),
-                  strut('Power conduit',(s*.62,1.9,.12),(s*.42,1.98,.4),.04,BLACK)]
-        for z in (-.56,-.4,-.24,-.08):
-            parts.append(box('Radiator fin',(.05,.26,.05),(s*.77,1.62,z),MPLATE,0))
-    # Exhaust grille across the back of the roof.
-    for x in (-.2,-.1,0,.1,.2):
-        parts.append(box('Roof grille',(.06,.03,.34),(x,2.11,-.56),BLACK,0))
-    # Sensor block on the roof (left) with a red lens, and a whip antenna at the back (right).
-    parts += [box('Sensor block',(.26,.14,.3),(-.36,2.19,.02),BLACK,.02),
-              box('Sensor lens',(.16,.05,.02),(-.36,2.2,.175),RED,0),
-              rod('Antenna base',.06,(.38,2.12,-.72),.06,BLACK,'y',6),
-              strut('Antenna',(.38,2.12,-.72),(.44,2.44,-.84),.018,BLACK,4)]
+        parts += [prism('Cheek',[(.24,1.48),(.68,1.52),(.64,2.02),(.14,2.04)],s*.32,s*.64,MPLATE,'zy',.02),
+                  box('Turret paint',(.02,.2,.66),(s*.69,1.76,-.36),WARPAINT,0)]
+        for k in range(3):
+            p = (s*.7,1.95,.18-k*.1)
+            parts.append(xform(rod('Smoke tube',.045,p,.16,BLACK,'z',8),(-.5,s*.4,0),p))
+    # Sight box on the left cheek, commander's cupola on the right, two whip antennas.
+    parts += [box('Sight housing',(.24,.22,.34),(-.44,2.16,.16),MACHINE,.02),
+              box('Sight lens',(.16,.1,.02),(-.44,2.17,.335),RED,0),
+              rod('Cupola',.17,(.36,2.14,-.46),.14,MPLATE,'y',12),
+              rod('Cupola hatch',.13,(.36,2.22,-.46),.03,BLACK,'y',10),
+              box('Periscope',(.08,.06,.04),(.36,2.21,-.31),RED,0),
+              rod('Antenna base',.05,(-.42,2.1,-.92),.06,BLACK,'y',6),
+              strut('Antenna',(-.42,2.1,-.92),(-.47,2.56,-1.02),.016,BLACK,4),
+              rod('Antenna base',.05,(.44,2.1,-.96),.06,BLACK,'y',6),
+              strut('Antenna',(.44,2.1,-.96),(.48,2.4,-1.04),.016,BLACK,4)]
     return parts
 
 
 def crusher_cannon():
-    # Authored along +Z from the `barrel` pivot, in world coordinates.
+    # Authored level along +Z from the `barrel` pivot, then laid up by CRUSH_LAY about it.
     gy, gz = CRUSH_GUN
-    octagon = lambda r: [(r*math.cos(a), gy+r*math.sin(a)) for a in [math.pi/8 + k*math.tau/8 for k in range(8)]]
-    parts = [prism('Breech',octagon(.27),gz-.3,gz+.3,MACHINE,'xy',.02),
-             rod('Breech sleeve',.2,(0,gy,gz+.38),.16,MACHINE,'z',10),
-             rod('Plasma core',.075,(0,gy,gz+.96),1.32,RED,'z',8),
-             prism('Emitter',octagon(.2),gz+1.56,gz+1.74,BLACK,'xy',.015),
-             rod('Focus ring',.13,(0,gy,gz+1.76),.04,MPLATE,'z',10),
-             rod('Plasma bore',.09,(0,gy,gz+1.785),.012,RED,'z',10)]
-    for z in (.48,.76,1.04,1.32):
-        parts += [rod('Coil',.155,(0,gy,gz+z),.14,BLACK,'z',12),
-                  rod('Coil band',.165,(0,gy,gz+z),.04,MPLATE,'z',12)]
-    for s in (-1,1):
-        parts += [box('Accelerator rail',(.06,.16,1.3),(s*.19,gy,gz+.95),MPLATE,.01),
-                  box('Emitter prong',(.06,.1,.26),(s*.15,gy,gz+1.77),MPLATE,.01)]
-    for z in (.36,1.5):
-        parts.append(box('Rail brace',(.44,.05,.08),(0,gy+.1,gz+z),MACHINE,0))
-    return parts
+    parts = [rod('Barrel sleeve',.16,(0,gy,gz+.32),.36,MACHINE,'z',12),
+             rod('Barrel',.095,(0,gy,gz+1.32),1.9,MPLATE,'z',12),
+             rod('Fume extractor',.15,(0,gy,gz+1.25),.38,MACHINE,'z',12),
+             rod('Extractor band',.155,(0,gy,gz+1.08),.04,BLACK,'z',12),
+             box('Muzzle brake',(.32,.2,.34),(0,gy,gz+2.32),MACHINE,.03),
+             rod('Plasma bore',.07,(0,gy,gz+2.49),.01,RED,'z',10)]
+    for z in (2.22,2.38):
+        for s in (-1,1):
+            parts.append(box('Brake port',(.02,.12,.06),(s*.165,gy,gz+z),BLACK,0))
+    return group(parts, (-CRUSH_LAY,0,0), (0,gy,gz))
 
 
 def crusher():
     reset()
     for i, leg in enumerate(CRUSH_LEGS):
         crusher_leg(i, *leg)
-    merge('Carapace', crusher_body())
+    merge('Hull', crusher_body())
     t = empty('turret', CRUSH_DECK)
     gy, gz = CRUSH_GUN
     b = empty('barrel', (0, gy-CRUSH_DECK[1], gz-CRUSH_DECK[2]), t)
+    b.rotation_euler.x = -CRUSH_LAY
     merge('Turret armor', crusher_turret(), t)
     merge('Plasma cannon', crusher_cannon(), b)
     empty('muzzle', (0,0,CRUSH_MOUTH), b)
