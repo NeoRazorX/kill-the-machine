@@ -241,6 +241,8 @@ export class AI {
     if (n('turret') < Math.min(1 + this.waveNo, 6) && has('barracks')) want.push('turret');
     if (T.credits > 2500 && n('factory') < 2) want.push('factory');
     if (T.credits > 1800 && n('barracks') < 2) want.push('barracks');
+    // The airfield once the army is under way and there is money to spare.
+    if (has('factory') && !n('airfield') && this.waveNo >= 1 && T.credits > 2000) want.push('airfield');
     if (pw.prod - pw.use < 60 && T.credits > 1500) want.push('power');
     if (T.credits > 3200 && n('turret') < 8) want.push('turret');
     for (const r of want) {
@@ -573,8 +575,11 @@ export class AI {
     const g = this.g, R = w.radius;
     const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
     const seen = g.units.filter((u) => u.team === this.enemy && !u.dead && eyes.some((e) => Math.hypot(e.x - u.x, e.z - u.z) <= visionRadius(e)));
-    const targets = [...[...this.known].filter((b) => !b.dead && b.team === this.enemy), ...seen];
-    const worth = (e) => (e.def.role === 'hq' ? 1500 : e.def.tech ? 2000 : e.def.cost || 300) * (e.def.role === 'power' || e.def.role === 'refinery' ? 1.5 : 1);
+    // An air strike is spent on armies only: it barely scratches buildings.
+    const targets = [...(w.kind === 'air' ? [] : [...this.known].filter((b) => !b.dead && b.team === this.enemy)), ...seen];
+    // An air strike barely scratches buildings, so what it can hit is worth that much less.
+    const worth = (e) => (e.def.role === 'hq' ? 1500 : e.def.tech ? 2000 : e.def.cost || 300) * (e.def.role === 'power' || e.def.role === 'refinery' ? 1.5 : 1) *
+      (w.mult?.[e.cls] ?? 1);
     // Measured like the blast: to a building's walls, to a unit's centre.
     const reach = (e, x, z) => (e.kind === 'building' ? Math.hypot(Math.max(e.rect.x0 - x, 0, x - e.rect.x1), Math.max(e.rect.z0 - z, 0, z - e.rect.z1)) : Math.hypot(e.x - x, e.z - z));
     // Aim points: every target, and the midpoint of every pair close enough to be caught together.
@@ -583,7 +588,7 @@ export class AI {
       const a = targets[i], b = targets[j];
       if (Math.hypot(a.x - b.x, a.z - b.z) < 2 * R + 8) points.push({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 });
     }
-    let best = null, bestScore = w.kind === 'nuke' ? 2000 : 1200;
+    let best = null, bestScore = { nuke: 2000, ion: 1200, air: 600 }[w.kind];
     if (w.kind === 'ion') {
       const L = w.length, near = (e, p) => (e.kind === 'building' ? rectSegDist(e.rect, p.x, p.z, p.x2, p.z2) : segDist(e.x, e.z, p.x, p.z, p.x2, p.z2));
       for (const a of targets) {

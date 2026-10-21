@@ -3077,6 +3077,113 @@ def mobile_radar(machine=False):
     save('h_radar')
 
 
+# ---------------------------------------------------------------- Air support
+# Each side's airfield launches a squadron that flies in from the map edge and bombs a small area:
+# the humans' delta-wing fighter-bombers, the machines' swarm of flying-wing drones. The aircraft
+# are authored nose to +Z around their centre of mass; the game sets their altitude.
+
+def fighter(k=1.0, at=(0,0,0), yaw=0, accent=BLUE):
+    # Delta-wing fighter-bomber, 4.3 long at k = 1, with two bombs under the wings.
+    ox, oy, oz = at
+    P = lambda x, y, z: (x*k, y*k, z*k)
+    L = lambda rings: [(z*k, hw*k, yb*k, yt*k) for z, hw, yb, yt in rings]
+    parts = [loft('Fuselage', L([(2.15,.03,-.03,.04),(1.8,.16,-.14,.16),(1.1,.3,-.24,.3),(0,.36,-.28,.32),
+                                 (-1.2,.34,-.26,.28),(-1.85,.26,-.2,.22),(-2.0,.21,-.17,.19)]), OLIVE, 0),
+             loft('Canopy', L([(1.35,.04,.2,.24),(1.05,.15,.22,.46),(.55,.17,.24,.5),(.15,.12,.26,.38)]), GLASS, 0),
+             rod('Nozzle', .2*k, P(0,0,-2.1), .22*k, DARK, 'z', 12),
+             rod('Afterburner', .15*k, P(0,0,-2.22), .02*k, ORANGE, 'z', 12),
+             box('Spine stripe', P(.12,.02,1.1), P(0,.33,-.75), accent, 0)]
+    for s in (-1, 1):
+        parts += [prism('Wing', [(s*.3*k,.95*k),(s*2.05*k,-.95*k),(s*2.05*k,-1.28*k),(s*.3*k,-1.32*k)], -.07*k, .02*k, LIGHT, 'xz'),
+                  box('Wingtip', P(.12,.07,.42), P(s*1.98,-.02,-1.08), accent, 0),
+                  prism('Stabiliser', [(s*.3*k,-1.5*k),(s*1.05*k,-1.95*k),(s*1.05*k,-2.15*k),(s*.3*k,-2.1*k)], -.05*k, 0, OLIVE, 'xz'),
+                  xform(prism('Tail fin', [(-1.2*k,.25*k),(-1.95*k,1.0*k),(-2.15*k,1.0*k),(-2.05*k,.25*k)], (s*.28-.03)*k, (s*.28+.03)*k, OLIVE, 'zy'),
+                        (0,0,s*.3), P(s*.28,.25,-1.6)),
+                  box('Intake', P(.2,.3,.9), P(s*.42,-.06,.45), DARK, 0),
+                  rod('Bomb', .1*k, P(s*1.0,-.2,-.35), .9*k, DARK, 'z', 8),
+                  xform(cone('Bomb nose', .1*k, .02*k, .2*k, P(s*1.0,-.2,.2), DARK, 8), (math.pi/2,0,0), P(s*1.0,-.2,.2)),
+                  box('Pylon', P(.04,.12,.4), P(s*1.0,-.1,-.35), DARK, 0)]
+    return group(parts, (0,yaw,0), (0,0,0), at)
+
+
+def raider(k=1.0, at=(0,0,0), yaw=0):
+    # Machine attack drone: a swept flying wing with a red eye in the nose, 3 wide at k = 1.
+    P = lambda x, y, z: (x*k, y*k, z*k)
+    L = lambda rings: [(z*k, hw*k, yb*k, yt*k) for z, hw, yb, yt in rings]
+    parts = [loft('Core', L([(1.0,.05,-.08,.06),(.6,.28,-.16,.18),(-.2,.34,-.18,.22),(-.85,.2,-.12,.12)]), MACHINE, 0),
+             tbox('Visor', P(.32,.06,.22), P(0,.08,.66), BLACK, (-.35,0,0), 0),
+             gem('Eye', P(.09,.06,.06), P(0,.02,.98), RED),
+             rod('Spine glow', .04*k, P(0,.2,-.2), .7*k, RED, 'z', 6)]
+    for s in (-1, 1):
+        parts += [prism('Wing', [(s*.25*k,.55*k),(s*1.5*k,-.45*k),(s*1.45*k,-.75*k),(s*.9*k,-.52*k),(s*.25*k,-.72*k)], -.05*k, .01*k, MPLATE, 'xz'),
+                  beam('Leading edge', P(s*.3,.0,.5), P(s*1.45,0,-.47), .05*k, RED, 0),
+                  rod('Engine pod', .11*k, P(s*.55,.04,-.35), .75*k, BLACK, 'z', 8),
+                  rod('Exhaust', .08*k, P(s*.55,.04,-.74), .04*k, RED, 'z', 8),
+                  xform(prism('Wingtip fin', [(-.45*k,0),(-.75*k,.32*k),(-.85*k,.32*k),(-.78*k,0)], (s*1.47-.02)*k, (s*1.47+.02)*k, BLACK, 'zy'),
+                        (0,0,s*.25), P(s*1.47,0,-.6))]
+    return group(parts, (0,yaw,0), (0,0,0), at)
+
+
+def aircraft(machine=False):
+    reset()
+    merge('Raider' if machine else 'Fighter', raider() if machine else fighter())
+    save('air_m_drone' if machine else 'air_h_jet')
+
+
+def human_airfield():
+    # 4x3 cells: runway along the front with a parked fighter, a Quonset hangar and a control tower.
+    reset()
+    objects = platform(7.8, 5.8)
+    objects += [box('Runway', (7.6,.05,2.1), (0,.3,1.75), DARK, .01)]
+    for x in (-3,-1.8,-.6,.6,1.8,3):
+        objects.append(box('Centre dash', (.6,.012,.1), (x,.33,1.75), WHITE, 0))
+    for z in (.76, 2.74):
+        objects.append(box('Runway edge', (7.5,.012,.07), (0,.33,z), YELLOW, 0))
+    objects += [loft('Hangar', [(-2.7,1.5,.28,2.3),(.35,1.5,.28,2.3)], OLIVE, .02),
+                box('Hangar mouth', (2.3,1.55,.08), (-1.9,1.06,.36), DEEP, 0),
+                box('Hangar lintel', (2.6,.16,.14), (-1.9,1.9,.38), BLUE, .01),
+                box('Roof seam', (.08,.04,3.0), (-1.9,2.31,-1.2), DARK, 0),
+                armor('Tower base', 1.2, 1.2, .28, .7, .2, (2.5,-1.6), LIGHT),
+                rod('Tower shaft', .32, (2.5,1.85,-1.6), 2.4, LIGHT, 'y', 10),
+                armor('Tower cab', 1.5, 1.5, 3.05, 3.65, -.25, (2.5,-1.6), GLASS),
+                armor('Tower roof', 1.65, 1.65, 3.65, 3.85, .5, (2.5,-1.6), DARK),
+                strut('Antenna', (2.75,3.85,-1.75), (2.75,4.6,-1.75), .025, STEEL, 4),
+                box('Beacon', (.18,.12,.18), (2.75,4.66,-1.75), BLUE, .01),
+                cyl('Fuel tank', .42, 1.5, (.9,.75,-2.1), WHITE, 'x'),
+                cyl('Fuel tank', .42, 1.5, (.9,.75,-1.15), WHITE, 'x')]
+    for z in (-2.1, -1.15):
+        objects.append(box('Tank band', (.06,.86,.86), (.9,.75,z), BLUE, 0))
+    objects += fighter(.6, (1.0,.55,1.75), math.pi/2)
+    objects += [strut('Gear', (x,.3,z), (x,.48,z), .03, DARK, 4) for x, z in ((2.1,1.75),(.6,1.4),(.6,2.1))]
+    merge('Airfield', objects)
+    save('h_airfield')
+
+
+def machine_airfield():
+    # Drone nest: a launch deck with two catapult rails in front of a hive tower of glowing bays.
+    reset()
+    objects = platform(7.8, 5.8, True)
+    objects += [armor('Launch deck', 7.4, 2.3, .28, .5, .12, (0,1.6), MACHINE)]
+    for z in (1.15, 2.05):
+        objects += [box('Catapult rail', (6.8,.05,.12), (0,.52,z), RED, 0),
+                    box('Rail bed', (7.0,.04,.3), (0,.5,z), BLACK, 0)]
+    objects += [armor('Hive', 4.6, 2.6, .28, 2.6, .9, (-.9,-1.3), MACHINE),
+                armor('Hive crown', 3.4, 1.6, 2.6, 3.1, .6, (-.9,-1.3), MPLATE)]
+    for x in (-2.3,-.9,.5):
+        objects += [box('Drone bay', (1.0,.7,.1), (x,1.15,.02), DEEP, 0),
+                    box('Bay rim', (1.1,.06,.12), (x,1.55,.03), RED, 0)]
+    objects += [armor('Spire base', 1.2, 1.2, .28, 1.0, .3, (2.6,-1.6), BLACK),
+                beam('Spire', (2.6,.9,-1.6), (2.6,4.2,-1.6), .3, MPLATE),
+                gem('Spire eye', (.25,.25,.25), (2.6,4.35,-1.6), RED),
+                torus('Spire ring', .38, .05, (2.6,3.2,-1.6), RED)]
+    for s in (-1, 1):
+        objects.append(strut('Spire stay', (2.6+s*.55,.3,-1.6+.4), (2.6,3.0,-1.6), .04, BLACK, 4))
+    objects += raider(.55, (-1.6,.62,1.6), math.pi/2)
+    objects += raider(.55, (1.6,.62,1.6), math.pi/2)
+    merge('Drone nest', objects)
+    save('m_airfield')
+
+
 BUILDERS = {
     'h_radar': mobile_radar, 'm_radar': lambda: mobile_radar(True),
     'h_tank': tank, 'h_factory': factory,
@@ -3100,6 +3207,8 @@ BUILDERS = {
     't_radar': lambda: tech('radar'),
     'h_mammoth': lambda: mammoth(BLUE), 'm_mammoth': lambda: mammoth(RED),
     'h_juggernaut': lambda: juggernaut(BLUE), 'm_juggernaut': lambda: juggernaut(RED),
+    'h_airfield': human_airfield, 'm_airfield': machine_airfield,
+    'air_h_jet': aircraft, 'air_m_drone': lambda: aircraft(True),
 }
 if __name__ == '__main__':
     requested = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else list(BUILDERS)

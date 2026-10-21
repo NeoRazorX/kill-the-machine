@@ -669,6 +669,67 @@ for (const id of ['h_arty', 'm_siege']) {
   assert(ring.length >= 2 && ring.every((u) => u.dead), 'and kills infantry well away from the centre');
 }
 
+// ------------------------------------------------------------ Air strike
+for (const team of ['human', 'machine']) {
+  const enemy = other(team), A = ROLE[team].airfield, W = A.superweapon;
+  assert(A.unique && A.requires.includes('factory') && !A.tech && W.kind === 'air' && W.charge < DEFS.t_ion.superweapon.charge &&
+    W.radius < DEFS.t_ion.superweapon.length && W.mult.light > W.mult.armor && W.mult.armor > W.mult.building,
+    `${team}: the airfield is built, one per side, and charges a small strike that is weakest against buildings`);
+  const { game, events } = fixture({ spectate: false });
+  game.player = team;
+  const sw = game.superweapons;
+  addStructure(game, team, 'power'); addStructure(game, team, 'refinery'); addStructure(game, team, 'factory');
+  game.teams[team].credits = 10000;
+  assert(game.startStruct(team, A.id), `${team}: with a factory the airfield can be built`);
+  game.cancelStruct(team);
+  const field = addStructure(game, team, 'airfield');
+  assert(game.atLimit(team, A) && !game.startStruct(team, A.id), `${team}: a second airfield cannot be started`);
+  game.recomputePower();
+  assert(sw.sites.includes(field) && sw.online(field) && !sw.isReady(field) && sw.status(team).own[0] === field, `${team}: a finished airfield starts charging`);
+  run(game, W.charge - 1);
+  assert(!sw.isReady(field), `${team}: the strike is not ready before its charge time`);
+  run(game, 1.5);
+  assert(sw.isReady(field) && events.some((e) => e.type === 'toast' && /listo/.test(e.data.text)), `${team}: the airfield is ready after ${W.charge} s`);
+  // An enemy squad, a tank and a building at the target, and a unit well clear of it.
+  game.fog.fill(1);
+  const ehq = game.teamBuildings(enemy, 'hq')[0];
+  const ground = (x, z, r, min = 0) => { for (let d = min; d < 40; d++) for (let a = 0; a < 6.3; a += .3) { const p = { x: x + Math.cos(a) * d, z: z + Math.sin(a) * d }; if (game.canStand(p.x, p.z, r + .3)) return p; } };
+  const at = ground(ehq.x, ehq.rect.z1 + 4, 1.6);
+  const tank = game.spawnUnit(ROLE[enemy].tank, enemy, at.x, at.z);
+  const squad = [];
+  for (let a = 0; a < 6.3 && squad.length < 4; a += .5) {
+    const x = at.x + Math.cos(a) * 3, z = at.z + Math.sin(a) * 3;
+    if (game.canStand(x, z, 0.8)) squad.push(game.spawnUnit(ROLE[enemy].inf1, enemy, x, z));
+  }
+  const far = ground(at.x, at.z, 0.8, W.radius + 6), clear = game.spawnUnit(ROLE[enemy].inf1, enemy, far.x, far.z);
+  game.rebuildHash();
+  const hqHp = ehq.hp;
+  assert(sw.fire(field, at.x, at.z) && !sw.isReady(field) && sw.strikes.length === 1, `${team}: firing spends the charge and sends the squadron`);
+  const strike = sw.strikes[0];
+  const outside = (x, z) => x < 0 || z < 0 || x > SIZE || z > SIZE;
+  assert(strike.planes.length === W.planes && outside(strike.ex, strike.ez) && Math.abs(strike.delay - strike.inDist / W.speed) < 1e-9,
+    `${team}: ${W.planes} aircraft fly in from beyond the map edge`);
+  // The path runs from the airfield's side of the map, through the target.
+  assert((at.x - field.x) * strike.dx + (at.z - field.z) * strike.dz > 0, `${team}: the squadron comes in from behind its own airfield`);
+  run(game, strike.delay - 0.3);
+  assert(tank.hp === tank.maxHp && squad.every((u) => u.hp === u.maxHp) && strike.bombs.length > 0, `${team}: bombs are falling before the strike lands`);
+  run(game, 0.5);
+  assert(squad.length >= 2 && squad.every((u) => u.dead), `${team}: the bombs wipe out infantry`);
+  assert(!tank.dead && tank.hp < tank.maxHp * 0.6, `${team}: tanks come out badly damaged but alive`);
+  assert(hqHp - ehq.hp <= W.damage * W.mult.building + 1e-9, `${team}: buildings are barely scratched`);
+  assert(clear.hp === clear.maxHp, `${team}: units outside the circle are untouched`);
+  run(game, 30, () => !sw.strikes.length);
+  assert(!sw.strikes.length && !sw.group.children.length, `${team}: the squadron leaves the map and nothing is left behind`);
+  // The farther from the airfield's edge of the map, the longer the warning.
+  field.charging.charge = W.charge;
+  sw.fire(field, field.x, field.z + (field.z < SIZE / 2 ? 40 : -40));
+  const near = sw.strikes[0].delay;
+  sw.strikes.splice(0).forEach((s) => sw.dispose(s));
+  field.charging.charge = W.charge;
+  sw.fire(field, at.x, at.z);
+  assert(sw.strikes[0].delay > near, `${team}: a strike far from the airfield takes longer to arrive`);
+}
+
 // -------------------------------------------------------------------- AI
 const originalRandom = Math.random;
 try {
@@ -738,6 +799,36 @@ try {
       const R = site.def.superweapon.radius, crossed = game.teamBuildings(enemy).filter((b) => rectSegDist(b.rect, strike.x, strike.z, strike.x2, strike.z2) <= R);
       assert(strike.len > 10 && crossed.length >= 2, `${team}: AI lays the ion beam across several enemy buildings`);
     }
+  }
+  for (const team of ['human', 'machine']) {
+    // Once its army is under way the AI builds an airfield, and spends the strike on armies only.
+    Math.random = mulberry32(17 + (team === 'machine' ? 1 : 0));
+    const { game } = fixture({ ai: { team } });
+    const ai = game.ais[0], sw = game.superweapons, enemy = other(team), T = game.teams[team];
+    // A base with everything the AI wants before an airfield.
+    for (const role of ['power', 'power', 'power', 'refinery', 'refinery', 'barracks', 'barracks', 'factory', 'factory', 'turret', 'turret']) addStructure(game, team, role);
+    game.recomputePower();
+    T.credits = 3000;
+    ai.manageStructures();
+    assert(T.structQueue?.def.role !== 'airfield', `${team}: no airfield before the first wave`);
+    game.cancelStruct(team);
+    ai.waveNo = 1;
+    ai.manageStructures();
+    assert(T.structQueue?.def.role === 'airfield', `${team}: AI builds an airfield after its first wave`);
+    game.cancelStruct(team);
+    const field = addStructure(game, team, 'airfield');
+    field.charging = { charge: field.def.superweapon.charge };
+    ai.update = function () { this.updateIntel(); this.manageSuperweapons(); };
+    for (const b of game.teamBuildings(enemy)) ai.known.add(b);
+    ai.corners = [];
+    run(game, 2);
+    assert(sw.isReady(field) && !sw.strikes.length, `${team}: AI does not waste an air strike on buildings`);
+    const ehq = game.teamBuildings(enemy, 'hq')[0], gx = ehq.x, gz = ehq.rect.z1 + 14;
+    for (let i = 0; i < 5; i++) game.spawnUnit(ROLE[enemy].tank, enemy, gx + (i - 2) * 3, gz);
+    game.spawnUnit(ROLE[team].inf1, team, gx, gz + 16);
+    run(game, 2);
+    const strike = sw.strikes[0];
+    assert(strike?.sw.kind === 'air' && Math.hypot(strike.x - gx, strike.z - gz) < 8, `${team}: AI sends the air strike onto an enemy army it can see`);
   }
   {
     // The scout keeps exploring while a site is still missing, even with no crates left.

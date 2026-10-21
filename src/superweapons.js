@@ -1,10 +1,18 @@
 import * as THREE from 'three';
 import { N, CELL, SIZE } from './config.js';
+import { cloneModel } from './assets.js';
 
 const rectDist = (px, pz, r) => Math.hypot(Math.max(r.x0 - px, 0, px - r.x1), Math.max(r.z0 - pz, 0, pz - r.z1));
 const FIRE0 = [1, 0.9, 0.6], FIRE1 = [0.6, 0.15, 0.03];
 const SMOKE0 = [0.42, 0.38, 0.34], SMOKE1 = [0.12, 0.11, 0.1];
 const ION0 = [0.75, 0.95, 1], ION1 = [0.15, 0.45, 1];
+// Seconds a bomb takes to fall from the squadron's altitude; it keeps the aircraft's forward speed.
+const FALL = 0.7;
+// Where each aircraft flies relative to the leader: `side` across the path, `back` behind it.
+const FORMATIONS = {
+  air_h_jet: [{ side: 0, back: 0 }, { side: -4, back: -5 }, { side: 4, back: -5 }],
+  air_m_drone: [{ side: 0, back: 0 }, { side: -3.5, back: -3 }, { side: 3.5, back: -3 }, { side: -1.8, back: -7 }, { side: 1.8, back: -7 }, { side: 0, back: -10 }],
+};
 // A superweapon never takes a headquarters below this share of its health in one strike.
 export const HQ_FLOOR = 0.25;
 
@@ -41,6 +49,9 @@ export function rectSegDist(r, x0, z0, x1, z1) {
     segDist(r.x0, r.z0, x0, z0, x1, z1), segDist(r.x1, r.z0, x0, z0, x1, z1), segDist(r.x0, r.z1, x0, z0, x1, z1), segDist(r.x1, r.z1, x0, z0, x1, z1));
 }
 
+// Charges the repaired missile silo and ion cannon, and each side's airfield, fires them and resolves
+// their strikes. The charge only runs with enough power and restarts from zero when the structure
+// changes hands. A tech site keeps its charge in b.tech; an airfield in b.charging.
 export class Superweapons {
   constructor(game) {
     this.game = game;
@@ -52,23 +63,31 @@ export class Superweapons {
     this.stripGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   }
 
-  get sites() { return this.game.techSites?.items.filter((b) => b.def.superweapon) ?? []; }
+  // Made on the first air strike only.
+  get bombLook() {
+    return this._bombLook ??= { geo: new THREE.CapsuleGeometry(0.22, 0.7, 2, 6).rotateX(Math.PI / 2),
+      mat: new THREE.MeshStandardMaterial({ color: 0x272f2d, roughness: 0.6 }) };
+  }
 
-  online(b) { return !!b.team && b.tech?.state === 'online' && !b.dead; }
-  progress(b) { return Math.min(1, (b.tech.charge || 0) / b.def.superweapon.charge); }
+  get sites() { return this.game.buildings.filter((b) => b.def.superweapon); }
+
+  state(b) { return b.tech ?? (b.charging ??= { charge: 0, announcedReady: false }); }
+  online(b) { return !!b.team && !b.dead && (b.tech ? b.tech.state === 'online' : b.complete); }
+  progress(b) { return Math.min(1, (this.state(b).charge || 0) / b.def.superweapon.charge); }
   isReady(b) { return this.online(b) && this.progress(b) >= 1; }
-  remaining(b) { return Math.max(0, b.def.superweapon.charge - (b.tech.charge || 0)); }
+  remaining(b) { return Math.max(0, b.def.superweapon.charge - (this.state(b).charge || 0)); }
   ready(team) { return this.sites.filter((b) => b.team === team && this.isReady(b)); }
 
-  reset(b) { b.tech.charge = 0; b.tech.announcedReady = false; }
+  reset(b) { const st = this.state(b); st.charge = 0; st.announcedReady = false; }
 
   update(dt) {
     const g = this.game;
     for (const b of this.sites) {
       if (!this.online(b) || this.isReady(b) || g.lowPower(b.team)) continue;
-      b.tech.charge = Math.min(b.def.superweapon.charge, (b.tech.charge || 0) + dt);
-      if (this.isReady(b) && !b.tech.announcedReady) {
-        b.tech.announcedReady = true;
+      const st = this.state(b);
+      st.charge = Math.min(b.def.superweapon.charge, (st.charge || 0) + dt);
+      if (this.isReady(b) && !st.announcedReady) {
+        st.announcedReady = true;
         if (b.team === g.player && !g.spectate) {
           g.audio.play('ready');
           g.audio.say(`${b.def.superweapon.title} listo`, 0);
@@ -82,6 +101,10 @@ export class Superweapons {
       if (s.sw.kind === 'ion') {
         if (s.t < s.sw.delay) this.animate(s);
         else if (this.sweep(s)) { this.strikes.splice(i, 1); this.dispose(s); }
+        continue;
+      }
+      if (s.sw.kind === 'air') {
+        if (this.fly(s, dt)) { this.strikes.splice(i, 1); this.dispose(s); }
         continue;
       }
       this.animate(s);
@@ -112,6 +135,7 @@ export class Superweapons {
     const ring = new THREE.Mesh(this.ringGeo, mat());
     ring.position.set(x, 0.15, z); ring.scale.setScalar(sw.radius); ring.renderOrder = 4;
     s.ring = ring; s.meshes.push(ring);
+    if (sw.kind === 'air') this.launch(s, b);
     if (sw.kind === 'ion') {
       Object.assign(s, ionPath(sw, x, z, x2, z2), { head: 0, hit: new Set(), scorched: 0 });
       // The swath still to be swept, and a ring where it ends.
@@ -129,7 +153,7 @@ export class Superweapons {
       tip.position.y = 2.65;
       missile.add(body, tip);
       s.missile = missile; s.meshes.push(missile);
-    } else {
+    } else if (sw.kind === 'ion') {
       const column = new THREE.Mesh(this.columnGeo, new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0,
         depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
       column.position.set(x, 0, z); column.scale.set(0.2, 160, 0.2);
@@ -137,15 +161,18 @@ export class Superweapons {
     }
     for (const m of s.meshes) this.group.add(m);
     this.strikes.push(s);
-    // The ion beam hums as it builds up over the target; the missile roars out of its silo.
-    if (sw.kind === 'ion') g.audio.play('ioncharge', x, z); else g.audio.play('missilelaunch', b.x, b.z);
+    // The ion beam hums as it builds up over the target; the missile roars out of its silo. The
+    // squadron is heard as it passes overhead.
+    if (sw.kind === 'ion') g.audio.play('ioncharge', x, z); else if (sw.kind === 'nuke') g.audio.play('missilelaunch', b.x, b.z);
     const own = b.team === g.player, title = sw.title;
+    const said = { nuke: ['Misil lanzado', 'Atención: misil nuclear lanzado'], ion: ['Cañón de iones disparado', 'Atención: ataque de cañón de iones'],
+      air: [`${title} en camino`, 'Atención: ataque aéreo enemigo'] }[sw.kind];
     if (!g.spectate) {
-      if (own) { g.audio.say(sw.kind === 'nuke' ? 'Misil lanzado' : 'Cañón de iones disparado', 0); }
+      if (own) { g.audio.say(said[0], 0); }
       else {
         g.audio.play('alert');
-        g.audio.say(sw.kind === 'nuke' ? 'Atención: misil nuclear lanzado' : 'Atención: ataque de cañón de iones', 0);
-        g.emit('toast', { text: `¡${title} enemigo disparado! Aparta tus unidades de la zona marcada`, kind: 'warn' });
+        g.audio.say(said[1], 0);
+        g.emit('toast', { text: `¡${title} enemigo en camino! Aparta tus unidades de la zona marcada`, kind: 'warn' });
       }
       g.emit('alert', { x, z });
     }
@@ -181,7 +208,93 @@ export class Superweapons {
   dispose(s) {
     for (const m of s.meshes) {
       this.group.remove(m);
+      // Aircraft share their model's geometry and materials, as every clone does.
+      if (m.userData.modelSource) continue;
       m.traverse((o) => { if (o.isMesh) { if (![this.ringGeo, this.columnGeo, this.stripGeo].includes(o.geometry)) o.geometry.dispose(); o.material.dispose(); } });
+    }
+    for (const bomb of s.bombs ?? []) this.group.remove(bomb.mesh);
+  }
+
+  // The squadron's path: in from the map edge behind the airfield, over the target and out across
+  // the map. The strike lands when the leader is overhead, so its delay is the flight in.
+  launch(s, b) {
+    const sw = s.sw;
+    let dx = s.x - b.x, dz = s.z - b.z;
+    if (Math.hypot(dx, dz) < 1) { dx = s.x - SIZE / 2; dz = s.z - SIZE / 2; }
+    if (Math.hypot(dx, dz) < 1) dx = 1;
+    const l = Math.hypot(dx, dz);
+    dx /= l; dz /= l;
+    // How far from the target the path leaves the map going along (ux, uz).
+    const toEdge = (ux, uz) => Math.min(ux > 0 ? (SIZE - s.x) / ux : ux < 0 ? -s.x / ux : Infinity, uz > 0 ? (SIZE - s.z) / uz : uz < 0 ? -s.z / uz : Infinity);
+    const inDist = toEdge(-dx, -dz) + 25;
+    Object.assign(s, { dx, dz, ex: s.x - dx * inDist, ez: s.z - dz * inDist, inDist, outDist: inDist + toEdge(dx, dz) + 40,
+      delay: inDist / sw.speed, bombs: [], hit: false, heard: false, planes: [] });
+    for (const f of FORMATIONS[sw.model]) {
+      const mesh = cloneModel(sw.model).group;
+      mesh.visible = false;
+      s.planes.push({ ...f, mesh, nextDrop: 0, phase: Math.random() * 6.3 });
+      s.meshes.push(mesh);
+    }
+    s.ring.material.color.setHex(0xffc040);
+  }
+
+  // Moves the squadron, drops bombs over the marked circle and resolves the blast once, when the
+  // leader is overhead. Returns true once every aircraft has left the map.
+  fly(s, dt) {
+    const g = this.game, fx = g.fx, sw = s.sw, R = sw.radius, d = s.t * sw.speed, swarm = s.planes.length > 3;
+    const yaw = Math.atan2(s.dx, s.dz), px = s.dz, pz = -s.dx;
+    s.ring.material.opacity = 0.55 + 0.45 * Math.sin(s.t * 10);
+    if (!s.heard && s.t >= s.delay - 1.6) { s.heard = true; g.audio.play(swarm ? 'swarm' : 'jetflyby', s.x, s.z); }
+    let out = true;
+    for (const p of s.planes) {
+      const a = d + p.back, wob = swarm ? Math.sin(s.t * 3 + p.phase) : 0;
+      const side = p.side + wob * 0.8, x = s.ex + s.dx * a + px * side, z = s.ez + s.dz * a + pz * side;
+      const y = sw.altitude + (swarm ? Math.sin(s.t * 4.3 + p.phase) * 0.6 : 0);
+      p.mesh.visible = a > 0 && a < s.outDist;
+      p.mesh.position.set(x, y, z);
+      p.mesh.rotation.set(0, yaw, swarm ? wob * 0.35 : 0);
+      if (a < s.outDist) out = false;
+      // A bomb dropped now lands FALL seconds further on; drop while that spot is inside the circle.
+      const lx = x + s.dx * sw.speed * FALL, lz = z + s.dz * sw.speed * FALL;
+      if (s.t >= p.nextDrop && Math.hypot(lx - s.x, lz - s.z) < R * 0.9) {
+        p.nextDrop = s.t + (swarm ? 0.16 : 0.1);
+        const mesh = new THREE.Mesh(this.bombLook.geo, this.bombLook.mat);
+        mesh.position.set(x, y - 0.6, z); mesh.rotation.y = yaw;
+        this.group.add(mesh);
+        s.bombs.push({ mesh, x, y: y - 0.6, z, t: 0 });
+      }
+      if (p.mesh.visible && Math.random() < dt * 20) fx.spawn(x - s.dx * 2, y, z - s.dz * 2, 0, 0, 0, 0.5, 0.4, 0.3, swarm ? [1, 0.3, 0.2] : [1, 0.75, 0.4], [0.3, 0.3, 0.3], 0, 0.3);
+    }
+    for (let i = s.bombs.length - 1; i >= 0; i--) {
+      const bomb = s.bombs[i];
+      bomb.t += dt;
+      const k = Math.min(1, bomb.t / FALL), run = sw.speed * Math.min(bomb.t, FALL);
+      bomb.mesh.position.set(bomb.x + s.dx * run, bomb.y * (1 - k * k), bomb.z + s.dz * run);
+      bomb.mesh.rotation.x = k * 0.9;
+      if (k < 1) continue;
+      this.group.remove(bomb.mesh);
+      s.bombs.splice(i, 1);
+      const bx = bomb.mesh.position.x, bz = bomb.mesh.position.z;
+      fx.explosion(bx, 0.5, bz, 1.6 + Math.random());
+      fx.scorch(bx, bz, 1.8, 0.5);
+      if (Math.random() < 0.35) g.audio.play('explosion', bx, bz);
+    }
+    if (!s.hit && s.t >= s.delay) { s.hit = true; s.ring.visible = false; this.bombard(s); }
+    return out && s.hit && !s.bombs.length;
+  }
+
+  // The squadron's bombs: damage falls off from the centre to half at the edge, scaled by what is hit.
+  bombard(s) {
+    const g = this.game, { sw, x, z } = s, R = sw.radius, mult = (e) => sw.mult[e.cls] ?? 1;
+    for (const u of g.queryUnits(x, z, R + 3).slice()) {
+      if (u.dead || !u.team) continue;
+      const d = Math.max(0, Math.hypot(u.x - x, u.z - z) - u.radius);
+      if (d <= R) this.hurt(u, sw.damage * (1 - 0.5 * d / R) * mult(u), s, x, z);
+    }
+    for (const b of g.buildings.slice()) {
+      if (b.dead || !b.team || b.selling) continue;
+      const d = rectDist(x, z, b.rect);
+      if (d <= R) this.hurt(b, sw.damage * (1 - 0.5 * d / R) * mult(b), s, x, z);
     }
   }
 
@@ -292,7 +405,7 @@ export class Superweapons {
     for (const b of this.sites) {
       if (!this.online(b)) continue;
       if (b.team === team) own.push(b);
-      else if (b.tech.found[team]) enemy.push(b);
+      else if (b.tech ? b.tech.found[team] : b.seen) enemy.push(b);
     }
     return { own, enemy };
   }

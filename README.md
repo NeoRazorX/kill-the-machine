@@ -143,18 +143,32 @@ La IA mezcla Mamuts y Juggernauts en su producción cuando tiene la fábrica cor
 **Superarmas** (`src/superweapons.js`): el **silo de misiles** y el **cañón de iones** reparados
 consumen 60 de energía y empiezan a cargarse: 6 min el misil nuclear y 4 min el cañón de iones.
 Sin energía suficiente la carga se detiene, y vuelve a cero cuando la estructura cambia de manos.
-La carga aparece en la barra lateral. Cuando está lista, su botón parpadea: se pulsa y se hace clic en
-una zona ya explorada, con una vista previa del radio bajo el cursor (Esc o clic derecho cancela).
-- **Misil nuclear**: tarda 8 s en caer, radio 11 y 1000 de daño en el centro.
-- **Cañón de iones**: tarda 1,5 s, con un zumbido creciente y una descarga; radio 9 y 1400 de daño en el centro.
+La carga aparece en la barra lateral. Cuando está lista, su botón parpadea: se pulsa y se apunta en
+una zona ya explorada, con una vista previa bajo el cursor (Esc o clic derecho cancela).
+- **Misil nuclear**: clic en el objetivo. Tarda 8 s en caer, radio 11 y 1000 de daño en el centro, que
+  baja hasta el 40 % en el borde.
+- **Cañón de iones**: se arrastra desde el punto inicial (explorado) hasta el final, o se hace clic en
+  uno y luego en el otro. Tras 1,5 s de zumbido creciente, el haz barre la línea (34 unidades como
+  máximo) en 2,5 s, quemando el suelo a su paso. Todo lo que queda a 3,5 unidades de la línea recibe
+  un único golpe de hasta 1400, que baja hasta el 40 % cuanto más lejos del eje.
 
-El daño baja hasta el 40 % en el borde y alcanza a todos, también al bando que dispara. Ningún impacto
+Los impactos alcanzan a todos, también al bando que dispara. Ningún impacto
 deja un centro de mando por debajo de una cuarta parte de su vida, así que una superarma sola no
 acaba la partida. Todos ven el círculo del impacto en el suelo y en el minimapa mientras llega, y el
 bando atacado recibe un aviso. Como en Command & Conquer, cada bando ve en su barra lateral la cuenta
 atrás de las superarmas enemigas que ha descubierto. La IA dispara las suyas contra el punto más
 valioso que conoce (edificios descubiertos y unidades a la vista, sobre todo energía y refinerías),
-evita alcanzar lo suyo y espera si no hay un objetivo que merezca la pena.
+evita alcanzar lo suyo y espera si no hay un objetivo que merezca la pena. Con el cañón de iones
+busca la línea que cruza más valor.
+
+**Ataque aéreo**: cada bando puede construir un **aeródromo** (humanos) o un **nido de drones**
+(máquinas): $1500, requiere fábrica, consume 50 de energía y solo se permite uno. Con energía carga
+en 100 s un ataque de apoyo que se lanza como una superarma, con un clic en zona explorada. Tres
+cazabombarderos (o seis drones) entran desde el borde del mapa por detrás del aeródromo, pasan sobre
+el objetivo soltando bombas y salen por el otro lado, así que cuanto más lejos el objetivo, más
+tiempo de aviso. El bombardeo cubre un radio de 6 con 300 de daño en el centro (la mitad en el borde):
+la infantería cae, los blindados reciben el 60 % y los edificios solo el 25 %. La IA construye su
+aeródromo tras su primera oleada y solo lo usa contra ejércitos que ve.
 
 La IA busca las estructuras con su explorador y, pasado un tiempo según la dificultad (7 min en
 Fácil, 3 min 20 s en Normal y 1 min 30 s en Difícil), envía un ingeniero escoltado a la más cercana

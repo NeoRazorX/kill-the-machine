@@ -138,6 +138,24 @@ export class GameAudio {
     o.start(t); o.stop(t + dur + 0.08);
   }
 
+  // Something passing overhead: noise (or, with `type` an oscillator wave, a tone at f0..f1) that
+  // grows for `rise` s and fades for `fall` s while its pitch climbs to the peak and drops past it.
+  flyby(rise, fall, f0, peak, f1, gain, type = 'noise', delay = 0) {
+    const c = this.ctx, t = c.currentTime + delay, end = t + rise + fall;
+    let src, freq;
+    if (type === 'noise') {
+      src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.7; src.connect(f); freq = f.frequency; src.out = f;
+    } else {
+      src = c.createOscillator(); src.type = type; freq = src.frequency; src.out = src;
+    }
+    freq.setValueAtTime(f0, t); freq.exponentialRampToValueAtTime(peak, t + rise); freq.exponentialRampToValueAtTime(f1, end);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + rise); g.gain.exponentialRampToValueAtTime(0.0001, end);
+    src.out.connect(g); this.out(g, 0.2);
+    src.start(t); src.stop(end + 0.05);
+  }
+
   // A tone rising in pitch and loudness with a tremolo that speeds up from rate0 to rate1 Hz:
   // capacitors charging. depth is the tremolo's share of the gain.
   throb(f0, f1, dur, type, gain, rate0, rate1, depth) {
@@ -189,6 +207,15 @@ export class GameAudio {
     this.tone(48, 18, 2.4, 'sine', 0.7 * v); this.tone(96, 30, 1.2, 'triangle', 0.25 * v);
   }
   s_missilelaunch(v) { this.burst(2.6, 250, 1800, 0.35 * v); this.tone(70, 190, 2.4, 'sawtooth', 0.08 * v); }
+  // Air strike: fighter-bombers roar past, a drone swarm buzzes over in a detuned chorus.
+  s_jetflyby(v) {
+    this.flyby(1.6, 2, 500, 2600, 300, 0.5 * v);
+    this.flyby(1.6, 2, 90, 160, 60, 0.12 * v, 'sawtooth');
+  }
+  s_swarm(v) {
+    for (const f of [180, 187, 241, 252]) this.flyby(1.4, 1.8, f * 0.8, f * 1.2, f * 0.7, 0.05 * v, 'sawtooth');
+    this.flyby(1.4, 1.8, 900, 2200, 600, 0.18 * v);
+  }
   s_bigexplosion(v) { this.burst(1.1, 1000, 50, 0.7 * v); this.tone(70, 20, 0.9, 'sine', 0.5 * v); }
 
   // ------------------------------------------------------------------- UI

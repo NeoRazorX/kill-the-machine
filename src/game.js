@@ -375,6 +375,9 @@ export class Game {
   canProduceAt(b) { return !b.dead && b.complete && !!b.def.produces && (!b.tech || b.tech.state === 'online'); }
   producers(team, producer) { return this.buildings.filter((b) => b.team === team && b.def.produces === producer && this.canProduceAt(b)); }
 
+  // A unique building can't be started while the side already has one standing.
+  atLimit(team, def) { return !!def.unique && this.buildings.some((b) => b.team === team && !b.dead && b.def === def); }
+
   requirementsMet(team, def) {
     if (def.kind === 'unit') return this.producers(team, def.producer).length > 0;
     return (def.requires || []).every((r) => this.hasRole(team, r));
@@ -383,7 +386,7 @@ export class Game {
   // -- estructuras
   startStruct(team, defId) {
     const t = this.teams[team], def = DEFS[defId];
-    if (t.structQueue || !def.buildable || !this.requirementsMet(team, def)) return false;
+    if (t.structQueue || !def.buildable || !this.requirementsMet(team, def) || this.atLimit(team, def)) return false;
     t.structQueue = { def, progress: 0, paid: 0, ready: false, waiting: false };
     return true;
   }

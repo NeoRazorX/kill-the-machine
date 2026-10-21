@@ -60,8 +60,14 @@ export const DEFS = {};
 const def = (d) => { DEFS[d.id] = d; return d; };
 
 // ---------------------------------------------------------------- edificios
-// role: hq | power | refinery | barracks | factory | turret
+// role: hq | power | refinery | barracks | factory | turret | airfield. unique: one per side at most.
 const B = (o) => def({ kind: 'building', buildable: true, ...o });
+
+// The airfield's strike, a tactical support power rather than a superweapon: it charges far faster but
+// only hurts armies. The squadron (`planes` aircraft of `model`) flies in at `speed` from the map edge
+// behind the airfield, so the farther the target the longer the warning, and drops its bombs over
+// `radius`: damage at the centre falling to half at the edge, times mult by target class.
+const AIRSTRIKE = { kind: 'air', charge: 100, radius: 6, damage: 300, altitude: 16, mult: { light: 1, armor: 0.6, building: 0.25 } };
 
 B({ id: 'h_hq', team: 'human', role: 'hq', name: 'Cuartel General', buildable: false, cost: 0, time: 0,
     w: 3, h: 3, hp: 2200, power: 30, sight: 30, height: 5.5,
@@ -83,6 +89,10 @@ B({ id: 'h_turret', team: 'human', role: 'turret', name: 'Torreta', cost: 500, t
     w: 2, h: 2, hp: 600, power: -15, sight: 28, height: 3.4,
     weapon: { range: 26, damage: 16, cd: 0.55, proj: 'bullet', mult: { light: 1, armor: 0.7, building: 0.5 } },
     desc: 'Defensa automática contra todo tipo de unidades.' });
+B({ id: 'h_airfield', team: 'human', role: 'airfield', name: 'Aeródromo', cost: 1500, time: 30, requires: ['factory'], unique: true,
+    w: 4, h: 3, hp: 1200, power: -50, sight: 20, height: 4.8,
+    superweapon: { ...AIRSTRIKE, title: 'Ataque aéreo', planes: 3, model: 'air_h_jet', speed: 42 },
+    desc: 'Pista para cazabombarderos. Con energía, carga (100 s) un ataque aéreo que bombardea una zona pequeña: letal para la infantería, duro con los blindados, apenas araña edificios. Solo uno por bando.' });
 
 B({ id: 'm_hq', team: 'machine', role: 'hq', name: 'Núcleo Central', buildable: false, cost: 0, time: 0,
     w: 4, h: 3, hp: 2200, power: 30, sight: 30, height: 9,
@@ -103,6 +113,10 @@ B({ id: 'm_turret', team: 'machine', role: 'turret', name: 'Torre Láser', cost:
     w: 2, h: 2, hp: 600, power: -15, sight: 28, height: 3.4,
     weapon: { range: 26, damage: 18, cd: 0.7, proj: 'laserbolt', mult: { light: 1, armor: 0.7, building: 0.5 } },
     desc: 'Defensa láser automática.' });
+B({ id: 'm_airfield', team: 'machine', role: 'airfield', name: 'Nido de Drones', cost: 1500, time: 30, requires: ['factory'], unique: true,
+    w: 4, h: 3, hp: 1200, power: -50, sight: 20, height: 4.5,
+    superweapon: { ...AIRSTRIKE, title: 'Enjambre de drones', planes: 6, model: 'air_m_drone', speed: 38 },
+    desc: 'Colmena de drones de ataque. Con energía, carga (100 s) un enjambre que bombardea una zona pequeña: letal para la infantería, duro con los blindados, apenas araña edificios. Solo uno por bando.' });
 
 // ----------------------------------------------------------------- unidades
 // cls: light | armor (para multiplicadores de daño). producer: barracks | factory
@@ -240,7 +254,7 @@ export const ROLE = { human: {}, machine: {} };
 for (const d of Object.values(DEFS)) if (d.team) ROLE[d.team][d.role] = d;
 export const TECH_IDS = Object.values(DEFS).filter((d) => d.tech).map((d) => d.id);
 
-export const STRUCT_ROLES = ['power', 'refinery', 'barracks', 'factory', 'turret'];
+export const STRUCT_ROLES = ['power', 'refinery', 'barracks', 'factory', 'turret', 'airfield'];
 export const UNIT_ROLES = {
   barracks: ['inf1', 'inf2', 'medic', 'engineer'],
   factory: ['tank', 'arty', 'repair', 'radar', 'harv'],
@@ -248,7 +262,7 @@ export const UNIT_ROLES = {
 
 export const ROLE_NAMES = {
   hq: 'Cuartel General', power: 'Energía', refinery: 'Refinería',
-  barracks: 'Cuartel', factory: 'Fábrica', turret: 'Torreta', tech: 'Estructura tecnológica',
+  barracks: 'Cuartel', factory: 'Fábrica', turret: 'Torreta', airfield: 'Aeródromo', tech: 'Estructura tecnológica',
   mammoth: 'Fábrica Mamut reparada', juggernaut: 'Fábrica Juggernaut reparada',
 };
 

@@ -6,6 +6,10 @@ import { isCombatUnit, experienceText } from './experience.js';
 import { SelectionRings } from './selection-rings.js';
 import { ionPath } from './superweapons.js';
 
+// Colour of each kind of strike on the minimap and while aiming it.
+const STRIKE_CSS = { nuke: '#ff4a3a', ion: '#6fd8ff', air: '#ffc040' };
+const STRIKE_FILL = { nuke: 'rgba(255,90,60,0.12)', ion: 'rgba(80,200,255,0.14)', air: 'rgba(255,192,64,0.13)' };
+
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const clock = (s) => { const t = Math.ceil(s); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
@@ -68,7 +72,7 @@ export class UI {
     // A ready superweapon of one's own is a button that starts aiming.
     $('supers').onclick = (e) => {
       const el = e.target.closest('.sw.own.ready');
-      const b = el && game.techSites.items.find((s) => String(s.id) === el.dataset.id);
+      const b = el && game.superweapons.sites.find((s) => String(s.id) === el.dataset.id);
       if (b && !game.spectate) input.beginSuperTarget(b);
     };
     $('btn-pause').onclick = () => this.togglePause();
@@ -181,7 +185,8 @@ export class UI {
     // or the lone struct queue stays occupied and the missing prerequisite can never be rebuilt.
     if (g.teams[this.team].structQueue?.def === def) return '';
     const miss = (def.requires || []).filter((r) => !g.hasRole(this.team, r)).map((r) => ROLE_NAMES[r]);
-    return miss.length ? `Requiere: ${miss.join(', ')}` : '';
+    if (miss.length) return `Requiere: ${miss.join(', ')}`;
+    return g.atLimit(this.team, def) ? 'Solo puedes tener uno' : '';
   }
 
   onItem(def, e) {
@@ -529,7 +534,8 @@ export class UI {
     }
     // superarmas en camino
     for (const s of g.superweapons.strikes) {
-      c.strokeStyle = s.sw.kind === 'ion' ? '#6fd8ff' : '#ff4a3a'; c.lineWidth = 2;
+      if (s.hit) continue;
+      c.strokeStyle = STRIKE_CSS[s.sw.kind]; c.lineWidth = 2;
       c.globalAlpha = 0.5 + 0.5 * Math.sin(g.time * 10);
       c.beginPath();
       if (s.sw.kind === 'ion') { c.lineWidth = Math.max(2, s.sw.radius * 2 * k); c.lineCap = 'round'; c.moveTo(s.x * k, s.z * k); c.lineTo(s.x2 * k, s.z2 * k); }
@@ -724,8 +730,8 @@ export class UI {
         const sw = st.def.superweapon, R = sw.radius, a = inp.superAim;
         const path = ion ? ionPath(sw, a?.x ?? gp.x, a?.z ?? gp.z, gp.x, gp.z) : { x: gp.x, z: gp.z, x2: gp.x, z2: gp.z };
         const ok = g.superweapons.canTarget(st.team, path.x, path.z);
-        c.strokeStyle = ok ? (ion ? '#6fd8ff' : '#ff6a50') : '#888';
-        c.fillStyle = ok ? (ion ? 'rgba(80,200,255,0.14)' : 'rgba(255,90,60,0.12)') : 'rgba(128,128,128,0.1)';
+        c.strokeStyle = ok ? STRIKE_CSS[sw.kind] : '#888';
+        c.fillStyle = ok ? STRIKE_FILL[sw.kind] : 'rgba(128,128,128,0.1)';
         const h = Math.atan2(path.z2 - path.z, path.x2 - path.x);
         c.lineWidth = 2; c.beginPath();
         for (let i = 0; i <= 48; i++) {
