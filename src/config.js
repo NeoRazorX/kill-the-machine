@@ -196,13 +196,14 @@ const T = (o) => def({ kind: 'building', tech: true, team: null, role: 'tech', b
   w: 4, h: 4, hp: 2400, power: 0, sight: 20, ruin: 0.3, repairCost: 2000, repairTime: 60, ...o });
 
 // superweapon: charge (s) once repaired and powered; delay (s) from firing to impact; damage at the centre,
-// falling to 40 % at the edge of radius. Both consume power, but only once repaired.
+// falling to 40 % at the edge of radius. The ion beam then sweeps a line of up to `length` over `sweep` s,
+// and radius is its reach on either side of the line. Both consume power, but only once repaired.
 T({ id: 't_silo', brief: 'Misil nuclear cada 6 min', name: 'Silo de misiles', height: 5, power: -60,
     superweapon: { kind: 'nuke', title: 'Misil nuclear', charge: 360, delay: 8, radius: 11, damage: 1000 },
     desc: 'Silo de misiles. Reparado y con energía, carga un misil nuclear (6 min) que arrasa una zona amplia. El misil tarda 8 s en caer y todos ven dónde.' });
 T({ id: 't_ion', brief: 'Haz orbital cada 4 min', name: 'Cañón de iones', height: 8.5, power: -60,
-    superweapon: { kind: 'ion', title: 'Cañón de iones', charge: 240, delay: 1.5, radius: 9, damage: 1400 },
-    desc: 'Enlace con un cañón de iones orbital. Reparado y con energía, carga (4 min) un haz preciso y devastador que cae en 1,5 s.' });
+    superweapon: { kind: 'ion', title: 'Cañón de iones', charge: 240, delay: 1.5, sweep: 2.5, length: 34, radius: 3.5, damage: 1400 },
+    desc: 'Enlace con un cañón de iones orbital. Reparado y con energía, carga (4 min) un haz devastador que cae en 1,5 s y barre en línea recta el trazo que marques.' });
 T({ id: 't_mammoth', brief: 'Produce tanques Mamut', name: 'Fábrica Mamut', height: 6, produces: 'mammoth',
     desc: 'Planta de tanques pesados. Reparada, construye el supertanque Mamut (pestaña Vehículos).' });
 T({ id: 't_juggernaut', brief: 'Produce caminantes Juggernaut', name: 'Fábrica Juggernaut', height: 8, produces: 'juggernaut',

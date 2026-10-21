@@ -23,6 +23,7 @@ export class Input {
     this.target = { x: SIZE / 2, z: SIZE / 2 }; this.dist = 70;
     this.sel = []; this.groups = {}; this.lastGroupKey = null; this.lastGroupT = 0;
     this.placing = null; this.ghost = null; this.attackMode = false; this.superTarget = null;
+    this.superAim = null; // start of the ion beam's line while aiming it
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, inside: false };
     this.drag = null; this.pan = null; this.hover = null;
@@ -168,7 +169,7 @@ export class Input {
       const o = u.order;
       if (o.type === 'move' || o.type === 'attackmove') u.cmdMove(o.x, o.z, attackMove);
     }
-    this.attackMode = false; this.superTarget = null; this.cancelPlacement();
+    this.attackMode = false; this.superTarget = null; this.superAim = null; this.cancelPlacement();
     this.game.audio.play('click');
     this.ui?.refreshMovementControls();
   }
@@ -176,7 +177,7 @@ export class Input {
   stopSelected() {
     if (this.game.spectate || this.game.over || !this.selUnits().length) return;
     for (const u of this.selUnits()) u.cmdStop();
-    this.attackMode = false; this.superTarget = null; this.cancelPlacement();
+    this.attackMode = false; this.superTarget = null; this.superAim = null; this.cancelPlacement();
     this.game.audio.play('order');
   }
 
@@ -314,15 +315,35 @@ export class Input {
     if (!this.game.superweapons.isReady(b) || b.team !== this.player) return;
     this.cancelPlacement();
     this.attackMode = false;
-    this.superTarget = b;
+    this.superTarget = b; this.superAim = null;
     this.game.audio.play('click');
   }
 
-  fireSuperAt(cx, cy) {
+  // The missile fires on a click. The ion beam needs a line: press on the start and release on the end,
+  // or click the start and then the end.
+  superDown(cx, cy) {
     const g = this.game, b = this.superTarget, gp = this.groundAt(cx, cy);
     if (!b || !gp) return;
-    if (g.superweapons.fire(b, gp.x, gp.z)) { this.superTarget = null; g.audio.play('attack'); return; }
-    g.audio.play('error');
+    if (b.def.superweapon.kind !== 'ion') { this.fireSuperAt(gp.x, gp.z); return; }
+    if (this.superAim) { this.fireSuperAt(this.superAim.x, this.superAim.z, gp.x, gp.z); return; }
+    if (!g.superweapons.canTarget(b.team, gp.x, gp.z)) { this.superRefused(); return; }
+    this.superAim = { x: gp.x, z: gp.z, held: true };
+  }
+
+  superUp(cx, cy) {
+    const a = this.superAim, gp = this.groundAt(cx, cy);
+    a.held = false;
+    if (gp && Math.hypot(gp.x - a.x, gp.z - a.z) > 3) this.fireSuperAt(a.x, a.z, gp.x, gp.z);
+  }
+
+  fireSuperAt(x, z, x2, z2) {
+    const g = this.game;
+    if (g.superweapons.fire(this.superTarget, x, z, x2, z2)) { this.superTarget = null; this.superAim = null; g.audio.play('attack'); return; }
+    this.superRefused();
+  }
+
+  superRefused() {
+    this.game.audio.play('error');
     if (this.ui) this.ui.toast('Solo puedes apuntar a zonas exploradas del mapa', 'warn');
   }
 
@@ -330,7 +351,7 @@ export class Input {
   beginPlacement(def) {
     this.cancelPlacement();
     this.placing = def;
-    this.attackMode = false; this.superTarget = null;
+    this.attackMode = false; this.superTarget = null; this.superAim = null;
     const grp = new THREE.Group();
     const model = buildBuildingModel(def).group;
     const ghostMat = new THREE.MeshBasicMaterial({ color: 0x66ff88, transparent: true, opacity: 0.45, depthWrite: false });
@@ -430,13 +451,13 @@ export class Input {
     if (e.button === 2) {
       if (this.placing) { this.cancelPlacement(); return; }
       if (this.attackMode) { this.attackMode = false; return; }
-      if (this.superTarget) { this.superTarget = null; return; }
+      if (this.superTarget) { this.superTarget = null; this.superAim = null; return; }
       this.commandAt(e.clientX, e.clientY);
       return;
     }
     if (e.button !== 0) return;
     if (this.placing) { this.tryPlace(); return; }
-    if (this.superTarget) { this.fireSuperAt(e.clientX, e.clientY); return; }
+    if (this.superTarget) { this.superDown(e.clientX, e.clientY); return; }
     if (this.attackMode) { this.attackMode = false; this.attackMoveAt(e.clientX, e.clientY); return; }
     this.drag = { x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, active: false, shift: e.shiftKey };
   }
@@ -460,6 +481,7 @@ export class Input {
 
   onUp(e) {
     if (e.button === 1) { this.pan = null; return; }
+    if (e.button === 0 && this.superAim?.held) { this.superUp(e.clientX, e.clientY); return; }
     if (e.button !== 0 || !this.drag) return;
     const d = this.drag; this.drag = null;
     const rect = this.dom.getBoundingClientRect();
@@ -493,7 +515,7 @@ export class Input {
     // Esc cancela primero lo que esté en curso; si no hay nada, abre el menú de pausa.
     if (code === 'Escape') {
       if (this.menu?.open) { this.menu.back(); return; }
-      if (this.placing || this.attackMode || this.superTarget) { this.cancelPlacement(); this.attackMode = false; this.superTarget = null; return; }
+      if (this.placing || this.attackMode || this.superTarget) { this.cancelPlacement(); this.attackMode = false; this.superTarget = null; this.superAim = null; return; }
       if (!document.getElementById('help').classList.contains('hidden')) { document.getElementById('help').classList.add('hidden'); return; }
       this.menu?.show(); return;
     }
@@ -501,7 +523,7 @@ export class Input {
     if (code === 'KeyP') { if (this.ui) this.ui.togglePause(); return; }
     if (code === 'KeyM') { if (this.ui) this.ui.toggleMute(); return; }
     if (g.over) return;
-    if (code === 'KeyA' && !e.ctrlKey) { if (this.selUnits().some((u) => u.def.weapon || u.def.repair || u.def.radar)) { this.attackMode = true; this.superTarget = null; this.cancelPlacement(); } return; }
+    if (code === 'KeyA' && !e.ctrlKey) { if (this.selUnits().some((u) => u.def.weapon || u.def.repair || u.def.radar)) { this.attackMode = true; this.superTarget = null; this.superAim = null; this.cancelPlacement(); } return; }
     if (code === 'KeyA' && e.ctrlKey) { e.preventDefault(); this.setSelection(g.units.filter((u) => u.team === this.player && !u.dead)); return; }
     if (code === 'KeyS') { this.stopSelected(); return; }
     if (code === 'KeyH') { const hq = g.teamBuildings(this.player, 'hq')[0]; if (hq) { this.centerOn(hq.x, hq.z); } return; }
@@ -554,7 +576,7 @@ export class Input {
 
     this.sel = this.sel.filter((e) => !e.dead);
     this.updateGhost();
-    if (this.superTarget && !this.game.superweapons.isReady(this.superTarget)) this.superTarget = null;
+    if (this.superTarget && !this.game.superweapons.isReady(this.superTarget)) { this.superTarget = null; this.superAim = null; }
     this.hover = this.mouse.inside && !this.drag?.active && !this.placing && !this.superTarget ? this.pickEntity(this.mouse.cx, this.mouse.cy) : null;
 
     let cur = 'default';

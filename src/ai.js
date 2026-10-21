@@ -1,4 +1,5 @@
-import { N, CELL, ROLE, BUILD_RADIUS, buildingFront, other, canCapture, canRepairBuilding, visionRadius } from './config.js';
+import { N, CELL, SIZE, ROLE, BUILD_RADIUS, buildingFront, other, canCapture, canRepairBuilding, visionRadius } from './config.js';
+import { ionPath, segDist, rectSegDist } from './superweapons.js';
 
 const SECTOR = 32; // lado en unidades de mundo de cada zona que explora el explorador
 const SECTORS = N * CELL / SECTOR;
@@ -562,10 +563,12 @@ export class AI {
     if (!sw) return;
     for (const b of sw.ready(this.team)) {
       const t = this.superTarget(b.def.superweapon);
-      if (t) sw.fire(b, t.x, t.z);
+      if (t) sw.fire(b, t.x, t.z, t.x2, t.z2);
     }
   }
 
+  // For the ion beam it returns a line { x, z, x2, z2 }: lines that start on a target or are centred on
+  // it, pointing at every other target in reach and around the compass, scored by what they cross.
   superTarget(w) {
     const g = this.g, R = w.radius;
     const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
@@ -581,6 +584,24 @@ export class AI {
       if (Math.hypot(a.x - b.x, a.z - b.z) < 2 * R + 8) points.push({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 });
     }
     let best = null, bestScore = w.kind === 'nuke' ? 2000 : 1200;
+    if (w.kind === 'ion') {
+      const L = w.length, near = (e, p) => (e.kind === 'building' ? rectSegDist(e.rect, p.x, p.z, p.x2, p.z2) : segDist(e.x, e.z, p.x, p.z, p.x2, p.z2));
+      for (const a of targets) {
+        const dirs = [];
+        for (let i = 0; i < 12; i++) dirs.push((i / 12) * Math.PI * 2);
+        for (const b of targets) if (b !== a && Math.hypot(b.x - a.x, b.z - a.z) < L) dirs.push(Math.atan2(b.z - a.z, b.x - a.x));
+        for (const h of dirs) for (const back of [0, L / 2]) {
+          const x = a.x - Math.cos(h) * back, z = a.z - Math.sin(h) * back;
+          if (x < 0 || z < 0 || x > SIZE || z > SIZE) continue;
+          const p = ionPath(w, x, z, x + Math.cos(h) * L, z + Math.sin(h) * L);
+          let score = 0;
+          for (const e of targets) if (near(e, p) <= R * 0.9) score += worth(e);
+          for (const e of eyes) if (near(e, p) <= R + 4) score -= 2 * worth(e);
+          if (score > bestScore) { bestScore = score; best = p; }
+        }
+      }
+      return best;
+    }
     for (const p of points) {
       let score = 0;
       for (const e of targets) if (reach(e, p.x, p.z) <= R * 0.9) score += worth(e);

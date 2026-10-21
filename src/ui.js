@@ -4,6 +4,7 @@ import { renderResults } from './results.js';
 import { buildUnitModel, buildBuildingModel } from './models.js';
 import { isCombatUnit, experienceText } from './experience.js';
 import { SelectionRings } from './selection-rings.js';
+import { ionPath } from './superweapons.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -530,8 +531,11 @@ export class UI {
     for (const s of g.superweapons.strikes) {
       c.strokeStyle = s.sw.kind === 'ion' ? '#6fd8ff' : '#ff4a3a'; c.lineWidth = 2;
       c.globalAlpha = 0.5 + 0.5 * Math.sin(g.time * 10);
-      c.beginPath(); c.arc(s.x * k, s.z * k, Math.max(4, s.sw.radius * k), 0, 6.3); c.stroke();
-      c.globalAlpha = 1;
+      c.beginPath();
+      if (s.sw.kind === 'ion') { c.lineWidth = Math.max(2, s.sw.radius * 2 * k); c.lineCap = 'round'; c.moveTo(s.x * k, s.z * k); c.lineTo(s.x2 * k, s.z2 * k); }
+      else c.arc(s.x * k, s.z * k, Math.max(4, s.sw.radius * k), 0, 6.3);
+      c.stroke();
+      c.globalAlpha = 1; c.lineCap = 'butt';
     }
     // alertas
     this.pings = this.pings.filter((p) => g.time - p.t < 3.5);
@@ -711,24 +715,34 @@ export class UI {
       c.fillStyle = 'rgba(92,240,138,0.12)'; c.fillRect(x, y, w, h);
       c.strokeStyle = 'rgba(92,240,138,0.9)'; c.lineWidth = 1; c.strokeRect(x + 0.5, y + 0.5, w, h);
     }
-    // Superweapon aim: the blast radius on the ground under the cursor.
-    const st = inp.superTarget;
+    // Superweapon aim: the blast radius under the cursor, or for the ion beam the swath it will sweep,
+    // a capsule around the line from its start to the cursor (cut to its length).
+    const st = inp.superTarget, ion = st?.def.superweapon.kind === 'ion';
     if (st && inp.mouse.inside) {
       const gp = inp.groundAt(inp.mouse.cx, inp.mouse.cy);
       if (gp) {
-        const R = st.def.superweapon.radius, ok = g.superweapons.canTarget(st.team, gp.x, gp.z);
-        c.strokeStyle = ok ? (st.def.superweapon.kind === 'ion' ? '#6fd8ff' : '#ff6a50') : '#888';
-        c.fillStyle = ok ? 'rgba(255,90,60,0.12)' : 'rgba(128,128,128,0.1)';
+        const sw = st.def.superweapon, R = sw.radius, a = inp.superAim;
+        const path = ion ? ionPath(sw, a?.x ?? gp.x, a?.z ?? gp.z, gp.x, gp.z) : { x: gp.x, z: gp.z, x2: gp.x, z2: gp.z };
+        const ok = g.superweapons.canTarget(st.team, path.x, path.z);
+        c.strokeStyle = ok ? (ion ? '#6fd8ff' : '#ff6a50') : '#888';
+        c.fillStyle = ok ? (ion ? 'rgba(80,200,255,0.14)' : 'rgba(255,90,60,0.12)') : 'rgba(128,128,128,0.1)';
+        const h = Math.atan2(path.z2 - path.z, path.x2 - path.x);
         c.lineWidth = 2; c.beginPath();
         for (let i = 0; i <= 48; i++) {
-          const a = (i / 48) * Math.PI * 2, p = inp.project(gp.x + Math.cos(a) * R, 0.2, gp.z + Math.sin(a) * R);
+          // Half the circle around each end, joined into a capsule; a plain circle when both ends meet.
+          const end = i <= 24 ? { x: path.x2, z: path.z2 } : { x: path.x, z: path.z }, t = h - Math.PI / 2 + (i / 48) * Math.PI * 2;
+          const p = inp.project(end.x + Math.cos(t) * R, 0.2, end.z + Math.sin(t) * R);
           if (i) c.lineTo(p.x, p.y); else c.moveTo(p.x, p.y);
         }
-        c.fill(); c.stroke();
+        c.closePath(); c.fill(); c.stroke();
+        if (ion && a) {
+          const p0 = inp.project(path.x, 0.2, path.z), p1 = inp.project(path.x2, 0.2, path.z2);
+          c.setLineDash([6, 5]); c.beginPath(); c.moveTo(p0.x, p0.y); c.lineTo(p1.x, p1.y); c.stroke(); c.setLineDash([]);
+        }
       }
     }
     $('modehint').classList.toggle('hidden', !(inp.attackMode || inp.placing || st));
-    $('modehint').textContent = st ? `${st.def.superweapon.title.toUpperCase()} · clic izquierdo en una zona explorada · Esc o clic derecho cancela` :
+    $('modehint').textContent = st ? `${st.def.superweapon.title.toUpperCase()} · ${ion ? (inp.superAim ? 'suelta o haz clic en el punto final' : 'arrastra desde el punto inicial (explorado) hasta el final') : 'clic izquierdo en una zona explorada'} · Esc o clic derecho cancela` :
       inp.attackMode ? 'ATACAR-MOVER · clic izquierdo en el destino · Esc cancela' : (inp.placing ? `Colocando: ${inp.placing.name} · clic izquierdo coloca · clic derecho cancela` : '');
   }
 
