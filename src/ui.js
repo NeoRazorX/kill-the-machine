@@ -253,16 +253,25 @@ export class UI {
     const g = this.game, sw = g.superweapons, { own, enemy } = sw.status(this.team);
     // Spectators see every working superweapon, labelled with its side.
     const prefix = (b, mine) => (g.spectate ? `${TEAMS[b.team].name} · ` : mine ? '' : 'Enemigo · ');
-    const row = (b, mine) => {
-      const p = sw.progress(b), ready = p >= 1, low = !ready && g.lowPower(b.team);
-      const state = ready ? 'LISTO' : low ? 'SIN ENERGÍA' : clock(sw.remaining(b));
-      return `<div class="sw ${mine ? 'own' : 'enemy'}${ready ? ' ready' : ''}" data-id="${b.id}" title="${mine && ready ? 'Clic para elegir objetivo' : b.def.name}">` +
-        `<img src="${this.icons[b.def.id]}" alt=""><div class="sw-body"><div class="sw-name"><span>${prefix(b, mine)}${b.def.superweapon.title}</span><span>${state}</span></div>` +
-        `<div class="sw-bar"><i style="width:${(p * 100).toFixed(1)}%"></i></div></div></div>`;
-    };
-    const all = g.spectate ? sw.sites.filter((b) => sw.online(b)) : null;
-    const html = all ? all.map((b) => row(b, false)).join('') : own.map((b) => row(b, true)).join('') + enemy.map((b) => row(b, false)).join('');
-    if (html !== this.supersHtml) { this.supersHtml = html; $('supers').innerHTML = html; }
+    const rows = g.spectate ? sw.sites.filter((b) => sw.online(b)).map((b) => [b, false])
+      : [...own.map((b) => [b, true]), ...enemy.map((b) => [b, false])];
+    // The rows are only rebuilt when the list changes; countdowns and bars update in place. Replacing a
+    // row while another weapon charges would swallow a click pressed on it before the release.
+    const box = $('supers'), key = rows.map(([b, mine]) => `${b.id}:${mine}`).join(',');
+    if (key !== this.supersKey) {
+      this.supersKey = key;
+      box.innerHTML = rows.map(([b, mine]) => `<div class="sw ${mine ? 'own' : 'enemy'}" data-id="${b.id}">` +
+        `<img src="${this.icons[b.def.id]}" alt=""><div class="sw-body"><div class="sw-name"><span>${prefix(b, mine)}${b.def.superweapon.title}</span><span class="sw-state"></span></div>` +
+        `<div class="sw-bar"><i></i></div></div></div>`).join('');
+    }
+    rows.forEach(([b, mine], i) => {
+      const el = box.children[i], p = sw.progress(b), ready = p >= 1, low = !ready && g.lowPower(b.team);
+      const state = ready ? 'LISTO' : low ? 'SIN ENERGÍA' : clock(sw.remaining(b)), stateEl = el.querySelector('.sw-state');
+      el.classList.toggle('ready', ready);
+      el.title = mine && ready ? 'Clic para elegir objetivo' : b.def.name;
+      if (stateEl.textContent !== state) stateEl.textContent = state;
+      el.querySelector('.sw-bar i').style.width = (p * 100).toFixed(1) + '%';
+    });
   }
 
   // ----------------------------------------------------------- selección
