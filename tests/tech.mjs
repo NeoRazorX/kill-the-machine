@@ -595,10 +595,10 @@ for (const id of ['h_arty', 'm_siege']) {
   assert(game.lowPower('human') && !site.tech.charge, 'without enough power it does not charge');
   addStructure(game, 'human', 'power');
   run(game, 10);
-  assert(Math.abs(site.tech.charge - 10) < 0.2 && !sw.isReady(site) && sw.status('human').own[0] === site, 'with power it charges over time');
+  assert(Math.abs(site.tech.charge - 10) < 0.2 && !sw.isReady(site) && sw.status('human').own[0]?.b === site, 'with power it charges over time');
   assert(sw.status('machine').enemy.length === 0, 'the enemy only tracks a superweapon it has discovered');
   site.tech.found.machine = true;
-  assert(sw.status('machine').enemy[0] === site, 'once discovered, the enemy sees its countdown');
+  assert(sw.status('machine').enemy[0]?.b === site, 'once discovered, the enemy sees its countdown');
   site.tech.charge = W.charge - 0.5;
   run(game, 1);
   assert(sw.isReady(site) && events.some((e) => e.type === 'toast' && /listo/.test(e.data.text)), 'when charged it is ready and the owner is told');
@@ -669,6 +669,61 @@ for (const id of ['h_arty', 'm_siege']) {
   assert(ring.length >= 2 && ring.every((u) => u.dead), 'and kills infantry well away from the centre');
 }
 
+// ------------------------------------------------------- Reconnaissance
+for (const team of ['human', 'machine']) {
+  const enemy = other(team), A = ROLE[team].airfield, R = A.recon;
+  assert(R.kind === 'recon' && R.charge < A.superweapon.charge && R.radius > A.superweapon.radius && R.speed > A.superweapon.speed,
+    `${team}: the airfield's reconnaissance charges sooner, flies faster and sees wider than its strike`);
+  const { game, events } = fixture({ spectate: false });
+  game.player = team;
+  // The real fog of war, minus its textures.
+  Object.assign(game, { fogData: new Uint8Array(N * N * 4), fogImg: { data: new Uint8ClampedArray(N * N * 4) }, fogTex: {}, fogCtx: { putImageData() {} } });
+  const updateFog = () => Game.prototype.updateFog.call(game), fogAt = (x, z) => game.fog[Math.floor(z / CELL) * N + Math.floor(x / CELL)];
+  const sw = game.superweapons;
+  addStructure(game, team, 'power');
+  const field = addStructure(game, team, 'airfield');
+  game.recomputePower();
+  run(game, R.charge + 0.5);
+  assert(sw.isReady(field, R) && !sw.isReady(field), `${team}: reconnaissance is ready after ${R.charge} s, before the air strike`);
+  assert(sw.ready(team).length === 1 && sw.ready(team)[0].sw === R, `${team}: the ready list names which power is ready`);
+  const ehq = game.teamBuildings(enemy, 'hq')[0];
+  updateFog();
+  assert(!fogAt(ehq.x, ehq.z) && !sw.canTarget(team, ehq.x, ehq.z) && sw.canTarget(team, ehq.x, ehq.z, R),
+    `${team}: reconnaissance may be sent over unexplored ground, unlike a strike`);
+  const before = events.length;
+  assert(sw.fire(field, ehq.x, ehq.z, undefined, undefined, R) && !sw.isReady(field, R) && sw.progress(field) > 0.5,
+    `${team}: firing spends the reconnaissance charge only`);
+  const flight = sw.strikes[0];
+  assert(flight.planes.length === 1 && !events.slice(before).some((e) => e.type === 'alert'), `${team}: one plane, and no alert that gives its target away`);
+  // On the way it sees a strip around itself.
+  run(game, flight.delay / 2);
+  updateFog();
+  const eye = sw.spotters[0];
+  assert(sw.spotters.length === 1 && fogAt(eye.x, eye.z) === 2 && !fogAt(ehq.x, ehq.z), `${team}: the plane sees the ground under it on the way`);
+  // Over the target it reveals a wide circle for a while, then the ground stays explored.
+  run(game, flight.delay / 2 + 0.3);
+  updateFog(); game.techSites.discover(); game.cashCrates.discover?.();
+  const edge = { x: ehq.x + (ehq.x < SIZE / 2 ? 1 : -1) * (R.radius - 3), z: ehq.z };
+  assert(fogAt(ehq.x, ehq.z) === 2 && fogAt(edge.x, edge.z) === 2 && game.isVisibleEntity(ehq), `${team}: the target area is revealed`);
+  assert(game.eyes(team).some((e) => e.kind === 'spotter' && e.def.sight === R.radius), `${team}: the revealed area counts as the side's own sight`);
+  run(game, R.duration + 0.5);
+  updateFog();
+  assert(fogAt(ehq.x, ehq.z) === 1, `${team}: after ${R.duration} s the area goes dark but stays explored`);
+  run(game, 20, () => !sw.strikes.length);
+  assert(!sw.strikes.length && !sw.spotters.length && !sw.group.children.length, `${team}: the plane leaves and its vision ends with it`);
+  assert(sw.canTarget(team, ehq.x, ehq.z), `${team}: strikes can now be aimed where the plane looked`);
+}
+{
+  // An enemy flight is only announced: no marker, no hint of where it is going.
+  const { game, events } = fixture({ spectate: false });
+  const sw = game.superweapons, field = addStructure(game, 'machine', 'airfield'), R = field.def.recon;
+  field.charging = { recon: { charge: R.charge } };
+  const hq = game.teamBuildings('human', 'hq')[0];
+  assert(sw.fire(field, hq.x, hq.z, undefined, undefined, R), 'the enemy sends a spy drone');
+  assert(events.some((e) => e.type === 'toast' && /espía/.test(e.data.text)) && !events.some((e) => e.type === 'alert') && !sw.strikes[0].ring,
+    'the player hears of an enemy spy plane but not where it is headed');
+}
+
 // ------------------------------------------------------------ Air strike
 for (const team of ['human', 'machine']) {
   const enemy = other(team), A = ROLE[team].airfield, W = A.superweapon;
@@ -685,7 +740,7 @@ for (const team of ['human', 'machine']) {
   const field = addStructure(game, team, 'airfield');
   assert(game.atLimit(team, A) && !game.startStruct(team, A.id), `${team}: a second airfield cannot be started`);
   game.recomputePower();
-  assert(sw.sites.includes(field) && sw.online(field) && !sw.isReady(field) && sw.status(team).own[0] === field, `${team}: a finished airfield starts charging`);
+  assert(sw.sites.includes(field) && sw.online(field) && !sw.isReady(field) && sw.status(team).own.map((r) => r.sw.kind).join() === 'air,recon' && sw.status(team).own[0].b === field, `${team}: a finished airfield starts charging`);
   run(game, W.charge - 1);
   assert(!sw.isReady(field), `${team}: the strike is not ready before its charge time`);
   run(game, 1.5);
@@ -721,11 +776,11 @@ for (const team of ['human', 'machine']) {
   run(game, 30, () => !sw.strikes.length);
   assert(!sw.strikes.length && !sw.group.children.length, `${team}: the squadron leaves the map and nothing is left behind`);
   // The farther from the airfield's edge of the map, the longer the warning.
-  field.charging.charge = W.charge;
+  field.charging.air.charge = W.charge;
   sw.fire(field, field.x, field.z + (field.z < SIZE / 2 ? 40 : -40));
   const near = sw.strikes[0].delay;
   sw.strikes.splice(0).forEach((s) => sw.dispose(s));
-  field.charging.charge = W.charge;
+  field.charging.air.charge = W.charge;
   sw.fire(field, at.x, at.z);
   assert(sw.strikes[0].delay > near, `${team}: a strike far from the airfield takes longer to arrive`);
 }
@@ -817,7 +872,7 @@ try {
     assert(T.structQueue?.def.role === 'airfield', `${team}: AI builds an airfield after its first wave`);
     game.cancelStruct(team);
     const field = addStructure(game, team, 'airfield');
-    field.charging = { charge: field.def.superweapon.charge };
+    field.charging = { air: { charge: field.def.superweapon.charge } };
     ai.update = function () { this.updateIntel(); this.manageSuperweapons(); };
     for (const b of game.teamBuildings(enemy)) ai.known.add(b);
     ai.corners = [];
@@ -829,6 +884,30 @@ try {
     run(game, 2);
     const strike = sw.strikes[0];
     assert(strike?.sw.kind === 'air' && Math.hypot(strike.x - gx, strike.z - gz) < 8, `${team}: AI sends the air strike onto an enemy army it can see`);
+  }
+  for (const team of ['human', 'machine']) {
+    // With the enemy base unknown, the AI sends its reconnaissance to the corner its scout will reach last.
+    Math.random = mulberry32(23 + (team === 'machine' ? 1 : 0));
+    const { game } = fixture({ ai: { team }, slots: { human: 0, machine: 2 } });
+    const ai = game.ais[0], sw = game.superweapons, enemy = other(team);
+    ai.update = function () { this.updateIntel(); this.manageSuperweapons(); };
+    addStructure(game, team, 'power');
+    const field = addStructure(game, team, 'airfield');
+    game.recomputePower();
+    field.charging = { recon: { charge: field.def.recon.charge } };
+    const ehq = game.teamBuildings(enemy, 'hq')[0];
+    assert(!ai.enemyBase && ai.corners.length > 1, `${team}: AI starts not knowing where the enemy is`);
+    const target = ai.reconTarget(), hq = ai.hq;
+    assert(ai.corners.every((c) => Math.hypot(c.x - hq.x, c.z - hq.z) <= Math.hypot(target.x - hq.x, target.z - hq.z)), `${team}: recon goes to the farthest unseen corner`);
+    // Put the enemy in that corner and let the flight find it.
+    const corner = ai.corners.find((c) => c === target);
+    run(game, 1);
+    const flight = sw.strikes.find((s) => s.sw.kind === 'recon');
+    assert(flight && Math.hypot(flight.x - corner.x, flight.z - corner.z) < 1, `${team}: AI launches the reconnaissance flight`);
+    run(game, flight.delay + 1.5);
+    // In this layout the enemy sits in that farthest corner.
+    assert(Math.hypot(ehq.x - corner.x, ehq.z - corner.z) < 30 && ai.enemyBase && Math.hypot(ai.enemyBase.x - corner.x, ai.enemyBase.z - corner.z) < 1,
+      `${team}: the flight finds the enemy base`);
   }
   {
     // The scout keeps exploring while a site is still missing, even with no crates left.

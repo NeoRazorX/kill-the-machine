@@ -161,6 +161,7 @@ export class Game {
       };
       for (const u of this.units) if (u.team === this.player && !u.dead) mark(u, u.def.sight);
       for (const b of this.buildings) if (b.team === this.player && !b.dead) mark(b, visionRadius(b));
+      for (const s of this.superweapons?.spotters ?? []) if (s.team === this.player) mark(s, s.def.sight);
     }
     const d = this.fogData, img = this.fogImg.data;
     if (!this.fogA) { this.fogA = new Float32Array(N * N); this.fogB = new Float32Array(N * N); }
@@ -189,6 +190,11 @@ export class Game {
     }
     this.fogTex.needsUpdate = true;
     this.fogCtx.putImageData(this.fogImg, 0, 0);
+  }
+
+  // Everything a side sees with: its units, its buildings and the bodiless vision of its reconnaissance.
+  eyes(team) {
+    return [...this.units, ...this.buildings, ...(this.superweapons?.spotters ?? [])].filter((e) => e.team === team && !e.dead);
   }
 
   visibleAt(x, z) {

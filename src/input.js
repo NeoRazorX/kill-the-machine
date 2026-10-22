@@ -311,22 +311,23 @@ export class Input {
   }
 
   // ---------------------------------------------------------- superarmas
-  beginSuperTarget(b) {
-    if (!this.game.superweapons.isReady(b) || b.team !== this.player) return;
+  // superPower: which of the building's powers is being aimed (the airfield has two).
+  beginSuperTarget(b, sw = b.def.superweapon) {
+    if (!this.game.superweapons.isReady(b, sw) || b.team !== this.player) return;
     this.cancelPlacement();
     this.attackMode = false;
-    this.superTarget = b; this.superAim = null;
+    this.superTarget = b; this.superPower = sw; this.superAim = null;
     this.game.audio.play('click');
   }
 
-  // The missile fires on a click. The ion beam needs a line: press on the start and release on the end,
-  // or click the start and then the end.
+  // The missile, air strike and reconnaissance fire on a click. The ion beam needs a line: press on the
+  // start and release on the end, or click the start and then the end.
   superDown(cx, cy) {
     const g = this.game, b = this.superTarget, gp = this.groundAt(cx, cy);
     if (!b || !gp) return;
-    if (b.def.superweapon.kind !== 'ion') { this.fireSuperAt(gp.x, gp.z); return; }
+    if (this.superPower.kind !== 'ion') { this.fireSuperAt(gp.x, gp.z); return; }
     if (this.superAim) { this.fireSuperAt(this.superAim.x, this.superAim.z, gp.x, gp.z); return; }
-    if (!g.superweapons.canTarget(b.team, gp.x, gp.z)) { this.superRefused(); return; }
+    if (!g.superweapons.canTarget(b.team, gp.x, gp.z, this.superPower)) { this.superRefused(); return; }
     this.superAim = { x: gp.x, z: gp.z, held: true };
   }
 
@@ -338,7 +339,7 @@ export class Input {
 
   fireSuperAt(x, z, x2, z2) {
     const g = this.game;
-    if (g.superweapons.fire(this.superTarget, x, z, x2, z2)) { this.superTarget = null; this.superAim = null; g.audio.play('attack'); return; }
+    if (g.superweapons.fire(this.superTarget, x, z, x2, z2, this.superPower)) { this.superTarget = null; this.superAim = null; g.audio.play('attack'); return; }
     this.superRefused();
   }
 
@@ -576,7 +577,7 @@ export class Input {
 
     this.sel = this.sel.filter((e) => !e.dead);
     this.updateGhost();
-    if (this.superTarget && !this.game.superweapons.isReady(this.superTarget)) { this.superTarget = null; this.superAim = null; }
+    if (this.superTarget && !this.game.superweapons.isReady(this.superTarget, this.superPower)) { this.superTarget = null; this.superAim = null; }
     this.hover = this.mouse.inside && !this.drag?.active && !this.placing && !this.superTarget ? this.pickEntity(this.mouse.cx, this.mouse.cy) : null;
 
     let cur = 'default';

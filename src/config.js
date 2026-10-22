@@ -68,6 +68,10 @@ const B = (o) => def({ kind: 'building', buildable: true, ...o });
 // behind the airfield, so the farther the target the longer the warning, and drops its bombs over
 // `radius`: damage at the centre falling to half at the edge, times mult by target class.
 const AIRSTRIKE = { kind: 'air', charge: 100, radius: 6, damage: 300, altitude: 16, mult: { light: 1, armor: 0.6, building: 0.25 } };
+// The airfield's second power, with a charge of its own: one fast plane that may be sent anywhere, even
+// over unexplored ground. It sees `trail` around itself on the way and, over the target, reveals
+// `radius` for `duration` seconds; the ground then stays explored. craft: what the warnings call it.
+const RECON = { kind: 'recon', title: 'Reconocimiento', charge: 60, radius: 24, trail: 10, duration: 12, altitude: 22, speed: 60 };
 
 B({ id: 'h_hq', team: 'human', role: 'hq', name: 'Cuartel General', buildable: false, cost: 0, time: 0,
     w: 3, h: 3, hp: 2200, power: 30, sight: 30, height: 5.5,
@@ -92,7 +96,8 @@ B({ id: 'h_turret', team: 'human', role: 'turret', name: 'Torreta', cost: 500, t
 B({ id: 'h_airfield', team: 'human', role: 'airfield', name: 'Aeródromo', cost: 1500, time: 30, requires: ['factory'], unique: true,
     w: 4, h: 3, hp: 1200, power: -50, sight: 20, height: 4.8,
     superweapon: { ...AIRSTRIKE, title: 'Ataque aéreo', planes: 3, model: 'air_h_jet', speed: 42 },
-    desc: 'Pista para cazabombarderos. Con energía, carga (100 s) un ataque aéreo que bombardea una zona pequeña: letal para la infantería, duro con los blindados, apenas araña edificios. Solo uno por bando.' });
+    recon: { ...RECON, craft: 'Avión espía', model: 'air_h_recon' },
+    desc: 'Pista para cazabombarderos. Con energía, carga (100 s) un ataque aéreo que bombardea una zona pequeña: letal para la infantería, duro con los blindados, apenas araña edificios. Aparte, cada 60 s, un vuelo de reconocimiento revela cualquier zona del mapa. Solo uno por bando.' });
 
 B({ id: 'm_hq', team: 'machine', role: 'hq', name: 'Núcleo Central', buildable: false, cost: 0, time: 0,
     w: 4, h: 3, hp: 2200, power: 30, sight: 30, height: 9,
@@ -116,7 +121,8 @@ B({ id: 'm_turret', team: 'machine', role: 'turret', name: 'Torre Láser', cost:
 B({ id: 'm_airfield', team: 'machine', role: 'airfield', name: 'Nido de Drones', cost: 1500, time: 30, requires: ['factory'], unique: true,
     w: 4, h: 3, hp: 1200, power: -50, sight: 20, height: 4.5,
     superweapon: { ...AIRSTRIKE, title: 'Enjambre de drones', planes: 6, model: 'air_m_drone', speed: 38 },
-    desc: 'Colmena de drones de ataque. Con energía, carga (100 s) un enjambre que bombardea una zona pequeña: letal para la infantería, duro con los blindados, apenas araña edificios. Solo uno por bando.' });
+    recon: { ...RECON, title: 'Dron espía', craft: 'Dron espía', model: 'air_m_recon' },
+    desc: 'Colmena de drones de ataque. Con energía, carga (100 s) un enjambre que bombardea una zona pequeña: letal para la infantería, duro con los blindados, apenas araña edificios. Aparte, cada 60 s, un dron espía revela cualquier zona del mapa. Solo uno por bando.' });
 
 // ----------------------------------------------------------------- unidades
 // cls: light | armor (para multiplicadores de daño). producer: barracks | factory

@@ -3082,8 +3082,8 @@ def mobile_radar(machine=False):
 # the humans' delta-wing fighter-bombers, the machines' swarm of flying-wing drones. The aircraft
 # are authored nose to +Z around their centre of mass; the game sets their altitude.
 
-def fighter(k=1.0, at=(0,0,0), yaw=0, accent=BLUE):
-    # Delta-wing fighter-bomber, 4.3 long at k = 1, with two bombs under the wings.
+def fighter(k=1.0, at=(0,0,0), yaw=0, accent=BLUE, bombs=True):
+    # Delta-wing fighter-bomber, 4.3 long at k = 1, with two bombs under the wings (or none, for recon).
     ox, oy, oz = at
     P = lambda x, y, z: (x*k, y*k, z*k)
     L = lambda rings: [(z*k, hw*k, yb*k, yt*k) for z, hw, yb, yt in rings]
@@ -3099,10 +3099,11 @@ def fighter(k=1.0, at=(0,0,0), yaw=0, accent=BLUE):
                   prism('Stabiliser', [(s*.3*k,-1.5*k),(s*1.05*k,-1.95*k),(s*1.05*k,-2.15*k),(s*.3*k,-2.1*k)], -.05*k, 0, OLIVE, 'xz'),
                   xform(prism('Tail fin', [(-1.2*k,.25*k),(-1.95*k,1.0*k),(-2.15*k,1.0*k),(-2.05*k,.25*k)], (s*.28-.03)*k, (s*.28+.03)*k, OLIVE, 'zy'),
                         (0,0,s*.3), P(s*.28,.25,-1.6)),
-                  box('Intake', P(.2,.3,.9), P(s*.42,-.06,.45), DARK, 0),
-                  rod('Bomb', .1*k, P(s*1.0,-.2,-.35), .9*k, DARK, 'z', 8),
-                  xform(cone('Bomb nose', .1*k, .02*k, .2*k, P(s*1.0,-.2,.2), DARK, 8), (math.pi/2,0,0), P(s*1.0,-.2,.2)),
-                  box('Pylon', P(.04,.12,.4), P(s*1.0,-.1,-.35), DARK, 0)]
+                  box('Intake', P(.2,.3,.9), P(s*.42,-.06,.45), DARK, 0)]
+        if bombs:
+            parts += [rod('Bomb', .1*k, P(s*1.0,-.2,-.35), .9*k, DARK, 'z', 8),
+                      xform(cone('Bomb nose', .1*k, .02*k, .2*k, P(s*1.0,-.2,.2), DARK, 8), (math.pi/2,0,0), P(s*1.0,-.2,.2)),
+                      box('Pylon', P(.04,.12,.4), P(s*1.0,-.1,-.35), DARK, 0)]
     return group(parts, (0,yaw,0), (0,0,0), at)
 
 
@@ -3128,6 +3129,24 @@ def aircraft(machine=False):
     reset()
     merge('Raider' if machine else 'Fighter', raider() if machine else fighter())
     save('air_m_drone' if machine else 'air_h_jet')
+
+
+def recon_plane(machine=False):
+    # Reconnaissance: the human fighter without bombs and with a camera pod under the belly; the machine
+    # drone with a big sensor dome on its back and a lens under its nose.
+    reset()
+    if machine:
+        parts = raider(1.2) + [gem('Sensor dome', (.42,.22,.5), (0,.24,-.05), BLACK),
+                               gem('Sensor eye', (.2,.08,.2), (0,.4,-.05), RED),
+                               rod('Belly lens', .14, (0,-.2,.55), .08, RED, 'y', 10)]
+        merge('Spy drone', parts)
+        save('air_m_recon')
+    else:
+        parts = fighter(bombs=False) + [rod('Camera pod', .17, (0,-.38,.2), 1.4, LIGHT, 'z', 10),
+                                        xform(cone('Pod nose', .17, .05, .3, (0,-.38,1.05), LIGHT, 10), (math.pi/2,0,0), (0,-.38,1.05)),
+                                        box('Camera window', (.2,.06,.3), (0,-.54,.4), GLASS, 0)]
+        merge('Recon jet', parts)
+        save('air_h_recon')
 
 
 def human_airfield():
@@ -3209,6 +3228,7 @@ BUILDERS = {
     'h_juggernaut': lambda: juggernaut(BLUE), 'm_juggernaut': lambda: juggernaut(RED),
     'h_airfield': human_airfield, 'm_airfield': machine_airfield,
     'air_h_jet': aircraft, 'air_m_drone': lambda: aircraft(True),
+    'air_h_recon': recon_plane, 'air_m_recon': lambda: recon_plane(True),
 }
 if __name__ == '__main__':
     requested = sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else list(BUILDERS)

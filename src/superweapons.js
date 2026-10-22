@@ -12,7 +12,11 @@ const FALL = 0.7;
 const FORMATIONS = {
   air_h_jet: [{ side: 0, back: 0 }, { side: -4, back: -5 }, { side: 4, back: -5 }],
   air_m_drone: [{ side: 0, back: 0 }, { side: -3.5, back: -3 }, { side: 3.5, back: -3 }, { side: -1.8, back: -7 }, { side: 1.8, back: -7 }, { side: 0, back: -10 }],
+  air_h_recon: [{ side: 0, back: 0 }], air_m_recon: [{ side: 0, back: 0 }],
 };
+
+// Every power a building holds: its superweapon and, for the airfield, the reconnaissance flight.
+export const powersOf = (def) => [def.superweapon, def.recon].filter(Boolean);
 // A superweapon never takes a headquarters below this share of its health in one strike.
 export const HQ_FLOOR = 0.25;
 
@@ -51,11 +55,13 @@ export function rectSegDist(r, x0, z0, x1, z1) {
 
 // Charges the repaired missile silo and ion cannon, and each side's airfield, fires them and resolves
 // their strikes. The charge only runs with enough power and restarts from zero when the structure
-// changes hands. A tech site keeps its charge in b.tech; an airfield in b.charging.
+// changes hands. A tech site keeps its charge in b.tech; an airfield one per power in b.charging,
+// by kind. Methods that take a building act on its superweapon unless given another of its powers.
 export class Superweapons {
   constructor(game) {
     this.game = game;
     this.strikes = [];
+    this.spotters = [];
     this.group = new THREE.Group();
     game.scene.add(this.group);
     this.ringGeo = new THREE.RingGeometry(0.93, 1, 48).rotateX(-Math.PI / 2);
@@ -71,27 +77,43 @@ export class Superweapons {
 
   get sites() { return this.game.buildings.filter((b) => b.def.superweapon); }
 
-  state(b) { return b.tech ?? (b.charging ??= { charge: 0, announcedReady: false }); }
+  state(b, sw = b.def.superweapon) {
+    if (b.tech) return b.tech;
+    b.charging ??= {};
+    return b.charging[sw.kind] ??= { charge: 0, announcedReady: false };
+  }
   online(b) { return !!b.team && !b.dead && (b.tech ? b.tech.state === 'online' : b.complete); }
-  progress(b) { return Math.min(1, (this.state(b).charge || 0) / b.def.superweapon.charge); }
-  isReady(b) { return this.online(b) && this.progress(b) >= 1; }
-  remaining(b) { return Math.max(0, b.def.superweapon.charge - (this.state(b).charge || 0)); }
-  ready(team) { return this.sites.filter((b) => b.team === team && this.isReady(b)); }
+  progress(b, sw = b.def.superweapon) { return Math.min(1, (this.state(b, sw).charge || 0) / sw.charge); }
+  isReady(b, sw = b.def.superweapon) { return this.online(b) && this.progress(b, sw) >= 1; }
+  remaining(b, sw = b.def.superweapon) { return Math.max(0, sw.charge - (this.state(b, sw).charge || 0)); }
+  // Every ready power of the side, as { b, sw }.
+  ready(team) {
+    return this.sites.filter((b) => b.team === team).flatMap((b) => powersOf(b.def).filter((sw) => this.isReady(b, sw)).map((sw) => ({ b, sw })));
+  }
 
-  reset(b) { const st = this.state(b); st.charge = 0; st.announcedReady = false; }
+  reset(b, sw = b.def.superweapon) { const st = this.state(b, sw); st.charge = 0; st.announcedReady = false; }
+
+  // Vision with no body, for the side that owns it: the reconnaissance plane and the ground it reveals.
+  // Each is { team, x, z, def: { sight } }, so it counts wherever a unit's sight does.
+  spot(team, x, z, sight) {
+    const eye = { kind: 'spotter', team, x, z, dead: false, def: { sight } };
+    this.spotters.push(eye);
+    return eye;
+  }
+  unspot(eye) { if (eye) { eye.dead = true; this.spotters = this.spotters.filter((e) => e !== eye); } }
 
   update(dt) {
     const g = this.game;
-    for (const b of this.sites) {
-      if (!this.online(b) || this.isReady(b) || g.lowPower(b.team)) continue;
-      const st = this.state(b);
-      st.charge = Math.min(b.def.superweapon.charge, (st.charge || 0) + dt);
-      if (this.isReady(b) && !st.announcedReady) {
+    for (const b of this.sites) for (const sw of powersOf(b.def)) {
+      if (!this.online(b) || this.isReady(b, sw) || g.lowPower(b.team)) continue;
+      const st = this.state(b, sw);
+      st.charge = Math.min(sw.charge, (st.charge || 0) + dt);
+      if (this.isReady(b, sw) && !st.announcedReady) {
         st.announcedReady = true;
         if (b.team === g.player && !g.spectate) {
           g.audio.play('ready');
-          g.audio.say(`${b.def.superweapon.title} listo`, 0);
-          g.emit('toast', { text: `${b.def.superweapon.title} listo: elige un objetivo desde la barra lateral`, kind: 'good' });
+          g.audio.say(`${sw.title} listo`, 0);
+          g.emit('toast', { text: `${sw.title} listo: elige un objetivo desde la barra lateral`, kind: 'good' });
         }
       }
     }
@@ -107,26 +129,30 @@ export class Superweapons {
         if (this.fly(s, dt)) { this.strikes.splice(i, 1); this.dispose(s); }
         continue;
       }
+      if (s.sw.kind === 'recon') {
+        if (this.scout(s, dt)) { this.strikes.splice(i, 1); this.dispose(s); }
+        continue;
+      }
       this.animate(s);
       if (s.t >= s.sw.delay) { this.strikes.splice(i, 1); this.detonate(s); }
     }
   }
 
-  // The player may only aim at ground they have explored.
-  canTarget(team, x, z) {
+  // The player may only aim at ground they have explored, except to reconnoitre it.
+  canTarget(team, x, z, sw = null) {
     const g = this.game;
-    if (g.spectate || team !== g.player) return true;
+    if (g.spectate || team !== g.player || sw?.kind === 'recon') return true;
     const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
     return cx >= 0 && cz >= 0 && cx < N && cz < N && g.fog[cz * N + cx] > 0;
   }
 
   // The missile falls on (x, z); the ion beam sweeps from (x, z) towards (x2, z2). Only the start
-  // has to be explored ground.
-  fire(b, x, z, x2 = x, z2 = z) {
+  // has to be explored ground. `sw` picks another of the building's powers.
+  fire(b, x, z, x2 = x, z2 = z, sw = b.def.superweapon) {
     const g = this.game;
-    if (!this.isReady(b) || !this.canTarget(b.team, x, z)) return false;
-    const sw = b.def.superweapon;
-    this.reset(b);
+    if (!this.isReady(b, sw) || !this.canTarget(b.team, x, z, sw)) return false;
+    this.reset(b, sw);
+    if (sw.kind === 'recon') return this.reconnoitre(b, sw, x, z);
     g.bump?.(b.team, 'strikes');
     const s = { sw, team: b.team, x, z, sx: b.x, sz: b.z, t: 0, meshes: [] };
     // Everybody sees where a strike is coming, so units can still get clear.
@@ -213,12 +239,14 @@ export class Superweapons {
       m.traverse((o) => { if (o.isMesh) { if (![this.ringGeo, this.columnGeo, this.stripGeo].includes(o.geometry)) o.geometry.dispose(); o.material.dispose(); } });
     }
     for (const bomb of s.bombs ?? []) this.group.remove(bomb.mesh);
+    this.unspot(s.eye); this.unspot(s.reveal);
   }
 
   // The squadron's path: in from the map edge behind the airfield, over the target and out across
   // the map. The strike lands when the leader is overhead, so its delay is the flight in.
   launch(s, b) {
     const sw = s.sw;
+    s.meshes ??= [];
     let dx = s.x - b.x, dz = s.z - b.z;
     if (Math.hypot(dx, dz) < 1) { dx = s.x - SIZE / 2; dz = s.z - SIZE / 2; }
     if (Math.hypot(dx, dz) < 1) dx = 1;
@@ -235,7 +263,48 @@ export class Superweapons {
       s.planes.push({ ...f, mesh, nextDrop: 0, phase: Math.random() * 6.3 });
       s.meshes.push(mesh);
     }
-    s.ring.material.color.setHex(0xffc040);
+    s.ring?.material.color.setHex(0xffc040);
+  }
+
+  // A single fast plane flies the same kind of path as an air strike, seeing a strip of ground as it
+  // goes; over the target it reveals a wide circle for sw.duration seconds, which then stays explored.
+  // Only its owner sees where it is headed; the other side just hears of it.
+  reconnoitre(b, sw, x, z) {
+    const g = this.game, s = { sw, team: b.team, x, z, t: 0, meshes: [] };
+    this.launch(s, b);
+    s.eye = this.spot(b.team, s.ex, s.ez, sw.trail);
+    if (b.team === g.player || g.spectate) {
+      const ring = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: 0x8fe07a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      ring.position.set(x, 0.15, z); ring.scale.setScalar(sw.radius); ring.renderOrder = 4;
+      s.ring = ring; s.meshes.push(ring); this.group.add(ring);
+    }
+    for (const p of s.planes) this.group.add(p.mesh);
+    this.strikes.push(s);
+    if (!g.spectate) {
+      if (b.team === g.player) g.audio.say(`${sw.craft} en camino`, 0);
+      else { g.audio.say(`${sw.craft} enemigo detectado`, 0); g.emit('toast', { text: `${sw.craft} enemigo detectado`, kind: 'warn' }); }
+    }
+    return true;
+  }
+
+  // Returns true once the plane has left the map and the revealed ground has gone dark again.
+  scout(s, dt) {
+    const g = this.game, sw = s.sw, d = s.t * sw.speed, p = s.planes[0];
+    const x = s.ex + s.dx * d, z = s.ez + s.dz * d, out = d > s.outDist;
+    p.mesh.visible = !out && d > 0;
+    p.mesh.position.set(x, sw.altitude, z);
+    p.mesh.rotation.set(0, Math.atan2(s.dx, s.dz), 0);
+    if (!s.heard && s.t >= s.delay - 1) { s.heard = true; g.audio.play('jetflyby', s.x, s.z); }
+    if (out) { this.unspot(s.eye); s.eye = null; }
+    else if (s.eye) { s.eye.x = x; s.eye.z = z; }
+    if (s.ring) s.ring.material.opacity = 0.4 + 0.3 * Math.sin(s.t * 6);
+    if (!s.revealAt && s.t >= s.delay) {
+      s.revealAt = s.t;
+      s.reveal = this.spot(s.team, s.x, s.z, sw.radius);
+      if (s.ring) s.ring.visible = false;
+    }
+    if (s.reveal && s.t - s.revealAt >= sw.duration) { this.unspot(s.reveal); s.reveal = null; }
+    return out && !!s.revealAt && !s.reveal;
   }
 
   // Moves the squadron, drops bombs over the marked circle and resolves the blast once, when the
@@ -400,12 +469,13 @@ export class Superweapons {
   }
 
   // Charge bars for the owner; the enemy's discovered weapons with their countdown, as in Command & Conquer.
+  // Each entry is { b, sw }, one per power of the building.
   status(team) {
-    const g = this.game, own = [], enemy = [];
+    const own = [], enemy = [];
     for (const b of this.sites) {
       if (!this.online(b)) continue;
-      if (b.team === team) own.push(b);
-      else if (b.tech ? b.tech.found[team] : b.seen) enemy.push(b);
+      const list = b.team === team ? own : (b.tech ? b.tech.found[team] : b.seen) ? enemy : null;
+      for (const sw of powersOf(b.def)) list?.push({ b, sw });
     }
     return { own, enemy };
   }

@@ -209,7 +209,7 @@ export class TechSites {
     const g = this.game;
     for (const b of this.items) {
       const t = b.tech;
-      for (const e of [...g.units, ...g.buildings]) {
+      for (const e of [...g.units, ...g.buildings, ...(g.superweapons?.spotters ?? [])]) {
         if (e.dead || !e.team || t.found[e.team] || e === b) continue;
         if (rectDist(e.x, e.z, b.rect) <= visionRadius(e)) t.found[e.team] = true;
       }

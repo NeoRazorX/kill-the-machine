@@ -4,11 +4,11 @@ import { renderResults } from './results.js';
 import { buildUnitModel, buildBuildingModel } from './models.js';
 import { isCombatUnit, experienceText } from './experience.js';
 import { SelectionRings } from './selection-rings.js';
-import { ionPath } from './superweapons.js';
+import { ionPath, powersOf } from './superweapons.js';
 
 // Colour of each kind of strike on the minimap and while aiming it.
-const STRIKE_CSS = { nuke: '#ff4a3a', ion: '#6fd8ff', air: '#ffc040' };
-const STRIKE_FILL = { nuke: 'rgba(255,90,60,0.12)', ion: 'rgba(80,200,255,0.14)', air: 'rgba(255,192,64,0.13)' };
+const STRIKE_CSS = { nuke: '#ff4a3a', ion: '#6fd8ff', air: '#ffc040', recon: '#8fe07a' };
+const STRIKE_FILL = { nuke: 'rgba(255,90,60,0.12)', ion: 'rgba(80,200,255,0.14)', air: 'rgba(255,192,64,0.13)', recon: 'rgba(143,224,122,0.1)' };
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -73,7 +73,8 @@ export class UI {
     $('supers').onclick = (e) => {
       const el = e.target.closest('.sw.own.ready');
       const b = el && game.superweapons.sites.find((s) => String(s.id) === el.dataset.id);
-      if (b && !game.spectate) input.beginSuperTarget(b);
+      const sw = b && powersOf(b.def).find((p) => p.kind === el.dataset.kind);
+      if (sw && !game.spectate) input.beginSuperTarget(b, sw);
     };
     $('btn-pause').onclick = () => this.togglePause();
     $('btn-mute').onclick = () => this.toggleMute();
@@ -253,20 +254,20 @@ export class UI {
     const g = this.game, sw = g.superweapons, { own, enemy } = sw.status(this.team);
     // Spectators see every working superweapon, labelled with its side.
     const prefix = (b, mine) => (g.spectate ? `${TEAMS[b.team].name} · ` : mine ? '' : 'Enemigo · ');
-    const rows = g.spectate ? sw.sites.filter((b) => sw.online(b)).map((b) => [b, false])
-      : [...own.map((b) => [b, true]), ...enemy.map((b) => [b, false])];
+    const rows = g.spectate ? sw.sites.filter((b) => sw.online(b)).flatMap((b) => powersOf(b.def).map((p) => [{ b, sw: p }, false]))
+      : [...own.map((r) => [r, true]), ...enemy.map((r) => [r, false])];
     // The rows are only rebuilt when the list changes; countdowns and bars update in place. Replacing a
     // row while another weapon charges would swallow a click pressed on it before the release.
-    const box = $('supers'), key = rows.map(([b, mine]) => `${b.id}:${mine}`).join(',');
+    const box = $('supers'), key = rows.map(([{ b, sw: p }, mine]) => `${b.id}:${p.kind}:${mine}`).join(',');
     if (key !== this.supersKey) {
       this.supersKey = key;
-      box.innerHTML = rows.map(([b, mine]) => `<div class="sw ${mine ? 'own' : 'enemy'}" data-id="${b.id}">` +
-        `<img src="${this.icons[b.def.id]}" alt=""><div class="sw-body"><div class="sw-name"><span>${prefix(b, mine)}${b.def.superweapon.title}</span><span class="sw-state"></span></div>` +
+      box.innerHTML = rows.map(([{ b, sw: p }, mine]) => `<div class="sw ${mine ? 'own' : 'enemy'}" data-id="${b.id}" data-kind="${p.kind}">` +
+        `<img src="${this.icons[b.def.id]}" alt=""><div class="sw-body"><div class="sw-name"><span>${prefix(b, mine)}${p.title}</span><span class="sw-state"></span></div>` +
         `<div class="sw-bar"><i></i></div></div></div>`).join('');
     }
-    rows.forEach(([b, mine], i) => {
-      const el = box.children[i], p = sw.progress(b), ready = p >= 1, low = !ready && g.lowPower(b.team);
-      const state = ready ? 'LISTO' : low ? 'SIN ENERGÍA' : clock(sw.remaining(b)), stateEl = el.querySelector('.sw-state');
+    rows.forEach(([{ b, sw: power }, mine], i) => {
+      const el = box.children[i], p = sw.progress(b, power), ready = p >= 1, low = !ready && g.lowPower(b.team);
+      const state = ready ? 'LISTO' : low ? 'SIN ENERGÍA' : clock(sw.remaining(b, power)), stateEl = el.querySelector('.sw-state');
       el.classList.toggle('ready', ready);
       el.title = mine && ready ? 'Clic para elegir objetivo' : b.def.name;
       if (stateEl.textContent !== state) stateEl.textContent = state;
@@ -543,7 +544,8 @@ export class UI {
     }
     // superarmas en camino
     for (const s of g.superweapons.strikes) {
-      if (s.hit) continue;
+      // A reconnaissance flight is marked for its owner only, until it gets there.
+      if (s.hit || s.revealAt || (s.sw.kind === 'recon' && !g.spectate && s.team !== g.player)) continue;
       c.strokeStyle = STRIKE_CSS[s.sw.kind]; c.lineWidth = 2;
       c.globalAlpha = 0.5 + 0.5 * Math.sin(g.time * 10);
       c.beginPath();
@@ -732,13 +734,13 @@ export class UI {
     }
     // Superweapon aim: the blast radius under the cursor, or for the ion beam the swath it will sweep,
     // a capsule around the line from its start to the cursor (cut to its length).
-    const st = inp.superTarget, ion = st?.def.superweapon.kind === 'ion';
+    const st = inp.superTarget, power = st && inp.superPower, ion = power?.kind === 'ion';
     if (st && inp.mouse.inside) {
       const gp = inp.groundAt(inp.mouse.cx, inp.mouse.cy);
       if (gp) {
-        const sw = st.def.superweapon, R = sw.radius, a = inp.superAim;
+        const sw = power, R = sw.radius, a = inp.superAim;
         const path = ion ? ionPath(sw, a?.x ?? gp.x, a?.z ?? gp.z, gp.x, gp.z) : { x: gp.x, z: gp.z, x2: gp.x, z2: gp.z };
-        const ok = g.superweapons.canTarget(st.team, path.x, path.z);
+        const ok = g.superweapons.canTarget(st.team, path.x, path.z, sw);
         c.strokeStyle = ok ? STRIKE_CSS[sw.kind] : '#888';
         c.fillStyle = ok ? STRIKE_FILL[sw.kind] : 'rgba(128,128,128,0.1)';
         const h = Math.atan2(path.z2 - path.z, path.x2 - path.x);
@@ -757,7 +759,7 @@ export class UI {
       }
     }
     $('modehint').classList.toggle('hidden', !(inp.attackMode || inp.placing || st));
-    $('modehint').textContent = st ? `${st.def.superweapon.title.toUpperCase()} · ${ion ? (inp.superAim ? 'suelta o haz clic en el punto final' : 'arrastra desde el punto inicial (explorado) hasta el final') : 'clic izquierdo en una zona explorada'} · Esc o clic derecho cancela` :
+    $('modehint').textContent = st ? `${power.title.toUpperCase()} · ${ion ? (inp.superAim ? 'suelta o haz clic en el punto final' : 'arrastra desde el punto inicial (explorado) hasta el final') : power.kind === 'recon' ? 'clic izquierdo en cualquier punto del mapa' : 'clic izquierdo en una zona explorada'} · Esc o clic derecho cancela` :
       inp.attackMode ? 'ATACAR-MOVER · clic izquierdo en el destino · Esc cancela' : (inp.placing ? `Colocando: ${inp.placing.name} · clic izquierdo coloca · clic derecho cancela` : '');
   }
 

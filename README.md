@@ -170,6 +170,16 @@ tiempo de aviso. El bombardeo cubre un radio de 6 con 300 de daño en el centro 
 la infantería cae, los blindados reciben el 60 % y los edificios solo el 25 %. La IA construye su
 aeródromo tras su primera oleada y solo lo usa contra ejércitos que ve.
 
+El aeródromo tiene una segunda habilidad con su propia carga de 60 s, el **reconocimiento** (avión
+espía o dron espía), con su fila en la barra lateral. Es lo único que se puede mandar a una zona sin
+explorar. Un avión rápido entra igual que el ataque aéreo, ve una franja a su paso y, sobre el
+objetivo, revela un círculo de radio 24 durante 12 s; después la zona queda explorada y ya se pueden
+lanzar sobre ella el ataque aéreo o las superarmas. Solo su dueño ve el círculo marcado; el rival oye
+«Avión espía enemigo detectado» sin saber adónde va. Esa visión cuenta como la de una unidad: descubre
+estructuras tecnológicas, cajas y edificios enemigos. La IA lo usa para encontrar la base enemiga
+(la esquina sin ver más lejana de su explorador) y, una vez encontrada, las estructuras tecnológicas
+que le falten.
+
 La IA busca las estructuras con su explorador y, pasado un tiempo según la dificultad (7 min en
 Fácil, 3 min 20 s en Normal y 1 min 30 s en Difícil), envía un ingeniero escoltado a la más cercana
 que no sea suya. La escolta se queda guardándola.

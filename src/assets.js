@@ -3,7 +3,7 @@ import { GLTFLoader } from '../lib/addons/loaders/GLTFLoader.js';
 import { DEFS } from './config.js';
 
 export const ENVIRONMENT_MODELS = ['env_tree', 'env_rock', 'env_ore', 'env_cliff', 'env_ruin'];
-export const AIRCRAFT_MODELS = ['air_h_jet', 'air_m_drone'];
+export const AIRCRAFT_MODELS = ['air_h_jet', 'air_m_drone', 'air_h_recon', 'air_m_recon'];
 export const MODEL_IDS = [...Object.keys(DEFS), ...ENVIRONMENT_MODELS, ...AIRCRAFT_MODELS, 'prop_cash_crate'];
 const templates = new Map();
 const instanceAssets = new Map();

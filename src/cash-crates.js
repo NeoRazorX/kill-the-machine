@@ -66,6 +66,9 @@ export class CashCrates {
       for (const b of g.buildings) {
         if (!b.dead && b.team && !crate.found[b.team] && Math.hypot(b.x - crate.x, b.z - crate.z) <= visionRadius(b)) crate.found[b.team] = true;
       }
+      for (const s of g.superweapons?.spotters ?? []) {
+        if (!crate.found[s.team] && Math.hypot(s.x - crate.x, s.z - crate.z) <= s.def.sight) crate.found[s.team] = true;
+      }
       for (const u of g.queryUnits(crate.x, crate.z, MAX_UNIT_SIGHT)) {
         if (!u.dead && !crate.found[u.team] && Math.hypot(u.x - crate.x, u.z - crate.z) <= u.def.sight) crate.found[u.team] = true;
       }

@@ -91,7 +91,7 @@ export class AI {
   // counts as explored once something has looked at it.
   updateIntel() {
     const g = this.g;
-    const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
+    const eyes = g.eyes(this.team);
     const sees = (x, z, pad) => eyes.some((e) => Math.hypot(e.x - x, e.z - z) <= visionRadius(e) + pad);
     // Captured structures change hands, so a known target stops being one when it does.
     for (const b of this.known) if (b.dead || b.team !== this.enemy) this.known.delete(b);
@@ -563,10 +563,22 @@ export class AI {
   manageSuperweapons() {
     const g = this.g, sw = g.superweapons;
     if (!sw) return;
-    for (const b of sw.ready(this.team)) {
-      const t = this.superTarget(b.def.superweapon);
-      if (t) sw.fire(b, t.x, t.z, t.x2, t.z2);
+    for (const { b, sw: w } of sw.ready(this.team)) {
+      const t = w.kind === 'recon' ? this.reconTarget() : this.superTarget(w);
+      if (t) sw.fire(b, t.x, t.z, t.x2, t.z2, w);
     }
+  }
+
+  // The reconnaissance flight looks for the enemy base first: the unseen corner farthest from the scout,
+  // which walks to the nearest. With the base found, it looks for a tech structure not yet discovered.
+  reconTarget() {
+    const g = this.g, from = this.scout ?? this.hq;
+    if (!this.enemyBase && this.corners.length && from) {
+      return this.corners.reduce((a, c) => (Math.hypot(c.x - from.x, c.z - from.z) > Math.hypot(a.x - from.x, a.z - from.z) ? c : a));
+    }
+    const hq = this.hq, hidden = (g.techSites?.items ?? []).filter((b) => !b.tech.found[this.team]);
+    if (!hq || !hidden.length) return null;
+    return hidden.reduce((a, b) => (Math.hypot(b.x - hq.x, b.z - hq.z) < Math.hypot(a.x - hq.x, a.z - hq.z) ? b : a));
   }
 
   // For the ion beam it returns a line { x, z, x2, z2 }: lines that start on a target or are centred on
@@ -574,7 +586,7 @@ export class AI {
   superTarget(w) {
     const g = this.g, R = w.radius;
     const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
-    const seen = g.units.filter((u) => u.team === this.enemy && !u.dead && eyes.some((e) => Math.hypot(e.x - u.x, e.z - u.z) <= visionRadius(e)));
+    const seen = g.units.filter((u) => u.team === this.enemy && !u.dead && g.eyes(this.team).some((e) => Math.hypot(e.x - u.x, e.z - u.z) <= visionRadius(e)));
     // An air strike is spent on armies only: it barely scratches buildings.
     const targets = [...(w.kind === 'air' ? [] : [...this.known].filter((b) => !b.dead && b.team === this.enemy)), ...seen];
     // An air strike barely scratches buildings, so what it can hit is worth that much less.
