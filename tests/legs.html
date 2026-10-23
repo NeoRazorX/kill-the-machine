@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><title>Patas de las máquinas · prueba visual</title>
+<script type="importmap">{"imports":{"three":"../lib/three.module.js"}}</script>
+<style>
+  body{margin:24px;background:#11171c;color:#e9efed;font:15px system-ui}
+  h1{font-size:24px;margin-bottom:6px}p{color:#a8b9bf}h2{font-size:18px;margin:18px 0 8px}
+  .strip{display:flex;gap:4px;flex-wrap:wrap}canvas{display:block;border:1px solid #44525a;border-radius:6px}pre{font:12px monospace}
+</style>
+<h1>Patas de las máquinas</h1>
+<p>Caminantes de patas de araña en marcha recta a velocidad real, vistos de lado; fotogramas cada 1/16 de ciclo; los dos últimos, desde arriba, tras girar en redondo y al detenerse.
+  La prueba mide cuánto resbala cada pie mientras está apoyado y cuánto se levanta al dar el paso.</p>
+<main></main><pre id="results">RUNNING</pre>
+<script type="module">
+import * as THREE from 'three';
+import { preloadModels } from '../src/assets.js';
+import { Game } from '../src/game.js';
+import { Unit } from '../src/units.js';
+import { FX } from '../src/fx.js';
+import { DEFS, N } from '../src/config.js';
+import { THEMES } from '../src/themes.js';
+const out = document.querySelector('#results'), results = [];
+const params = new URLSearchParams(location.search);
+const ids = params.get('ids')?.split(',') || ['m_crusher', 'm_siege', 'm_welder', 'm_radar'];
+const W = +params.get('w') || 220, H = Math.round(W * 15 / 22);   // ?w=440 for larger frames
+// Feet count as planted below this height; a planted foot may drift at most SLIP of the distance walked.
+const GROUND = 0.06, SLIP = 0.15, LIFT = 0.12;
+
+// Sole of a hoof in its own frame: the centre of the vertices on its lowest level.
+function sole(hoof) {
+  hoof.updateMatrixWorld(true);
+  const inv = hoof.matrixWorld.clone().invert(), pts = [];
+  hoof.traverse(o => {
+    if (!o.isMesh) return;
+    const pos = o.geometry.attributes.position, m = inv.clone().multiply(o.matrixWorld);
+    for (let i = 0; i < pos.count; i++) pts.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(m));
+  });
+  const low = Math.min(...pts.map(p => p.y)), base = pts.filter(p => p.y < low + 0.02);
+  return base.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(base.length);
+}
+
+try {
+  await preloadModels();
+  const theme = THEMES.temperate;
+  for (const id of ids) {
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(theme.sky);
+    scene.add(new THREE.HemisphereLight(...theme.hemi));
+    const sun = new THREE.DirectionalLight(...theme.sun); sun.position.set(40, 60, 80); scene.add(sun);
+    const game = Object.assign(Object.create(Game.prototype), {
+      scene, theme, time: 0, spectate: true, player: 'machine', navVersion: 1,
+      map: { grid: new Uint8Array(N*N) }, units: [], buildings: [],
+      queryUnits() { return this.units; }, findTarget() { return null; },
+    });
+    game.fx = new FX(game, scene);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 40), new THREE.MeshStandardMaterial({ color: 0x5d6b4c, roughness: 1 }));
+    ground.rotation.x = -Math.PI/2; ground.position.set(100, -.01, 60); scene.add(ground);
+    const u = new Unit(game, DEFS[id], 40, 60, 'machine');
+    u.heading = Math.PI/2; game.units.push(u); u.cmdMove(160, 60);
+    const legs = u.parts.hoof || [], soles = legs.map(sole);
+    const dt = 1/120;
+    // Settle into the gait, then record one second of feet.
+    for (let i = 0; i < 120; i++) { game.time += dt; u.update(dt); }
+    const track = legs.map(() => []), x0 = u.x;
+    const frames = [], cycle = u.gait.cycle / u.def.speed;
+    let nextShot = 0;
+    for (let i = 0, t = 0; t < Math.max(1, cycle * 1.05); i++, t += dt) {
+      game.time += dt; u.update(dt); u.mesh.updateMatrixWorld(true);
+      legs.forEach((l, k) => track[k].push(soles[k].clone().applyMatrix4(l.matrixWorld)));
+      if (t >= nextShot && frames.length < 16) { frames.push(snapshot(scene, u)); nextShot += cycle / 16; }
+    }
+    const walked = u.x - x0;
+    let worst = 0, minLift = Infinity, planted = 0;
+    track.forEach((pts, k) => {
+      let slip = 0, lift = 0, down = 0;
+      for (let i = 1; i < pts.length; i++) {
+        lift = Math.max(lift, pts[i].y);
+        if (pts[i].y < GROUND && pts[i-1].y < GROUND) { slip += Math.hypot(pts[i].x - pts[i-1].x, pts[i].z - pts[i-1].z); down++; }
+      }
+      worst = Math.max(worst, slip / walked); minLift = Math.min(minLift, lift); planted += down / (pts.length - 1);
+    });
+    // Turn back the way it came, then stop: the feet must step home and settle on the ground.
+    u.cmdMove(u.x - 20, 64);
+    for (let t = 0; t < 1.5; t += dt) { game.time += dt; u.update(dt); }
+    frames.push(snapshot(scene, u, true));
+    u.cmdStop();
+    for (let t = 0; t < 2; t += dt) { game.time += dt; u.update(dt); }
+    u.mesh.updateMatrixWorld(true);
+    const settled = legs.every((l, k) => soles[k].clone().applyMatrix4(l.matrixWorld).y < 0.02) &&
+      u.gait.feet.every(f => !f.swing) && u.parts.spider.every(l => Number.isFinite(l.rotation.y));
+    frames.push(snapshot(scene, u, true));
+    const h2 = document.createElement('h2'); h2.textContent = `${DEFS[id].name} (${id})`;
+    const strip = document.createElement('div'); strip.className = 'strip'; strip.append(...frames);
+    document.querySelector('main').append(h2, strip);
+    const line = `${id}: ${legs.length} legs, cycle ${cycle.toFixed(2)} s, walked ${walked.toFixed(2)}, ` +
+      `worst slip ${(worst*100).toFixed(0)}% of travel, min lift ${minLift.toFixed(2)}, planted ${(planted/legs.length*100).toFixed(0)}%, ` +
+      `${settled ? 'settles' : 'does not settle'} when stopped`;
+    const pass = legs.length && worst <= SLIP && minLift >= LIFT && settled;
+    results.push(`${pass ? 'PASS' : 'FAIL'} ${line}`);
+  }
+  out.textContent = results.join('\n') + (results.every(r => r.startsWith('PASS')) ? '\nALL PASSED' : '\nSOME FAILED');
+} catch (error) { out.textContent = results.join('\n') + '\nFAIL ' + error.stack; }
+
+// Side view by default; `top` frames it from the game's own high, oblique angle.
+function snapshot(scene, u, top = false) {
+  const renderer = snapshot.r ||= new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  const camera = new THREE.PerspectiveCamera(30, W/H, .1, 100);
+  if (top) camera.position.set(u.x, 9, u.z + 7); else camera.position.set(u.x + 1.5, 2.2, u.z + 9);
+  camera.lookAt(u.x, top ? 0.5 : 1, u.z);
+  renderer.render(scene, camera);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  c.getContext('2d').drawImage(renderer.domElement, 0, 0);
+  return c;
+}
+</script></html>

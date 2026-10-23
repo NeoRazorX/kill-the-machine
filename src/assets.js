@@ -8,17 +8,19 @@ export const MODEL_IDS = [...Object.keys(DEFS), ...ENVIRONMENT_MODELS, ...AIRCRA
 const templates = new Map();
 const instanceAssets = new Map();
 const animatedNodes = ['turret', 'barrel', 'muzzle', 'body', 'fill', 'bob', 'ring', 'drill', 'dish', 'crystal', 'rotor', 'intact', 'wreck', 'beacon'];
-const groups = { legs: 'leg_', spider: 'spider_', muzzles: 'muzzle_' };
+const groups = { legs: 'leg_', spider: 'spider_', femur: 'femur_', shin: 'shin_', hoof: 'hoof_', muzzles: 'muzzle_' };
+// Spider walkers: each leg is a hip, femur, shin and hoof chain the gait bends.
+const spiderLegs = (n) => Array.from({length: n}, (_,i) => ['spider_', 'femur_', 'shin_', 'hoof_'].map(k => k + i)).flat();
 const requiredNodes = {
   h_rifle: ['body', 'leg_0', 'leg_1'], h_rocket: ['body', 'leg_0', 'leg_1'], h_medic: ['body', 'leg_0', 'leg_1', 'muzzle'],
   m_sentinel: ['body', 'leg_0', 'leg_1'],
   h_harv: ['fill'], m_harv: ['fill', 'drill'], m_drone: ['bob', 'ring'], m_nanite: ['bob', 'ring', 'muzzle'],
-  h_mech: ['muzzle'], m_welder: ['muzzle'],
-  h_radar: ['dish'], m_radar: ['dish'],
+  h_mech: ['muzzle'],
+  h_radar: ['dish'],
   t_mine: ['drill'],
   t_radar: ['dish'],
-  m_crusher: Array.from({length: 4}, (_,i) => `spider_${i}`),
-  m_siege: [...Array.from({length: 6}, (_,i) => `spider_${i}`), ...Array.from({length: 8}, (_,i) => `muzzle_${i}`)],
+  m_crusher: spiderLegs(4), m_welder: ['muzzle', ...spiderLegs(4)], m_radar: ['dish', ...spiderLegs(4)],
+  m_siege: [...spiderLegs(6), ...Array.from({length: 8}, (_,i) => `muzzle_${i}`)],
   h_hq: ['dish'], m_hq: ['crystal', 'ring', 'dish'], m_power: ['rotor'],
   h_engineer: ['body', 'leg_0', 'leg_1'], m_engineer: ['bob', 'ring'],
   h_mammoth: ['muzzle_0', 'muzzle_1'], m_mammoth: ['muzzle_0', 'muzzle_1'],
@@ -126,7 +128,6 @@ export function cloneModel(id) {
   }
   if (parts.bob) parts.bobBase = parts.bob.position.y;
   if (parts.crystal) parts.crystalBase = parts.crystal.position.y;
-  if (parts.spider) parts.spiderRest = parts.spider.map(o => o.quaternion.clone());
   group.userData.modelSource = 'glb';
   return { group, parts };
 }

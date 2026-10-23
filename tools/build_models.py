@@ -2317,26 +2317,39 @@ def welder_leg(i, side, hx, hz, splay):
     pivot = empty(f'spider_{i}', (hx,h,hz))
     P = lambda u, y: (hx, y, hz + u)
     profile = lambda name, pts, w, tint, dx=0: prism(name, [(hz+u, y) for u,y in pts], hx+dx-w, hx+dx+w, tint, 'zy')
-    knee, ankle = (.68,1.5), (1.07,.24)
-    parts = [box('Coxa',(.26,.22,.42),P(.21,h),MPLATE,0),
-             rod('Coxa joint',.13,P(.42,h+.02),.34,BLACK,'x',8),
-             bone('Femur',P(.42,h+.02),P(*knee),.3,.26,.08,MACHINE,.02),
+    hip, knee, ankle = (.42,h+.02), (.68,1.5), (1.07,.24)
+    coxa = [box('Coxa',(.26,.22,.42),P(.21,h),MPLATE,0)]
+    femur = [rod('Coxa joint',.13,P(*hip),.34,BLACK,'x',8),
+             bone('Femur',P(*hip),P(*knee),.3,.26,.08,MACHINE,.02),
              beam('Femur spine',P(.48,h+.22),P(.68,1.58),.11,MPLATE,0),
              strut('Femur ram',P(.24,h-.1),P(.5,1.08),.05,BLACK),
-             strut('Femur ram rod',P(.5,1.08),P(.62,1.32),.028,STEEL,5),
-             rod('Knee joint',.16,P(*knee),.36,BLACK,'x',10),
-             rod('Knee hub',.095,P(*knee),.42,MPLATE,'x',6),
-             profile('Knee guard',[(.52,1.62),(.72,1.76),(.9,1.62),(.84,1.48)],.1,MPLATE),
-             bone('Tibia armor',P(*knee),P(1.01,.48),.3,.28,.1,MPLATE,.02),
-             beam('Tibia strut',P(.99,.58),P(*ankle),.15,BLACK,0),
-             strut('Knee actuator',P(.5,1.32),P(.9,1.06),.045,BLACK),
-             rod('Ankle joint',.09,P(*ankle),.28,MACHINE,'x',8),
-             profile('Foot pad',[(.95,.28),(1.1,.22),(1.16,0),(.88,0),(.86,.14)],.13,MACHINE)]
+             strut('Femur ram rod',P(.5,1.08),P(.62,1.32),.028,STEEL,5)]
+    shin = [rod('Knee joint',.16,P(*knee),.36,BLACK,'x',10),
+            rod('Knee hub',.095,P(*knee),.42,MPLATE,'x',6),
+            profile('Knee guard',[(.52,1.62),(.72,1.76),(.9,1.62),(.84,1.48)],.1,MPLATE),
+            bone('Tibia armor',P(*knee),P(1.01,.48),.3,.28,.1,MPLATE,.02),
+            beam('Tibia strut',P(.99,.58),P(*ankle),.15,BLACK,0),
+            strut('Knee actuator',P(.5,1.32),P(.9,1.06),.045,BLACK),
+            rod('Ankle joint',.09,P(*ankle),.28,MACHINE,'x',8)]
+    foot = [profile('Foot pad',[(.95,.28),(1.1,.22),(1.16,0),(.88,0),(.86,.14)],.13,MACHINE)]
     for dx in (-.09,0,.09):
-        parts.append(profile('Toe claw',[(1.08,.12),(1.19,0),(1.08,0)],.026,BLACK,dx))
-    merge('Leg', parts, pivot)
+        foot.append(profile('Toe claw',[(1.08,.12),(1.19,0),(1.08,0)],.026,BLACK,dx))
+    articulate(i, pivot, h, (hip, knee, ankle), (coxa, femur, shin, foot))
     pivot.rotation_euler.z = side*math.radians(splay)
     return pivot
+
+
+def articulate(i, pivot, h, joints, segments):
+    # Spider leg rig: `spider_<i>` yaws at the hip drum and carries the coxa; `femur_<i>`, `shin_<i>`
+    # and `hoof_<i>` pitch about the leg's X axis at the hip joint, knee and ankle, each a child of the
+    # one before, so the game can bend the leg and keep the foot planted. Joints are (u, y) in the
+    # leg's authoring frame, the pivot at u = 0, y = h, before it is splayed.
+    merge('Leg coxa', segments[0], pivot)
+    node, base = pivot, (0, h)
+    for name, (u, y), parts in zip(('femur', 'shin', 'hoof'), joints, segments[1:]):
+        node = empty(f'{name}_{i}', (0, y-base[1], u-base[0]), node)
+        merge(f'Leg {name}', parts, node)
+        base = (u, y)
 
 
 def welder_torch():
@@ -2721,29 +2734,29 @@ def crusher_leg(i, side, hx, hz, splay):
     O = lambda a, b, t, k: P(*side_offset(a, b, t, k))
     hip, knee, ankle = (.26,h+.04), (.7,1.5), (1.1,.4)
     ku, ky = knee
-    parts = [rod('Hip drum',.22,P(0,h),.42,BLACK,'y',12),
-             rod('Drum cap',.16,P(0,h+.23),.04,MPLATE,'y',10),
-             box('Coxa',(.36,.34,.34),P(.16,h),MACHINE,.03),
-             rod('Hip joint',.16,P(*hip),.44,BLACK,'x',10),
+    coxa = [rod('Hip drum',.22,P(0,h),.42,BLACK,'y',12),
+            rod('Drum cap',.16,P(0,h+.23),.04,MPLATE,'y',10),
+            box('Coxa',(.36,.34,.34),P(.16,h),MACHINE,.03)]
+    femur = [rod('Hip joint',.16,P(*hip),.44,BLACK,'x',10),
              bone('Femur',P(*hip),P(*knee),.38,.32,.08,MACHINE,.025),
              bone('Thigh plate',O(hip,knee,.12,.17),O(hip,knee,.8,.17),.42,.06,.08,MPLATE,.01),
              bone('Thigh paint',O(hip,knee,.3,.205),O(hip,knee,.66,.205),.3,.02,.04,WARPAINT),
              strut('Thigh ram',P(.1,h-.16),O(hip,knee,.7,-.16),.06,BLACK),
-             strut('Thigh ram rod',O(hip,knee,.45,-.16),O(hip,knee,.86,-.15),.035,STEEL,5),
-             rod('Knee joint',.19,P(*knee),.46,BLACK,'x',12),
-             rod('Knee hub',.115,P(*knee),.52,MPLATE,'x',8),
-             profile('Knee cap',[(ku-.18,ky+.1),(ku+.04,ky+.2),(ku+.26,ky+.1),(ku+.24,ky-.12),(ku+.08,ky+.03)],.22,MPLATE),
-             bone('Shin',P(*knee),P(*ankle),.36,.32,.06,MACHINE,.025),
-             bone('Shin plate',O(knee,ankle,.1,.17),O(knee,ankle,.78,.17),.4,.06,.1,MPLATE,.01),
-             bone('Shin paint',O(knee,ankle,.2,.205),O(knee,ankle,.5,.205),.28,.02,.04,WARPAINT),
-             strut('Shin ram',O(knee,ankle,.12,-.17),O(knee,ankle,.75,-.16),.045,BLACK),
-             rod('Ankle joint',.12,P(*ankle),.38,BLACK,'x',10)]
+             strut('Thigh ram rod',O(hip,knee,.45,-.16),O(hip,knee,.86,-.15),.035,STEEL,5)]
+    shin = [rod('Knee joint',.19,P(*knee),.46,BLACK,'x',12),
+            rod('Knee hub',.115,P(*knee),.52,MPLATE,'x',8),
+            profile('Knee cap',[(ku-.18,ky+.1),(ku+.04,ky+.2),(ku+.26,ky+.1),(ku+.24,ky-.12),(ku+.08,ky+.03)],.22,MPLATE),
+            bone('Shin',P(*knee),P(*ankle),.36,.32,.06,MACHINE,.025),
+            bone('Shin plate',O(knee,ankle,.1,.17),O(knee,ankle,.78,.17),.4,.06,.1,MPLATE,.01),
+            bone('Shin paint',O(knee,ankle,.2,.205),O(knee,ankle,.5,.205),.28,.02,.04,WARPAINT),
+            strut('Shin ram',O(knee,ankle,.12,-.17),O(knee,ankle,.75,-.16),.045,BLACK),
+            rod('Ankle joint',.12,P(*ankle),.38,BLACK,'x',10)]
     # Hoof: an armoured block on a black sole, toe sloping forward.
     ua, ya = ankle
-    parts += [profile('Hoof',[(ua-.17,ya-.04),(ua+.06,ya+.02),(ua+.24,.14),(ua+.22,.04),(ua-.19,.04),(ua-.22,.13)],.18,MACHINE),
-              profile('Hoof plate',[(ua-.11,ya+.02),(ua+.08,ya+.07),(ua+.2,.19),(ua-.16,.16)],.19,MPLATE),
-              profile('Sole',[(ua-.2,.045),(ua+.24,.045),(ua+.2,0),(ua-.19,0)],.2,BLACK)]
-    merge('Leg', parts, pivot)
+    foot = [profile('Hoof',[(ua-.17,ya-.04),(ua+.06,ya+.02),(ua+.24,.14),(ua+.22,.04),(ua-.19,.04),(ua-.22,.13)],.18,MACHINE),
+            profile('Hoof plate',[(ua-.11,ya+.02),(ua+.08,ya+.07),(ua+.2,.19),(ua-.16,.16)],.19,MPLATE),
+            profile('Sole',[(ua-.2,.045),(ua+.24,.045),(ua+.2,0),(ua-.19,0)],.2,BLACK)]
+    articulate(i, pivot, h, (hip, knee, ankle), (coxa, femur, shin, foot))
     pivot.rotation_euler.z = side*math.radians(splay)
     return pivot
 

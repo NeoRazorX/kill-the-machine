@@ -1,6 +1,7 @@
 import { SIZE, HARVEST_QUEUE, FORD_SPEED, canRepair, canCapture } from './config.js';
 import { findPath, clearLine } from './pathfinding.js';
 import { buildUnitModel } from './models.js';
+import { walkSpider } from './spider-gait.js';
 import { RANKS, isCombatUnit } from './experience.js';
 import { lobApex, hitY } from './fx.js';
 
@@ -642,10 +643,7 @@ export class Unit {
       p.legs.forEach((l, i) => { l.rotation.x = Math.sin(this.anim + i * Math.PI) * 0.7 * w; });
       if (p.body) p.body.position.y = Math.abs(Math.sin(this.anim)) * 0.07 * w;
     }
-    if (p.spider) p.spider.forEach((l, i) => {
-      l.quaternion.copy(p.spiderRest[i]);
-      l.rotateY(Math.sin(this.anim * 0.8 + (i % 2) * Math.PI) * 0.22 * w);
-    });
+    if (p.spider) walkSpider(this, dt);
     if (p.turret) p.turret.rotation.y = angleDiff(this.aim, this.heading);
     if (p.barrel) {
       this.recoil = Math.max(0, this.recoil - dt * 4);
