@@ -27,7 +27,7 @@ const SURFACE = `
   float clouds(vec2 p) {
     p += vec2(cloudNoise(p * .7 + 3.1), cloudNoise(p * .7 + 9.7)) * .8;
     float n = cloudNoise(p) * .55 + cloudNoise(p * 2.03 + 1.7) * .28 + cloudNoise(p * 4.1 + 5.3) * .17;
-    return smoothstep(cloudCover, cloudCover + .22, n);
+    return smoothstep(cloudCover, cloudCover + .14, n);
   }
   // How much of the surface at uv shows: 1 in the open, less under fog and clouds.
   float surfaceLight(vec2 uv) {
