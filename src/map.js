@@ -4,6 +4,7 @@ import { getInstanceAsset } from './assets.js';
 import { N, CELL, SIZE } from './config.js';
 import { THEMES } from './themes.js';
 import { applySlabShader } from './foundations.js';
+import { applyGroundDetail } from './ground-detail.js';
 
 export function mulberry32(a) {
   return function () {
@@ -584,6 +585,7 @@ export class MapVisuals {
     const extent = SIZE + 2 * GROUND_MARGIN;
     const groundMaterial = new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0 });
     if (slabMask) applySlabShader(groundMaterial, slabMask, theme);
+    applyGroundDetail(groundMaterial, theme, slabMask);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(SIZE / 2, 0, SIZE / 2);

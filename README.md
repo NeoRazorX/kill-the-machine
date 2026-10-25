@@ -62,7 +62,10 @@ así que la elección no altera el equilibrio; cambian el suelo, la luz, el ciel
 el minimapa, la vegetación y el agua: el desierto tiene dunas onduladas, arenisca, saguaros y un oasis
 turquesa; el helado tiene nieve, placas de hielo, pinos, nieve acumulada en las caras superiores de rocas
 y riscos, y agua de deshielo. Además, cada carga elige una semilla distinta para la disposición de árboles
-y rocas, que sigue siendo simétrica. Los temas están en `src/themes.js`;
+y rocas, que sigue siendo simétrica. De cerca, el suelo lleva un detalle fino que se repite en mosaico
+(`src/ground-detail.js`): grano, matas de hierba solo donde el suelo es verde, piedrecitas en la tierra y los
+caminos y ondas de viento en la arena, con relieve que recoge la luz del sol; cada tema dosifica cada capa
+(`ground.detail`). Los temas están en `src/themes.js`;
 [tools/map-preview.html](http://localhost:8765/tools/map-preview.html?map=desert&layout=river) acepta
 `?map=` y `?layout=`.
 
