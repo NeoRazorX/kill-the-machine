@@ -184,9 +184,16 @@ busca la línea que cruza más valor.
 en 100 s un ataque de apoyo que se lanza como una superarma, con un clic en zona explorada. Tres
 cazabombarderos (o seis drones) entran desde el borde del mapa por detrás del aeródromo, pasan sobre
 el objetivo soltando bombas y salen por el otro lado, así que cuanto más lejos el objetivo, más
-tiempo de aviso. El bombardeo cubre un radio de 6 con 300 de daño en el centro (la mitad en el borde):
-la infantería cae, los blindados reciben el 60 % y los edificios solo el 25 %. La IA construye su
-aeródromo tras su primera oleada y solo lo usa contra ejércitos que ve.
+tiempo de aviso. Bombardean una franja de 24 de largo a lo largo de su pasada, tan ancha como la
+formación (unos 13), marcada en el suelo y en el minimapa para los dos bandos. Cada bomba daña donde
+cae, en un radio de 2,5 (200 en el centro para los cazas, 125 para los drones, que vuelan más juntos;
+la mitad en el borde): la infantería cae, los blindados reciben el 60 % y los edificios el 40 %. En
+una pasada, un tanque queda con una cuarta parte o un tercio de su vida, una planta de energía pierde
+la mitad, una refinería un tercio y una torreta casi la mitad. Si se lanza sobre tropas enemigas que el
+bando ve, la escuadrilla persigue a la más cercana (con el mismo desfase que el clic) mientras la ve, y
+mantiene su último paradero si la pierde de vista; 1 s antes de llegar fija el rumbo, así que dispersarse
+en el último momento aún puede salvar a alguien. La IA construye su aeródromo tras su primera oleada y
+lo usa contra ejércitos que ve.
 
 El aeródromo tiene una segunda habilidad con su propia carga de 60 s, el **reconocimiento** (avión
 espía o dron espía), con su fila en la barra lateral. Es lo único que se puede mandar a una zona sin

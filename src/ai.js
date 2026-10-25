@@ -1,5 +1,5 @@
 import { N, CELL, SIZE, ROLE, BUILD_RADIUS, buildingFront, other, canCapture, canRepairBuilding, visionRadius } from './config.js';
-import { ionPath, segDist, rectSegDist } from './superweapons.js';
+import { ionPath, airRun, segDist, rectSegDist } from './superweapons.js';
 
 const SECTOR = 32; // lado en unidades de mundo de cada zona que explora el explorador
 const SECTORS = N * CELL / SECTOR;
@@ -564,7 +564,7 @@ export class AI {
     const g = this.g, sw = g.superweapons;
     if (!sw) return;
     for (const { b, sw: w } of sw.ready(this.team)) {
-      const t = w.kind === 'recon' ? this.reconTarget() : this.superTarget(w);
+      const t = w.kind === 'recon' ? this.reconTarget() : this.superTarget(w, b);
       if (t) sw.fire(b, t.x, t.z, t.x2, t.z2, w);
     }
   }
@@ -583,13 +583,14 @@ export class AI {
 
   // For the ion beam it returns a line { x, z, x2, z2 }: lines that start on a target or are centred on
   // it, pointing at every other target in reach and around the compass, scored by what they cross.
-  superTarget(w) {
+  // An air strike, fired from `from`, is scored by what lies in the strip it bombs along its run.
+  superTarget(w, from) {
     const g = this.g, R = w.radius;
     const eyes = [...g.units, ...g.buildings].filter((e) => e.team === this.team && !e.dead);
     const seen = g.units.filter((u) => u.team === this.enemy && !u.dead && g.eyes(this.team).some((e) => Math.hypot(e.x - u.x, e.z - u.z) <= visionRadius(e)));
-    // An air strike is spent on armies only: it barely scratches buildings.
+    // An air strike is spent on armies: it hurts buildings far less, and they do not run.
     const targets = [...(w.kind === 'air' ? [] : [...this.known].filter((b) => !b.dead && b.team === this.enemy)), ...seen];
-    // An air strike barely scratches buildings, so what it can hit is worth that much less.
+    // An air strike hurts buildings less, so what it can hit is worth that much less.
     const worth = (e) => (e.def.role === 'hq' ? 1500 : e.def.tech ? 2000 : e.def.cost || 300) * (e.def.role === 'power' || e.def.role === 'refinery' ? 1.5 : 1) *
       (w.mult?.[e.cls] ?? 1);
     // Measured like the blast: to a building's walls, to a unit's centre.
@@ -598,7 +599,7 @@ export class AI {
     const points = targets.map((e) => ({ x: e.x, z: e.z }));
     for (let i = 0; i < targets.length; i++) for (let j = i + 1; j < targets.length; j++) {
       const a = targets[i], b = targets[j];
-      if (Math.hypot(a.x - b.x, a.z - b.z) < 2 * R + 8) points.push({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 });
+      if (Math.hypot(a.x - b.x, a.z - b.z) < (w.kind === 'air' ? w.length : 2 * R + 8)) points.push({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 });
     }
     let best = null, bestScore = { nuke: 2000, ion: 1200, air: 600 }[w.kind];
     if (w.kind === 'ion') {
@@ -621,8 +622,15 @@ export class AI {
     }
     for (const p of points) {
       let score = 0;
-      for (const e of targets) if (reach(e, p.x, p.z) <= R * 0.9) score += worth(e);
-      for (const e of eyes) if (reach(e, p.x, p.z) <= R + 4) score -= 2 * worth(e);
+      if (w.kind === 'air') {
+        const run = airRun(w, from, p.x, p.z);
+        const near = (e) => (e.kind === 'building' ? rectSegDist(e.rect, run.x0, run.z0, run.x1, run.z1) : segDist(e.x, e.z, run.x0, run.z0, run.x1, run.z1));
+        for (const e of targets) if (near(e) <= run.half * 0.8) score += worth(e);
+        for (const e of eyes) if (near(e) <= run.half + 4) score -= 2 * worth(e);
+      } else {
+        for (const e of targets) if (reach(e, p.x, p.z) <= R * 0.9) score += worth(e);
+        for (const e of eyes) if (reach(e, p.x, p.z) <= R + 4) score -= 2 * worth(e);
+      }
       if (score > bestScore) { bestScore = score; best = p; }
     }
     return best;

@@ -11,7 +11,7 @@ const { generateCashCrates, CashCrates } = await import('../src/cash-crates.js')
 const { TechSites, chooseTechSites, techSelection, walkDistances, fairTolerance, TECH_MIN_START, TECH_MARGIN, TECH_PICK_MAX } = await import('../src/tech-sites.js');
 const { N, CELL, SIZE, ROLE, DEFS, DIFFICULTY, START_CREDITS, TECH_IDS, TECH_SITE_COUNT, UNIT_ROLES, canCapture, other, globalRadarActive, visionRadius } = await import('../src/config.js');
 const { clearLine, findPath } = await import('../src/pathfinding.js');
-const { Superweapons, HQ_FLOOR, ionPath, segDist, rectSegDist } = await import('../src/superweapons.js');
+const { Superweapons, HQ_FLOOR, ionPath, airRun, segDist, rectSegDist } = await import('../src/superweapons.js');
 const { UI } = await import('../src/ui.js');
 
 const results = [];
@@ -729,7 +729,7 @@ for (const team of ['human', 'machine']) {
   const enemy = other(team), A = ROLE[team].airfield, W = A.superweapon;
   assert(A.unique && A.requires.includes('factory') && !A.tech && W.kind === 'air' && W.charge < DEFS.t_ion.superweapon.charge &&
     W.radius < DEFS.t_ion.superweapon.length && W.mult.light > W.mult.armor && W.mult.armor > W.mult.building,
-    `${team}: the airfield is built, one per side, and charges a small strike that is weakest against buildings`);
+    `${team}: the airfield is built, one per side, and charges a strike that is weakest against buildings`);
   const { game, events } = fixture({ spectate: false });
   game.player = team;
   const sw = game.superweapons;
@@ -745,20 +745,22 @@ for (const team of ['human', 'machine']) {
   assert(!sw.isReady(field), `${team}: the strike is not ready before its charge time`);
   run(game, 1.5);
   assert(sw.isReady(field) && events.some((e) => e.type === 'toast' && /listo/.test(e.data.text)), `${team}: the airfield is ready after ${W.charge} s`);
-  // An enemy squad, a tank and a building at the target, and a unit well clear of it.
+  // An enemy squad and a tank at the target, and a unit well clear of the strip.
   game.fog.fill(1);
   const ehq = game.teamBuildings(enemy, 'hq')[0];
-  const ground = (x, z, r, min = 0) => { for (let d = min; d < 40; d++) for (let a = 0; a < 6.3; a += .3) { const p = { x: x + Math.cos(a) * d, z: z + Math.sin(a) * d }; if (game.canStand(p.x, p.z, r + .3)) return p; } };
-  const at = ground(ehq.x, ehq.rect.z1 + 4, 1.6);
+  const ground = (x, z, r, min = 0) => { for (let d = min; d < 60; d++) for (let a = 0; a < 6.3; a += .3) { const p = { x: x + Math.cos(a) * d, z: z + Math.sin(a) * d }; if (game.canStand(p.x, p.z, r + .3)) return p; } };
+  const at = ground(ehq.x, ehq.rect.z1 + 14, 1.6);
   const tank = game.spawnUnit(ROLE[enemy].tank, enemy, at.x, at.z);
   const squad = [];
   for (let a = 0; a < 6.3 && squad.length < 4; a += .5) {
     const x = at.x + Math.cos(a) * 3, z = at.z + Math.sin(a) * 3;
     if (game.canStand(x, z, 0.8)) squad.push(game.spawnUnit(ROLE[enemy].inf1, enemy, x, z));
   }
-  const far = ground(at.x, at.z, 0.8, W.radius + 6), clear = game.spawnUnit(ROLE[enemy].inf1, enemy, far.x, far.z);
+  const run0 = airRun(W, field, at.x, at.z);
+  const far = ground(at.x, at.z, 0.8, W.length / 2 + run0.half + 4), clear = game.spawnUnit(ROLE[enemy].inf1, enemy, far.x, far.z);
+  // Something of the airfield's side sees them.
+  game.spawnUnit(ROLE[team].inf1, team, at.x, at.z + (at.z < SIZE / 2 ? 12 : -12));
   game.rebuildHash();
-  const hqHp = ehq.hp;
   assert(sw.fire(field, at.x, at.z) && !sw.isReady(field) && sw.strikes.length === 1, `${team}: firing spends the charge and sends the squadron`);
   const strike = sw.strikes[0];
   const outside = (x, z) => x < 0 || z < 0 || x > SIZE || z > SIZE;
@@ -766,15 +768,40 @@ for (const team of ['human', 'machine']) {
     `${team}: ${W.planes} aircraft fly in from beyond the map edge`);
   // The path runs from the airfield's side of the map, through the target.
   assert((at.x - field.x) * strike.dx + (at.z - field.z) * strike.dz > 0, `${team}: the squadron comes in from behind its own airfield`);
-  run(game, strike.delay - 0.3);
-  assert(tank.hp === tank.maxHp && squad.every((u) => u.hp === u.maxHp) && strike.bombs.length > 0, `${team}: bombs are falling before the strike lands`);
-  run(game, 0.5);
-  assert(squad.length >= 2 && squad.every((u) => u.dead), `${team}: the bombs wipe out infantry`);
-  assert(!tank.dead && tank.hp < tank.maxHp * 0.6, `${team}: tanks come out badly damaged but alive`);
-  assert(hqHp - ehq.hp <= W.damage * W.mult.building + 1e-9, `${team}: buildings are barely scratched`);
-  assert(clear.hp === clear.maxHp, `${team}: units outside the circle are untouched`);
+  assert(strike.lock?.unit && squad.concat(tank).includes(strike.lock.unit), `${team}: aimed at troops it can see, the squadron locks on to them`);
+  run(game, strike.delay - W.length / 2 / W.speed - 0.15);
+  assert(tank.hp === tank.maxHp && squad.every((u) => u.hp === u.maxHp) && strike.bombs.length > 0, `${team}: bombs are falling before the first one lands`);
   run(game, 30, () => !sw.strikes.length);
+  assert(squad.length >= 2 && squad.filter((u) => u.dead).length >= squad.length - 1, `${team}: the bombs wipe out infantry`);
+  assert(!tank.dead && tank.hp < tank.maxHp * 0.6, `${team}: tanks come out badly damaged but alive`);
+  assert(clear.hp === clear.maxHp, `${team}: units outside the strip are untouched`);
   assert(!sw.strikes.length && !sw.group.children.length, `${team}: the squadron leaves the map and nothing is left behind`);
+  // A tank that drives off across the run is followed until the squadron commits to its course.
+  const start = ground(at.x, at.z, 1.6, 22), runner = game.spawnUnit(ROLE[enemy].tank, enemy, start.x, start.z);
+  const across = airRun(W, field, start.x, start.z), dest = ground(start.x + across.dz * 30, start.z - across.dx * 30, 1.6);
+  // Watched all the way.
+  for (let k = 0; k <= 1; k += 0.25) game.spawnUnit(ROLE[team].inf1, team, start.x + (dest.x - start.x) * k + 6, start.z + (dest.z - start.z) * k);
+  game.rebuildHash();
+  field.charging.air.charge = W.charge;
+  sw.fire(field, runner.x, runner.z);
+  const chase = sw.strikes[0], aim0 = { x: chase.x, z: chase.z };
+  runner.cmdMove(dest.x, dest.z);
+  run(game, chase.delay - W.commit - 0.5);
+  const followed = Math.hypot(chase.x - aim0.x, chase.z - aim0.z), onRunner = Math.hypot(chase.x - runner.x, chase.z - runner.z);
+  assert(chase.lock?.unit === runner && followed > 5 && onRunner < 1, `${team}: the strike follows a unit that runs (${followed.toFixed(1)} away, ${onRunner.toFixed(1)} off it)`);
+  run(game, 1);
+  const fixed = { x: chase.x, z: chase.z };
+  run(game, 0.9);
+  assert(chase.x === fixed.x && chase.z === fixed.z, `${team}: ${W.commit} s out the squadron holds its course`);
+  run(game, 30, () => !sw.strikes.length);
+  assert(runner.hp < runner.maxHp * 0.75, `${team}: running across the strip does not save a tank`);
+  // A structure in the strip loses a good share of its health, more than a scratch but far from all of it.
+  const plant = addStructure(game, enemy, 'power');
+  field.charging.air.charge = W.charge;
+  sw.fire(field, plant.x, plant.z);
+  run(game, 40, () => !sw.strikes.length);
+  const lost = 1 - plant.hp / plant.maxHp;
+  assert(!plant.dead && lost > 0.35 && lost < 0.8, `${team}: a power plant in the strip loses ${(lost * 100).toFixed(0)} % of its health`);
   // The farther from the airfield's edge of the map, the longer the warning.
   field.charging.air.charge = W.charge;
   sw.fire(field, field.x, field.z + (field.z < SIZE / 2 ? 40 : -40));

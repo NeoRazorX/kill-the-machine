@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { N, CELL, SIZE } from './config.js';
+import { N, CELL, SIZE, visionRadius } from './config.js';
 import { cloneModel } from './assets.js';
 import { GLOW } from './fx.js';
 
@@ -15,6 +15,22 @@ const FORMATIONS = {
   air_m_drone: [{ side: 0, back: 0 }, { side: -3.5, back: -3 }, { side: 3.5, back: -3 }, { side: -1.8, back: -7 }, { side: 1.8, back: -7 }, { side: 0, back: -10 }],
   air_h_recon: [{ side: 0, back: 0 }], air_m_recon: [{ side: 0, back: 0 }],
 };
+
+// Which way a flight from the airfield `from` crosses (x, z): from its side of the map, through the target.
+export function runHeading(from, x, z) {
+  let dx = x - from.x, dz = z - from.z;
+  if (Math.hypot(dx, dz) < 1) { dx = x - SIZE / 2; dz = z - SIZE / 2; }
+  if (Math.hypot(dx, dz) < 1) dx = 1;
+  const l = Math.hypot(dx, dz);
+  return { dx: dx / l, dz: dz / l };
+}
+// The strip an air strike bombs around (x, z): `length` along the run, centred on the target, and on
+// either side of it as far as the formation's wing plus a bomb's blast (`half`). Ends at (x0, z0), (x1, z1).
+export function airRun(sw, from, x, z) {
+  const { dx, dz } = runHeading(from, x, z), L = sw.length / 2;
+  const half = Math.max(...FORMATIONS[sw.model].map((f) => Math.abs(f.side))) + sw.radius;
+  return { dx, dz, half, x0: x - dx * L, z0: z - dz * L, x1: x + dx * L, z1: z + dz * L };
+}
 
 // Every power a building holds: its superweapon and, for the airfield, the reconnaissance flight.
 export const powersOf = (def) => [def.superweapon, def.recon].filter(Boolean);
@@ -162,7 +178,12 @@ export class Superweapons {
     const ring = new THREE.Mesh(this.ringGeo, mat());
     ring.position.set(x, 0.15, z); ring.scale.setScalar(sw.radius); ring.renderOrder = 4;
     s.ring = ring; s.meshes.push(ring);
-    if (sw.kind === 'air') this.launch(s, b);
+    if (sw.kind === 'air') {
+      this.launch(s, b);
+      // Aimed at enemy troops, the squadron follows the nearest one, keeping the aim's offset from it.
+      const u = this.lockOn(b.team, x, z, s.half);
+      if (u) s.lock = { unit: u, ox: x - u.x, oz: z - u.z };
+    }
     if (sw.kind === 'ion') {
       Object.assign(s, ionPath(sw, x, z, x2, z2), { head: 0, hit: new Set(), scorched: 0 });
       // The swath still to be swept, and a ring where it ends.
@@ -244,15 +265,11 @@ export class Superweapons {
   }
 
   // The squadron's path: in from the map edge behind the airfield, over the target and out across
-  // the map. The strike lands when the leader is overhead, so its delay is the flight in.
+  // the map. The leader is overhead after `delay`, the flight in.
   launch(s, b) {
     const sw = s.sw;
     s.meshes ??= [];
-    let dx = s.x - b.x, dz = s.z - b.z;
-    if (Math.hypot(dx, dz) < 1) { dx = s.x - SIZE / 2; dz = s.z - SIZE / 2; }
-    if (Math.hypot(dx, dz) < 1) dx = 1;
-    const l = Math.hypot(dx, dz);
-    dx /= l; dz /= l;
+    const { dx, dz } = runHeading(b, s.x, s.z);
     // How far from the target the path leaves the map going along (ux, uz).
     const toEdge = (ux, uz) => Math.min(ux > 0 ? (SIZE - s.x) / ux : ux < 0 ? -s.x / ux : Infinity, uz > 0 ? (SIZE - s.z) / uz : uz < 0 ? -s.z / uz : Infinity);
     const inDist = toEdge(-dx, -dz) + 25;
@@ -265,6 +282,29 @@ export class Superweapons {
       s.meshes.push(mesh);
     }
     s.ring?.material.color.setHex(0xffc040);
+    // The marker of an air strike is the strip it will bomb.
+    if (sw.kind === 'air') {
+      s.half = airRun(sw, b, s.x, s.z).half;
+      s.ring.geometry = this.stripGeo;
+      s.ring.scale.set(2 * s.half, 1, sw.length + 2 * sw.radius);
+      s.ring.rotation.y = Math.atan2(dx, dz);
+    }
+  }
+
+  // Whether the side sees e with any of its eyes.
+  seenBy(team, e) {
+    return this.game.eyes(team).some((o) => Math.hypot(o.x - e.x, o.z - e.z) <= visionRadius(o));
+  }
+
+  // The enemy unit the side sees nearest to (x, z), within `reach`.
+  lockOn(team, x, z, reach) {
+    let best = null, bestD = reach;
+    for (const u of this.game.queryUnits(x, z, reach + 2)) {
+      if (u.dead || !u.team || u.team === team) continue;
+      const d = Math.hypot(u.x - x, u.z - z);
+      if (d <= bestD && this.seenBy(team, u)) { best = u; bestD = d; }
+    }
+    return best;
   }
 
   // A single fast plane flies the same kind of path as an air strike, seeing a strip of ground as it
@@ -308,12 +348,24 @@ export class Superweapons {
     return out && !!s.revealAt && !s.reveal;
   }
 
-  // Moves the squadron, drops bombs over the marked circle and resolves the blast once, when the
-  // leader is overhead. Returns true once every aircraft has left the map.
+  // Moves the squadron and drops bombs along the marked strip, each one hurting what it lands on.
+  // While locked on a unit, the run (and its marker) follows it wherever the side sees it, until `commit`
+  // seconds before the leader is overhead; from then on it holds its course, so a last-moment scatter
+  // can still pay off. Returns true once every aircraft has left the map.
   fly(s, dt) {
-    const g = this.game, fx = g.fx, sw = s.sw, R = sw.radius, d = s.t * sw.speed, swarm = s.planes.length > 3;
+    const g = this.game, fx = g.fx, sw = s.sw, d = s.t * sw.speed, swarm = s.planes.length > 3;
     const yaw = Math.atan2(s.dx, s.dz), px = s.dz, pz = -s.dx;
-    s.ring.material.opacity = 0.55 + 0.45 * Math.sin(s.t * 10);
+    if (s.lock && s.t < s.delay - sw.commit) {
+      const u = s.lock.unit;
+      // Out of sight it holds the last place it was seen, and picks the unit up again if it shows.
+      if (u.dead) s.lock = null;
+      else if (this.seenBy(s.team, u)) {
+        s.x = Math.max(0, Math.min(SIZE, u.x + s.lock.ox)); s.z = Math.max(0, Math.min(SIZE, u.z + s.lock.oz));
+        s.ex = s.x - s.dx * s.inDist; s.ez = s.z - s.dz * s.inDist;
+        s.ring.position.set(s.x, 0.15, s.z);
+      }
+    }
+    s.ring.material.opacity = 0.3 + 0.2 * Math.sin(s.t * 10);
     if (!s.heard && s.t >= s.delay - 1.6) { s.heard = true; g.audio.play(swarm ? 'swarm' : 'jetflyby', s.x, s.z); }
     let out = true;
     for (const p of s.planes) {
@@ -324,9 +376,9 @@ export class Superweapons {
       p.mesh.position.set(x, y, z);
       p.mesh.rotation.set(0, yaw, swarm ? wob * 0.35 : 0);
       if (a < s.outDist) out = false;
-      // A bomb dropped now lands FALL seconds further on; drop while that spot is inside the circle.
+      // A bomb dropped now lands FALL seconds further on; drop while that spot is along the strip.
       const lx = x + s.dx * sw.speed * FALL, lz = z + s.dz * sw.speed * FALL;
-      if (s.t >= p.nextDrop && Math.hypot(lx - s.x, lz - s.z) < R * 0.9) {
+      if (s.t >= p.nextDrop && Math.abs((lx - s.x) * s.dx + (lz - s.z) * s.dz) <= sw.length / 2) {
         p.nextDrop = s.t + (swarm ? 0.16 : 0.1);
         const mesh = new THREE.Mesh(this.bombLook.geo, this.bombLook.mat);
         mesh.position.set(x, y - 0.6, z); mesh.rotation.y = yaw;
@@ -348,14 +400,16 @@ export class Superweapons {
       fx.explosion(bx, 0.5, bz, 1.6 + Math.random());
       fx.scorch(bx, bz, 1.8, 0.5);
       if (Math.random() < 0.35) g.audio.play('explosion', bx, bz);
+      this.bomb(s, bx, bz);
     }
-    if (!s.hit && s.t >= s.delay) { s.hit = true; s.ring.visible = false; this.bombard(s); }
+    // The marker goes once the last plane has passed the end of the strip.
+    if (!s.hit && s.t >= s.delay + (sw.length / 2 + 10) / sw.speed) { s.hit = true; s.ring.visible = false; }
     return out && s.hit && !s.bombs.length;
   }
 
-  // The squadron's bombs: damage falls off from the centre to half at the edge, scaled by what is hit.
-  bombard(s) {
-    const g = this.game, { sw, x, z } = s, R = sw.radius, mult = (e) => sw.mult[e.cls] ?? 1;
+  // One bomb: damage falls off from where it lands to half at the edge of its blast, scaled by what is hit.
+  bomb(s, x, z) {
+    const g = this.game, sw = s.sw, R = sw.radius, mult = (e) => sw.mult[e.cls] ?? 1;
     for (const u of g.queryUnits(x, z, R + 3).slice()) {
       if (u.dead || !u.team) continue;
       const d = Math.max(0, Math.hypot(u.x - x, u.z - z) - u.radius);

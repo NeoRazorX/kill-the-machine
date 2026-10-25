@@ -4,7 +4,7 @@ import { renderResults } from './results.js';
 import { buildUnitModel, buildBuildingModel } from './models.js';
 import { isCombatUnit, experienceText } from './experience.js';
 import { SelectionRings } from './selection-rings.js';
-import { ionPath, powersOf } from './superweapons.js';
+import { ionPath, airRun, powersOf } from './superweapons.js';
 
 // Colour of each kind of strike on the minimap and while aiming it.
 const STRIKE_CSS = { nuke: '#ff4a3a', ion: '#6fd8ff', air: '#ffc040', recon: '#8fe07a' };
@@ -550,6 +550,10 @@ export class UI {
       c.globalAlpha = 0.5 + 0.5 * Math.sin(g.time * 10);
       c.beginPath();
       if (s.sw.kind === 'ion') { c.lineWidth = Math.max(2, s.sw.radius * 2 * k); c.lineCap = 'round'; c.moveTo(s.x * k, s.z * k); c.lineTo(s.x2 * k, s.z2 * k); }
+      else if (s.sw.kind === 'air') {
+        const L = s.sw.length / 2;
+        c.lineWidth = Math.max(2, s.half * 2 * k); c.moveTo((s.x - s.dx * L) * k, (s.z - s.dz * L) * k); c.lineTo((s.x + s.dx * L) * k, (s.z + s.dz * L) * k);
+      }
       else c.arc(s.x * k, s.z * k, Math.max(4, s.sw.radius * k), 0, 6.3);
       c.stroke();
       c.globalAlpha = 1; c.lineCap = 'butt';
@@ -733,14 +737,15 @@ export class UI {
       c.strokeStyle = 'rgba(92,240,138,0.9)'; c.lineWidth = 1; c.strokeRect(x + 0.5, y + 0.5, w, h);
     }
     // Superweapon aim: the blast radius under the cursor, or for the ion beam the swath it will sweep,
-    // a capsule around the line from its start to the cursor (cut to its length).
+    // a capsule around the line from its start to the cursor (cut to its length). An air strike shows
+    // the strip it bombs, along its run from the airfield's side of the map.
     const st = inp.superTarget, power = st && inp.superPower, ion = power?.kind === 'ion';
     if (st && inp.mouse.inside) {
       const gp = inp.groundAt(inp.mouse.cx, inp.mouse.cy);
       if (gp) {
-        const sw = power, R = sw.radius, a = inp.superAim;
-        const path = ion ? ionPath(sw, a?.x ?? gp.x, a?.z ?? gp.z, gp.x, gp.z) : { x: gp.x, z: gp.z, x2: gp.x, z2: gp.z };
-        const ok = g.superweapons.canTarget(st.team, path.x, path.z, sw);
+        const sw = power, a = inp.superAim, run = sw.kind === 'air' && airRun(sw, st, gp.x, gp.z), R = run ? run.half : sw.radius;
+        const path = ion ? ionPath(sw, a?.x ?? gp.x, a?.z ?? gp.z, gp.x, gp.z) : run ? { x: run.x0, z: run.z0, x2: run.x1, z2: run.z1 } : { x: gp.x, z: gp.z, x2: gp.x, z2: gp.z };
+        const ok = run ? g.superweapons.canTarget(st.team, gp.x, gp.z, sw) : g.superweapons.canTarget(st.team, path.x, path.z, sw);
         c.strokeStyle = ok ? STRIKE_CSS[sw.kind] : '#888';
         c.fillStyle = ok ? STRIKE_FILL[sw.kind] : 'rgba(128,128,128,0.1)';
         const h = Math.atan2(path.z2 - path.z, path.x2 - path.x);
