@@ -4,7 +4,7 @@ import { Input } from './input.js';
 import { UI, makeIcons } from './ui.js';
 import { SIZE, TEAMS, ROLE, PLAYER, DIFFICULTY, DEFS, TECH_IDS } from './config.js';
 import { preloadModels, assetStatus } from './assets.js';
-import { WarFog } from './war-fog.js';
+import { WarFog, NEUTRAL_GRADE } from './war-fog.js';
 import { THEMES, resolveTheme } from './themes.js';
 import { LAYOUTS, resolveLayout } from './map.js';
 import { techSelection, TECH_PICK_MAX } from './tech-sites.js';
@@ -87,6 +87,7 @@ function applyTheme(theme) {
   scene.background.setHex(theme.sky); scene.fog.color.setHex(theme.sky);
   hemi.color.setHex(theme.hemi[0]); hemi.groundColor.setHex(theme.hemi[1]); hemi.intensity = theme.hemi[2];
   sun.color.setHex(theme.sun[0]); sun.intensity = theme.sun[1];
+  warFog.setGrade(theme.grade ?? NEUTRAL_GRADE);
 }
 function chooseTheme(choice) {
   themeChoice = choice;
