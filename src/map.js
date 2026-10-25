@@ -469,6 +469,16 @@ export function makeGroundCanvas(map, px = 1792, margin = GROUND_MARGIN, theme =
     const dd = Math.hypot(wx - f.x, wz - f.z) / (f.r * 1.15);
     if (dd < 1) mix(i, (1 - dd) * 0.8, dark[0], dark[1], dark[2]);
   });
+  // Ambient occlusion under the scenery: the ground darkens where trees, rocks and cliffs stand on it.
+  // (Units and buildings move or appear, so theirs is drawn live by src/contact-shadows.js.)
+  const occlude = (x, z, r, k) => around(x, z, r * 1.7, (i, wx, wz) => {
+    const a = k * (1 - smooth(.45, 1.7, Math.hypot(wx - x, wz - z) / r)) ** 1.5;
+    if (a > 0) { R[i] *= 1 - a; G[i] *= 1 - a; B[i] *= 1 - a; }
+  });
+  const border = borderDecor(map.seed);
+  for (const t of [...map.trees, ...border.trees]) occlude(t.x, t.z, t.s, .42);
+  for (const r of [...map.rocks, ...border.rocks]) occlude(r.x, r.z, r.s * 1.3, .45);
+  for (const l of map.landmarks) occlude(l.x, l.z, l.radius, .3);
   // Rivers: wet mud on the banks, a dark bed under deep water and pale gravel across the fords.
   const river = waterField(map);
   if (river) {

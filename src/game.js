@@ -6,6 +6,7 @@ import { Foundations } from './foundations.js';
 import { Unit } from './units.js';
 import { Building } from './buildings.js';
 import { FX } from './fx.js';
+import { ContactShadows } from './contact-shadows.js';
 import { GameAudio } from './audio.js';
 import { AI } from './ai.js';
 import { CashCrates, CASH_CRATE_RADIUS } from './cash-crates.js';
@@ -41,6 +42,7 @@ export class Game {
     this.units = []; this.buildings = [];
     this.teams = { human: newTeam(), machine: newTeam() };
     this.fx = new FX(this, scene);
+    this.contactShadows = new ContactShadows(this, scene);
     this.audio = new GameAudio(this);
     this.ais = [];
     this.buckets = Array.from({ length: HN * HN }, () => []);
@@ -720,5 +722,7 @@ export class Game {
     }
     if (this.units.some((u) => u.dead)) this.units = this.units.filter((u) => !u.dead);
     if (this.buildings.some((b) => b.dead)) this.buildings = this.buildings.filter((b) => !b.dead);
+
+    this.contactShadows?.update();
   }
 }

@@ -65,7 +65,10 @@ y riscos, y agua de deshielo. Además, cada carga elige una semilla distinta par
 y rocas, que sigue siendo simétrica. De cerca, el suelo lleva un detalle fino que se repite en mosaico
 (`src/ground-detail.js`): grano, matas de hierba solo donde el suelo es verde, piedrecitas en la tierra y los
 caminos y ondas de viento en la arena, con relieve que recoge la luz del sol; cada tema dosifica cada capa
-(`ground.detail`). La imagen final pasa por un único pase (`src/war-fog.js`) que aplica la niebla de guerra,
+(`ground.detail`). Unidades y edificios proyectan además una sombra de contacto suave, una oclusión
+ambiental donde su base toca el suelo, ajustada a la forma de su modelo y girada con él; desaparece con la
+unidad cuando la niebla la oculta, y la de los drones flotantes es más tenue y difusa (`src/contact-shadows.js`).
+Árboles, rocas y riscos la llevan horneada en la textura del suelo. La imagen final pasa por un único pase (`src/war-fog.js`) que aplica la niebla de guerra,
 una gradación de color por tema (`grade`: exposición, contraste, saturación, tinte frío en las sombras y
 cálido en las luces, y viñeta) y una curva de tono que deja intactos los tonos medios y lleva suavemente a
 blanco las luces más fuertes (nieve, destellos, explosiones) en vez de recortarlas. La escena se dibuja en
