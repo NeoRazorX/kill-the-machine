@@ -18,7 +18,7 @@ async function load(src){
 const key=(win,code,target=win)=>{target.dispatchEvent(new win.KeyboardEvent('keydown',{code,key:code,bubbles:true}));target.dispatchEvent(new win.KeyboardEvent('keyup',{code,key:code,bubbles:true}));};
 try {
   localStorage.removeItem('ktm.audio');
-  let [win,doc,game,menu]=await load('../index.html?autostart=easy&side=machine&map=desert&tech=t_mine&spawn=0,2&seed=4242');
+  let [win,doc,game,menu]=await load('../game.html?autostart=easy&side=machine&map=desert&tech=t_mine&spawn=0,2&seed=4242');
   const errors=[];win.addEventListener('error',e=>errors.push(e.message));
   const el=doc.getElementById('game-menu'),visible=(id)=>!doc.getElementById(id).classList.contains('hidden');
   check(!visible('game-menu')&&!game.paused,'the game starts without the menu');
@@ -80,7 +80,7 @@ try {
   key(win,'Escape');
   check(doc.getElementById('gm-confirm').hidden&&menu.open,'Esc backs out of the confirmation');
   el.querySelector('[data-act="quit"]').click();el.querySelector('[data-act="confirm"]').click();
-  check(went===new URL('../index.html',location).pathname,'quitting goes back to the main menu');
+  check(went===new URL('../game.html',location).pathname,'quitting goes back to the main menu');
   went=null;el.querySelector('[data-act="restart"]').click();el.querySelector('[data-act="confirm"]').click();
   const p=new URL(went,location).searchParams;
   check(p.get('autostart')==='easy'&&p.get('side')==='machine'&&p.get('map')==='desert'&&p.get('seed')==='4242'&&p.get('spawn')==='0,2'&&p.get('tech')==='t_mine'&&p.get('layout')===game.map.layout.id,'the restart address keeps difficulty, side, layout, look, scenery, corners and tech sites');

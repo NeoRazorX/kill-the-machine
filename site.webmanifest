@@ -4,7 +4,7 @@
   "short_name": "Kill the Machine",
   "description": "Construye tu base y dirige tu ejército en una guerra entre humanos y máquinas.",
   "lang": "es",
-  "start_url": "./",
+  "start_url": "game.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0b0f14",

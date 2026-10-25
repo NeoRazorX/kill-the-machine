@@ -12,7 +12,7 @@ const load=async(src)=>{frame.src=src;await new Promise(r=>frame.onload=r);await
 const saved=localStorage.getItem('ktm.side');
 try {
   localStorage.removeItem('ktm.side');
-  let [win,doc]=await load('../index.html');
+  let [win,doc]=await load('../game.html');
   const errors=[];win.addEventListener('error',e=>errors.push(e.message));
   const side=(s)=>doc.querySelector(`.side[data-side="${s}"]`),tag=()=>doc.getElementById('side-tag').textContent;
   check(side('human').classList.contains('active')&&!side('machine').classList.contains('active')&&tag()===TEAMS.human.tagline,'humans are the default side');
@@ -45,7 +45,7 @@ try {
   check(errors.length===0,'no uncaught errors playing the machines');
   game.paused=true;
 
-  [win,doc]=await load('../index.html?side=human&autostart=easy');
+  [win,doc]=await load('../game.html?side=human&autostart=easy');
   await until(()=>doc.getElementById('app').classList.contains('playing'));
   win.__game.audio.say=()=>{};
   check(win.__game.player==='human'&&win.__game.ais[0].team==='machine','?side=human overrides the remembered side for that visit');

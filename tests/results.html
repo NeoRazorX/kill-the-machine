@@ -10,7 +10,7 @@ function check(ok,text){if(!ok)throw new Error(text);lines.push('PASS '+text);ou
 async function until(predicate,what){const deadline=performance.now()+20000;while(!predicate()){if(performance.now()>deadline)throw new Error('Timed out waiting for '+what);await new Promise(r=>setTimeout(r,30));}}
 const savedSide=localStorage.getItem('ktm.side');
 try {
-  frame.src='../index.html?autostart=easy&side=human&tech=t_mine';
+  frame.src='../game.html?autostart=easy&side=human&tech=t_mine';
   await new Promise(r=>frame.onload=r);
   await until(()=>frame.contentWindow.__game&&frame.contentDocument.getElementById('app').classList.contains('playing'),'startup');
   const win=frame.contentWindow,doc=frame.contentDocument,game=win.__game;

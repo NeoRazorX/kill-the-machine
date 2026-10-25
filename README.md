@@ -5,7 +5,10 @@ Humanos contra máquinas: construye base, cosecha mineral, produce ejército y d
 Se puede jugar con cualquiera de los dos bandos; la IA lleva el otro.
 
 **Juega en el navegador:** <https://neorazorx.github.io/kill-the-machine/> (se publica con GitHub Pages en cada
-`push` a `main`; ver `.github/workflows/pages.yml`).
+`push` a `main`; ver `.github/workflows/pages.yml`). `index.html` es la portada: qué es el juego, capturas,
+controles, enlaces a GitHub y al canal de YouTube, y los últimos cambios, que el despliegue genera a partir de
+los commits (`tools/changes.py` → `changes.json`). El juego está en `game.html`. Las capturas y la portada para
+compartir están en `docs/promo/` (`cover.jpg` es la portada de YouTube reducida a 1280×720).
 
 La web incluye favicon ICO y PNG, icono de Apple (180 px) y un manifiesto con iconos
 de Android (192 y 512 px, también adaptable o *maskable*). Las rutas son relativas para
@@ -19,7 +22,7 @@ Portada para el vídeo de lanzamiento: [`docs/promo/youtube-launch.png`](docs/pr
 Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
 
     npm start            # o: python3 -m http.server 8765
-    # abre http://localhost:8765
+    # abre http://localhost:8765 (la portada) o http://localhost:8765/game.html (el juego)
 
 La dificultad empieza marcada en **Fácil**; se cambia en el menú y no se recuerda entre partidas.
 
@@ -265,7 +268,7 @@ Se regeneran con `blender -b --python-exit-code 1 --python tools/build_models.py
 El exportador de Blender necesita NumPy disponible en su Python.
 
 - [Vista general y detalle del mapa](http://localhost:8765/tools/map-preview.html).
-- [Jugar el escenario](http://localhost:8765/?autostart=easy).
+- [Jugar el escenario](http://localhost:8765/game.html?autostart=easy).
 - [Pruebas de integración](http://localhost:8765/tests/models.html), incluyendo 32
   semillas, simetría de las cuatro esquinas, acceso a recursos desde cada salida,
   paso de formaciones y huella de los nuevos modelos.
@@ -278,8 +281,8 @@ Se precargan antes del inicio; si un archivo falla o su descarga supera 10 segun
 se usa el modelo procedural correspondiente. No hace falta instalar Blender para jugar.
 
 - Comparación visual: [tools/model-preview.html](http://localhost:8765/tools/model-preview.html).
-- Juego con GLB: [modo por defecto](http://localhost:8765/?autostart=easy).
-- Juego anterior: [modo procedural](http://localhost:8765/?autostart=easy&models=procedural).
+- Juego con GLB: [modo por defecto](http://localhost:8765/game.html?autostart=easy).
+- Juego anterior: [modo procedural](http://localhost:8765/game.html?autostart=easy&models=procedural).
 - Pruebas: [tests/models.html](http://localhost:8765/tests/models.html); debe terminar en `ALL PASSED`.
 - Diagnóstico en la consola del juego: `window.__graphics()` devuelve carga, llamadas de dibujo y triángulos del último fotograma.
 

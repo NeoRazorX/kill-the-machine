@@ -1,5 +1,6 @@
-# Publishes the game on GitHub Pages on every push to main: only what the browser loads (the page,
-# its styles, the sources, three.js and the exported models), plus the licences. The Blender sources,
+# Publishes the game on GitHub Pages on every push to main: only what the browser loads (the landing
+# page and the game, their styles and icons, the sources, three.js, the exported models and the promo
+# images), plus the licences and the list of latest changes, made from the history. The Blender sources,
 # tests and tools stay in the repository.
 name: Publicar en GitHub Pages
 
@@ -26,14 +27,19 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Enough history for the list of latest changes.
+          fetch-depth: 50
       - name: Reunir los archivos del juego
         run: |
-          mkdir -p _site/assets/models
-          cp index.html style.css favicon.ico site.webmanifest LICENSE _site/
+          mkdir -p _site/assets/models _site/docs/promo
+          cp index.html game.html style.css favicon.ico site.webmanifest LICENSE _site/
           cp -r src lib _site/
           cp -r assets/icons _site/assets/
           cp assets/models/*.glb _site/assets/models/
           cp assets/LICENSE _site/assets/
+          cp docs/promo/*.jpg _site/docs/promo/
+          python3 tools/changes.py 15 > _site/changes.json
           du -sh _site
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

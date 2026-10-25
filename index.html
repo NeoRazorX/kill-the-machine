@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kill the Machine</title>
+  <title>Kill the Machine · RTS de humanos contra máquinas en el navegador</title>
+  <meta name="description" content="Estrategia en tiempo real al estilo Command & Conquer que se juega en el navegador: construye tu base, cosecha mineral y dirige a los humanos o a las máquinas. Gratis y sin instalar nada.">
   <meta name="theme-color" content="#0b0f14">
   <meta name="apple-mobile-web-app-title" content="Kill the Machine">
   <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
@@ -11,150 +12,230 @@
   <link rel="icon" type="image/png" href="assets/icons/favicon-16x16.png" sizes="16x16">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" sizes="180x180">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="style.css">
-  <script type="importmap">{ "imports": { "three": "./lib/three.module.js" } }</script>
+  <!-- Vista previa al compartir el enlace -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Kill the Machine">
+  <meta property="og:title" content="Kill the Machine · ya puedes jugar en tu navegador">
+  <meta property="og:description" content="RTS al estilo Command & Conquer: humanos contra máquinas. Gratis, sin instalar nada.">
+  <meta property="og:url" content="https://neorazorx.github.io/kill-the-machine/">
+  <meta property="og:image" content="https://neorazorx.github.io/kill-the-machine/docs/promo/cover.jpg">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:locale" content="es_ES">
+  <meta name="twitter:card" content="summary_large_image">
+  <style>
+    :root {
+      --bg: #0b0f14; --panel: #101820; --panel2: #16212c; --line: #2a3a4a;
+      --human: #3d8bff; --machine: #ff3b30; --gold: #ffd24a;
+      --text: #dbe6f2; --dim: #8394a6;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.55;
+      font-family: "Segoe UI", "Rajdhani", system-ui, -apple-system, Roboto, sans-serif; }
+    a { color: #8fc0ff; }
+    img { display: block; max-width: 100%; height: auto; }
+    .wrap { width: min(1120px, 100%); margin: 0 auto; padding: 0 20px; }
+
+    /* barra superior */
+    .top { position: sticky; top: 0; z-index: 10; background: rgba(11,15,20,.88); backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--line); }
+    .top .wrap { display: flex; align-items: center; gap: 18px; min-height: 58px; }
+    .brand { font-weight: 900; letter-spacing: 3px; color: #e8f0fa; text-decoration: none; white-space: nowrap; }
+    .brand em, .title em { font-style: normal; color: var(--machine); text-shadow: 0 0 20px rgba(255,59,48,.55); }
+    .top nav { display: flex; gap: 16px; margin-left: auto; align-items: center; flex-wrap: wrap; }
+    .top nav a { color: var(--dim); text-decoration: none; font-size: 15px; }
+    .top nav a:hover { color: #fff; }
+
+    /* botones */
+    .btn { display: inline-flex; align-items: center; gap: 10px; padding: 11px 18px; border-radius: 4px; font-weight: 700;
+      letter-spacing: 1px; text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--panel2); }
+    .btn:hover { border-color: #4b6276; color: #fff; }
+    .btn.play { background: var(--machine); border-color: var(--machine); color: #fff; font-size: 20px; letter-spacing: 3px;
+      padding: 16px 40px; box-shadow: 0 6px 26px rgba(255,59,48,.38); }
+    .btn.play:hover { filter: brightness(1.12); }
+    .top .btn.play { font-size: 14px; padding: 8px 18px; letter-spacing: 2px; box-shadow: none; }
+    .btn svg { width: 20px; height: 20px; flex: none; }
+
+    /* portada */
+    .hero { padding: 56px 0 40px; background: radial-gradient(ellipse at 75% 30%, rgba(255,59,48,.12), transparent 60%),
+      radial-gradient(ellipse at 10% 80%, rgba(61,139,255,.10), transparent 55%); }
+    .hero .wrap { display: grid; grid-template-columns: 1fr 1.25fr; gap: 40px; align-items: center; }
+    .title { font-size: clamp(40px, 6vw, 64px); font-weight: 900; letter-spacing: 6px; line-height: 1.02; margin: 0 0 16px; color: #e8f0fa; }
+    .lead { font-size: 19px; color: #c3d0dd; margin: 0 0 26px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .actions .play { flex-basis: 100%; justify-content: center; max-width: 340px; }
+    .note { color: var(--dim); font-size: 14px; margin: 18px 0 0; }
+    .mobile-note { display: none; margin: 18px 0 0; padding: 10px 14px; border: 1px solid #6b4a14; background: rgba(255,176,32,.08);
+      border-radius: 4px; color: #ffcf7a; font-size: 15px; }
+    @media (hover: none) and (pointer: coarse) { .mobile-note { display: block; } }
+    .cover { border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
+
+    /* secciones */
+    section { padding: 48px 0; }
+    section + section { border-top: 1px solid #16212c; }
+    h2 { font-size: 26px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 8px; color: #e8f0fa; }
+    .sub { color: var(--dim); margin: 0 0 26px; max-width: 720px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; }
+    .card h3 { margin: 0 0 6px; font-size: 18px; }
+    .card p { margin: 0; color: #b2c0ce; font-size: 15px; }
+    .card.human { border-top: 3px solid var(--human); }
+    .card.machine { border-top: 3px solid var(--machine); }
+    .card.gold { border-top: 3px solid var(--gold); }
+
+    .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    figure { margin: 0; }
+    figure img { border: 1px solid var(--line); border-radius: 6px; aspect-ratio: 16 / 9; object-fit: cover; width: 100%; }
+    figcaption { color: var(--dim); font-size: 14px; margin-top: 8px; }
+
+    table { border-collapse: collapse; width: 100%; font-size: 15px; }
+    td { padding: 9px 12px; border-bottom: 1px solid #1c2934; vertical-align: top; }
+    td:first-child { color: var(--dim); white-space: nowrap; width: 1%; }
+    kbd { font: 13px ui-monospace, Consolas, monospace; background: var(--panel2); border: 1px solid var(--line); border-bottom-width: 2px;
+      border-radius: 3px; padding: 1px 6px; color: #e8f0fa; }
+
+    .changes { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+    .changes li { display: grid; grid-template-columns: 130px 1fr; gap: 16px; padding: 10px 12px; background: var(--panel); border-radius: 4px; }
+    .changes time { color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+    .changes a { color: var(--text); text-decoration: none; }
+    .changes a:hover { color: #fff; text-decoration: underline; }
+    .changes .empty { display: block; color: var(--dim); background: none; }
+
+    footer { border-top: 1px solid var(--line); padding: 30px 0 40px; color: var(--dim); font-size: 14px; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
+    footer p { margin: 0; }
+
+    @media (max-width: 860px) {
+      .hero { padding-top: 32px; }
+      .hero .wrap { grid-template-columns: 1fr; }
+      .shots { grid-template-columns: 1fr; }
+      .top nav a:not(.btn) { display: none; }
+      .changes li { grid-template-columns: 1fr; gap: 2px; }
+    }
+  </style>
 </head>
 <body>
-<div id="app">
-  <canvas id="gl"></canvas>
-  <canvas id="overlay"></canvas>
-
-  <div id="modehint" class="hidden"></div>
-  <div id="toasts"></div>
-  <div id="selpanel" class="hidden"></div>
-  <div id="pause" class="hidden"><div>PAUSA</div><small>pulsa P para continuar</small></div>
-
-  <div id="game-menu" class="hidden" role="dialog" aria-modal="true" aria-labelledby="gm-title">
-    <div class="gm-card">
-      <header><h2 id="gm-title">Partida en pausa</h2><small id="gm-info"></small></header>
-      <div class="gm-actions" id="gm-actions">
-        <button data-act="resume" class="primary">Continuar</button>
-        <button data-act="restart">Reiniciar partida</button>
-        <button data-act="help">Controles</button>
-        <button data-act="quit">Abandonar partida</button>
-      </div>
-      <div class="gm-confirm" id="gm-confirm" hidden>
-        <p id="gm-confirm-text"></p>
-        <div><button data-act="confirm" class="primary"></button><button data-act="cancel">Cancelar</button></div>
-      </div>
-      <section class="gm-audio" aria-labelledby="gm-audio-title">
-        <h3 id="gm-audio-title">Sonido</h3>
-        <label><span>General</span><input type="range" min="0" max="100" step="1" data-vol="master"><output></output></label>
-        <label><span>Música</span><input type="range" min="0" max="100" step="1" data-vol="music"><output></output></label>
-        <label><span>Efectos</span><input type="range" min="0" max="100" step="1" data-vol="sfx"><output></output></label>
-        <label><span>Voz de mando</span><input type="range" min="0" max="100" step="1" data-vol="voice"><output></output></label>
-      </section>
-      <small class="gm-hint">Esc para volver a la partida</small>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="./">KILL THE <em>MACHINE</em></a>
+      <nav>
+        <a href="#juego">El juego</a>
+        <a href="#controles">Controles</a>
+        <a href="#novedades">Novedades</a>
+        <a href="https://github.com/NeoRazorX/kill-the-machine">GitHub</a>
+        <a href="https://www.youtube.com/@neorazorx">YouTube</a>
+        <a class="btn play" href="game.html">JUGAR</a>
+      </nav>
     </div>
-  </div>
+  </header>
 
-  <aside id="sidebar">
-    <canvas id="minimap" width="256" height="256"></canvas>
-    <div id="stats">
-      <div class="row"><span id="credits">$ 0</span><span id="clock">0:00</span></div>
-      <div id="power"><div id="power-fill"></div><span id="power-text"></span></div>
-    </div>
-    <div id="supers"></div>
-    <div id="tabs"></div>
-    <div id="build"></div>
-    <div id="side-btns">
-      <button id="btn-menu" title="Menú (Esc)" aria-haspopup="dialog">☰</button>
-      <button id="btn-pause" title="Pausa (P)">⏸</button>
-      <button id="btn-mute" title="Silenciar (M)">🔊</button>
-      <button id="btn-help" title="Controles">?</button>
-    </div>
-  </aside>
-
-  <div id="help" class="hidden">
-    <div class="card">
-      <h3>Controles</h3>
-      <ul>
-        <li><b>Clic izq.</b> seleccionar · arrastrar = caja · doble clic = mismo tipo</li>
-        <li><b>Clic der.</b> mover / atacar / cosechar · en un cuartel/fábrica: punto de reunión</li>
-        <li>Panel de selección: <b>Mover / Atacar-mover</b> cambia el modo del clic derecho · <b>Detener</b> para el grupo</li>
-        <li><b>A</b> + clic: atacar-mover puntual · <b>S</b> detener · <b>R</b> reparar edificio · <b>Supr</b> vender edificio</li>
-        <li><b>Flechas</b> o bordes de pantalla: mover cámara · <b>rueda</b> / <b>Q E</b>: zoom · botón central: arrastrar</li>
-        <li><b>Ctrl + 1-9</b> crear grupo · <b>1-9</b> seleccionar (doble = centrar)</li>
-        <li><b>H</b> ir al cuartel · <b>Espacio</b> ir a la última alerta · <b>P</b> pausa · <b>M</b> sonido · <b>Esc</b> menú (volumen, reiniciar)</li>
-        <li>Clic derecho sobre un botón de la barra: cancelar · Shift + clic: ×5 unidades</li>
-        <li><b>Cajas de dinero:</b> explora y acerca cualquier unidad para recogerlas. Se marcan en dorado al descubrirlas.</li>
-        <li><b>Superarmas:</b> con el silo o el cañón de iones reparados y cargados, pulsa su botón en la barra lateral y haz clic en una zona explorada.</li>
-        <li><b>Estructuras tecnológicas:</b> ruinas ocultas en el mapa (dos al azar o las elegidas en el menú) (rombo en el minimapa). Clic derecho con un ingeniero (o infiltrador) para capturarlas; después se reparan pagando.</li>
-      </ul>
-      <small>Clic para cerrar</small>
-    </div>
-  </div>
-
-  <div id="endscreen" class="hidden">
-    <h1 id="end-title"></h1>
-    <p id="end-sub"></p>
-    <div id="end-stats"></div>
-    <button onclick="location.reload()">Jugar de nuevo</button>
-  </div>
-
-  <div id="menu">
-    <div class="menu-card">
-      <header class="menu-head">
-        <div class="logo">KILL THE <em>MACHINE</em></div>
-        <p class="tag" id="side-tag">El año 2187. La red de máquinas despertó. Tú eres el último comandante humano.</p>
-        <div class="vs" role="group" aria-label="Elige bando">
-          <button class="side human active" data-side="human" aria-pressed="true"><b>HUMANOS</b><small>Tanques, infantería y artillería</small><em>Tu bando</em></button>
-          <div class="vsmark">VS</div>
-          <button class="side machine" data-side="machine" aria-pressed="false"><b>MÁQUINAS</b><small>Drones, caminantes y arañas de plasma</small><em>Tu bando</em></button>
+  <main>
+    <div class="hero">
+      <div class="wrap">
+        <div>
+          <h1 class="title">KILL THE<br><em>MACHINE</em></h1>
+          <p class="lead">Estrategia en tiempo real al estilo de <i>Command &amp; Conquer</i> que se juega en el navegador.
+            Construye tu base, cosecha mineral y dirige a los humanos o a las máquinas en una guerra por el planeta.</p>
+          <div class="actions">
+            <a class="btn play" href="game.html">JUGAR AHORA</a>
+            <a class="btn" href="https://github.com/NeoRazorX/kill-the-machine">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+              Código en GitHub</a>
+            <a class="btn" href="https://www.youtube.com/@neorazorx">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#ff0000" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8z"/><path fill="#fff" d="M9.6 15.6 15.8 12 9.6 8.4z"/></svg>
+              Canal de YouTube</a>
+          </div>
+          <p class="note">Gratis y sin instalar nada. Necesita teclado, ratón y un navegador con WebGL (Chrome, Firefox, Edge o Safari recientes).</p>
+          <p class="mobile-note">Parece que estás en un móvil o una tableta: para jugar hace falta un ordenador con teclado y ratón.</p>
         </div>
-        <small class="side-hint">Pulsa un bando para jugar con él</small>
-      </header>
-      <div class="menu-options">
-        <section class="opt-row">
-          <h2 class="opt-title">Dificultad</h2>
-          <div class="opt-choices">
-            <button class="diff active" data-d="easy">Fácil</button>
-            <button class="diff" data-d="normal">Normal</button>
-            <button class="diff" data-d="hard">Difícil</button>
-          </div>
-        </section>
-        <section class="opt-row">
-          <h2 class="opt-title">Mapa</h2>
-          <div class="opt-choices">
-            <button class="diff layout" data-layout="quarry" title="Cuatro esquinas alrededor de un centro rico">Cuatro Vientos</button>
-            <button class="diff layout" data-layout="river" title="Un río separa las dos orillas: se cruza por dos vados y una isla">Río Partido</button>
-            <button class="diff layout" data-layout="pass" title="Duelo en esquinas opuestas: una sierra diagonal con tres pasos">Duelo del Paso</button>
-            <button class="diff layout" data-layout="random">Aleatorio</button>
-          </div>
-        </section>
-        <section class="opt-row">
-          <h2 class="opt-title">Aspecto</h2>
-          <div class="opt-choices">
-            <button class="diff theme" data-map="temperate">Templado</button>
-            <button class="diff theme" data-map="desert">Desierto</button>
-            <button class="diff theme" data-map="ice">Helado</button>
-            <button class="diff theme" data-map="random">Aleatorio</button>
-          </div>
-        </section>
-        <section class="opt-row">
-          <h2 class="opt-title">Estructuras<br>tecnológicas</h2>
-          <div class="opt-choices">
-            <button class="diff tech-mode" data-mode="random">Aleatorias</button>
-            <button class="diff tech-mode" data-mode="pick">Elegir</button>
-            <small class="opt-note" id="tech-count"></small>
-          </div>
-          <div id="tech-pick" hidden>
-            <div id="tech-list"></div>
-          </div>
-        </section>
-      </div>
-      <div class="menu-actions">
-        <p id="model-status" role="status" aria-live="polite">Cargando gráficos…</p>
-        <button id="btn-retry-models" class="ghost" hidden>Reintentar carga</button>
-        <div class="action-btns">
-          <button id="btn-start" disabled>COMENZAR MISIÓN</button>
-          <button id="btn-spectate" class="secondary" disabled>Ver IA contra IA</button>
-        </div>
-        <small class="hint">Construye tu base · explora para encontrar al enemigo y cajas de dinero · cosecha mineral · destruye al enemigo</small>
+        <img class="cover" src="docs/promo/cover.jpg" width="1280" height="720" alt="Kill the Machine: ya puedes jugar en tu navegador. Un Segador, la araña acorazada de las máquinas, avanza con su cañón.">
       </div>
     </div>
-  </div>
-</div>
-<script type="module" src="src/main.js"></script>
+
+    <section id="juego">
+      <div class="wrap">
+        <h2>El juego</h2>
+        <p class="sub">El año 2187. La red de máquinas despertó. Elige bando y enfréntate a la IA: gana quien destruya
+          todos los edificios del rival.</p>
+        <div class="cards">
+          <div class="card human"><h3>Humanos</h3><p>Tanques, infantería, artillería y cazabombarderos. El último comandante humano contra la red.</p></div>
+          <div class="card machine"><h3>Máquinas</h3><p>Drones, caminantes y arañas de plasma. Juega también con el otro bando y cambia la voz de mando.</p></div>
+          <div class="card gold"><h3>Base y economía</h3><p>Plantas de energía, refinerías y cosechadoras de mineral; cajas de dinero repartidas por el mapa.</p></div>
+          <div class="card"><h3>Mapas y aspectos</h3><p>Cuatro Vientos, Río Partido y Duelo del Paso, en terreno templado, desierto o helado.</p></div>
+          <div class="card"><h3>Estructuras tecnológicas</h3><p>Captúralas con ingenieros: mina de tibero, radar estratégico, fábricas de Mamuts y Juggernauts, misil nuclear y cañón de iones.</p></div>
+          <div class="card"><h3>Apoyo aéreo</h3><p>Ataque aéreo que persigue a las tropas y vuelo de reconocimiento para descubrir al enemigo.</p></div>
+          <div class="card"><h3>IA con tres niveles</h3><p>Fácil, Normal o Difícil. También puedes ver a la IA jugar contra sí misma.</p></div>
+          <div class="card"><h3>Hecho para la web</h3><p>Three.js, sin servidor ni instalación: la partida entera corre en tu navegador.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="capturas">
+      <div class="wrap">
+        <h2>Capturas</h2>
+        <p class="sub">Imágenes del juego tal como se ve en el navegador.</p>
+        <div class="shots">
+          <figure><img src="docs/promo/shot-river.jpg" width="1280" height="720" loading="lazy" alt="El río de Río Partido con sus vados y la isla central de mineral"><figcaption>Río Partido: dos orillas, dos vados y una isla con el mineral más rico.</figcaption></figure>
+          <figure><img src="docs/promo/shot-battle.jpg" width="1280" height="720" loading="lazy" alt="Tanques humanos y arañas de las máquinas combatiendo sobre la nieve"><figcaption>Choque en el mapa helado: tanques y Juggernaut contra arañas y drones.</figcaption></figure>
+          <figure><img src="docs/promo/shot-desert.jpg" width="1280" height="720" loading="lazy" alt="Una base humana en el desierto, con tanques e infantería"><figcaption>Una base en el desierto, entre saguaros y campos de mineral.</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="controles">
+      <div class="wrap">
+        <h2>Controles</h2>
+        <p class="sub">Los de siempre en un RTS. La lista completa está en el menú de pausa del juego (<kbd>Esc</kbd>).</p>
+        <table>
+          <tr><td>Seleccionar</td><td>clic · arrastrar una caja · doble clic (mismo tipo) · <kbd>Ctrl</kbd>+<kbd>A</kbd> todas</td></tr>
+          <tr><td>Mover y atacar</td><td>clic derecho · <kbd>A</kbd> + clic ataca moviéndose · <kbd>S</kbd> detiene</td></tr>
+          <tr><td>Cámara</td><td>flechas o bordes de la pantalla · rueda o <kbd>Q</kbd> <kbd>E</kbd> para el zoom · <kbd>H</kbd> vuelve a la base · <kbd>Espacio</kbd> última alerta</td></tr>
+          <tr><td>Grupos</td><td><kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> crea · <kbd>1</kbd>–<kbd>9</kbd> selecciona (dos veces, centra)</td></tr>
+          <tr><td>Construir</td><td>barra lateral: clic construye, clic en «LISTO» coloca, clic derecho cancela, <kbd>Shift</kbd> ×5</td></tr>
+          <tr><td>Edificios</td><td><kbd>R</kbd> repara · <kbd>Supr</kbd> vende</td></tr>
+          <tr><td>Partida</td><td><kbd>Esc</kbd> menú · <kbd>P</kbd> pausa · <kbd>M</kbd> sonido</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="novedades">
+      <div class="wrap">
+        <h2>Novedades</h2>
+        <p class="sub">Los últimos cambios publicados, tal como aparecen en el
+          <a href="https://github.com/NeoRazorX/kill-the-machine/commits/main">historial del repositorio</a>.</p>
+        <ul class="changes" id="changes"><li class="empty">Cargando…</li></ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>© 2026 Carlos Garcia · Código <a href="LICENSE">GPL-3.0</a> · Modelos y arte <a href="assets/LICENSE">CC BY-SA 4.0</a> · Three.js MIT</p>
+      <p><a href="https://github.com/NeoRazorX/kill-the-machine">GitHub</a> · <a href="https://www.youtube.com/@neorazorx">YouTube</a> · <a href="game.html">Jugar</a></p>
+    </div>
+  </footer>
+
+  <script>
+    // changes.json lo genera tools/changes.py al publicar la web (ver .github/workflows/pages.yml).
+    const list = document.getElementById('changes');
+    const REPO = 'https://github.com/NeoRazorX/kill-the-machine';
+    const when = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    fetch('changes.json', { cache: 'no-cache' })
+      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then((changes) => {
+        list.replaceChildren(...changes.map((c) => {
+          const li = document.createElement('li'), time = document.createElement('time'), a = document.createElement('a');
+          time.dateTime = c.date; time.textContent = when.format(new Date(c.date));
+          a.href = `${REPO}/commit/${c.hash}`; a.textContent = c.subject;
+          li.append(time, a);
+          return li;
+        }));
+      })
+      .catch(() => {
+        list.innerHTML = `<li class="empty">La lista se genera al publicar la web. Mientras tanto, consulta el
+          <a href="${REPO}/commits/main">historial en GitHub</a>.</li>`;
+      });
+  </script>
 </body>
 </html>

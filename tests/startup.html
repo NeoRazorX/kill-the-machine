@@ -12,7 +12,7 @@ async function until(predicate){const deadline=performance.now()+15000;while(!pr
 const savedSide=localStorage.getItem('ktm.side');
 try {
   localStorage.removeItem('ktm.side');
-  let html=await (await fetch('../index.html')).text();
+  let html=await (await fetch('../game.html')).text();
   // Run the actual entry point, injecting only a failed network response before it starts.
   const setup=`<base href="${location.origin}/"><script>
     window.__allowModels=false; window.__testErrors=[];
