@@ -4,6 +4,9 @@ RTS estilo *Command & Conquer* hecho con Three.js (r186, incluido en `lib/`, fun
 Humanos contra máquinas: construye base, cosecha mineral, produce ejército y destruye todos los edificios enemigos.
 Se puede jugar con cualquiera de los dos bandos; la IA lleva el otro.
 
+**Juega en el navegador:** <https://neorazorx.github.io/kill-the-machine/> (se publica con GitHub Pages en cada
+`push` a `main`; ver `.github/workflows/pages.yml`).
+
 ## Ejecutar
 Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
 
