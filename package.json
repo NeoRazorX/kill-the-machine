@@ -2,6 +2,7 @@
   "name": "kill-the-machine",
   "version": "1.0.0",
   "description": "RTS estilo Command & Conquer en Three.js: humanos contra máquinas",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
   "scripts": {

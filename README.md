@@ -416,3 +416,15 @@ el movimiento de tanques entre bases y la recuperación de bloqueos temporales
 y persistentes. Planificación y colisiones usan la misma huella circular; los
 recálculos de recuperación conservan el contador y se limitan a dos intentos
 antes de detener el movimiento si el bloqueo persiste.
+
+## Licencia
+
+© 2026 Carlos Garcia.
+
+- **Código** (todo salvo `assets/`, `docs/concepts/` y `lib/`): [GNU GPL v3](LICENSE) o posterior.
+  Puedes usarlo, modificarlo y redistribuirlo, también con fines comerciales, siempre que publiques
+  el código de tus versiones bajo la misma licencia; publicar en una web una versión modificada
+  cuenta como distribuirla, porque su JavaScript llega al navegador de cada jugador.
+- **Modelos y arte** (`assets/` y `docs/concepts/`): [CC BY-SA 4.0](assets/LICENSE). Hay que citar
+  la autoría y compartir las adaptaciones con la misma licencia.
+- **Three.js** (`lib/`): © 2010-2026 three.js authors, [MIT](lib/LICENSE).
