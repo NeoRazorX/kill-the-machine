@@ -706,7 +706,7 @@ export class MapVisuals {
           totalEmissiveRadiance += waterSky * (wFresnel * 1.6 + .03) * (1.0 - wFoam) * .55;
           // Glints: ripples tilted towards a bright patch of sky ahead of the camera flash as they pass.
           float wGlint = pow(max(dot(reflect(-wView, wNormal), normalize(vec3(.1, .6, -.8))), 0.0), 90.0);
-          totalEmissiveRadiance += waterSky * wGlint * 1.1 * (1.0 - wFoam) * (1.0 - wFloe) * smoothstep(.1, .5, wDepth + wFord);`);
+          totalEmissiveRadiance += waterSky * wGlint * 2.2 * (1.0 - wFoam) * (1.0 - wFloe) * smoothstep(.1, .5, wDepth + wFord);`);
     };
     material.customProgramCacheKey = () => `water:${this.theme.id}`;
     const water = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, river.z1 - river.z0), material);

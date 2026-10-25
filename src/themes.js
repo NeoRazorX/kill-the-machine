@@ -21,11 +21,13 @@ export const THEMES = {
     water: { bank: [78, 74, 56], bed: [44, 56, 54], ford: [124, 118, 98],
       shallow: 0x5e8c78, deep: 0x1b3f4c, clear: .3, opacity: .93, foam: 0xdde6e2, sky: 0x8fb0c4, floes: 0 },
     // Final colour grade (src/war-fog.js): exposure, the light the tone curve turns white, contrast
-    // around mid grey, saturation, the tints of shadows and highlights, and how much the corners darken.
+    // around mid grey, saturation, the tints of shadows and highlights, how much the corners darken, and
+    // the bloom: how strongly light above the threshold glows (above the brightest lit snow, so only
+    // fire, sparks, flashes, beams, the ore and glints on the water do).
     // Cloud shadows (src/war-fog.js): how much a cloud darkens, how much of the sky is clear (0..1),
     // how wide a cloud is and the wind that carries them, in world units.
     clouds: { shade: .2, cover: .52, size: 70, wind: [2.6, .9] },
-    grade: { exposure: 1.08, white: 1.6, contrast: 1.07, saturation: 1.08, shadows: [.96, .99, 1.05], highlights: [1.04, 1.01, .96], vignette: .22 },
+    grade: { exposure: 1.08, white: 1.6, contrast: 1.07, saturation: 1.08, shadows: [.96, .99, 1.05], highlights: [1.04, 1.01, .96], vignette: .22, bloom: 1.2, threshold: 1 },
     mini: { tree: 'rgba(20,50,20,0.9)', rock: 'rgba(110,110,110,0.95)', cliff: '#969783', water: '#2f5866', ford: '#6f8a86' },
   },
   desert: {
@@ -43,7 +45,7 @@ export const THEMES = {
     water: { bank: [142, 112, 78], bed: [98, 84, 64], ford: [184, 156, 114],
       shallow: 0x5fae9c, deep: 0x17545e, clear: .32, opacity: .92, foam: 0xf1ebdf, sky: 0xb4d0d8, floes: 0 },
     clouds: { shade: .14, cover: .62, size: 90, wind: [3.2, -.6] },
-    grade: { exposure: 1.02, white: 1.6, contrast: 1.07, saturation: .97, shadows: [.95, .97, 1.07], highlights: [1.03, 1, .96], vignette: .22 },
+    grade: { exposure: 1.02, white: 1.6, contrast: 1.07, saturation: .97, shadows: [.95, .97, 1.07], highlights: [1.03, 1, .96], vignette: .22, bloom: 1.1, threshold: 1.05 },
     mini: { tree: 'rgba(70,96,46,0.95)', rock: 'rgba(130,92,62,0.95)', cliff: '#a7754c', water: '#3f7f80', ford: '#a99a72' },
   },
   ice: {
@@ -62,7 +64,7 @@ export const THEMES = {
     water: { bank: [150, 166, 180], bed: [70, 90, 108], ford: [150, 160, 170],
       shallow: 0x7fa6ba, deep: 0x1f3b55, clear: .38, opacity: .95, foam: 0xeef5fb, sky: 0xc4d8ea, floes: .85 },
     clouds: { shade: .18, cover: .48, size: 75, wind: [2.2, 1.4] },
-    grade: { exposure: 1.08, white: 1.6, contrast: 1.06, saturation: 1.06, shadows: [.95, .98, 1.07], highlights: [1, 1, 1.01], vignette: .2 },
+    grade: { exposure: 1.08, white: 1.6, contrast: 1.06, saturation: 1.06, shadows: [.95, .98, 1.07], highlights: [1, 1, 1.01], vignette: .2, bloom: 1.1, threshold: 1.35 },
     mini: { tree: 'rgba(36,70,72,0.95)', rock: 'rgba(120,134,150,0.95)', cliff: '#c8d6e2', water: '#3d6584', ford: '#8ea3b4' },
   },
 };

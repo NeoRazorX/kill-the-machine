@@ -74,7 +74,10 @@ cálido en las luces, y viñeta) y una curva de tono que deja intactos los tonos
 blanco las luces más fuertes (nieve, destellos, explosiones) en vez de recortarlas. La escena se dibuja en
 coma flotante de 16 bits con antialiasing 4×. El mismo pase proyecta las sombras de nubes que el viento
 arrastra por el mapa (`clouds` en cada tema): suaves, de bordes difusos y oscureciendo como mucho un 20 %,
-para que no tapen nada; caen a lo largo de los rayos del sol, así que también sombrean unidades y edificios. Los temas están en `src/themes.js`;
+para que no tapen nada; caen a lo largo de los rayos del sol, así que también sombrean unidades y edificios. La luz que supera el umbral de cada tema (fuego, chispas,
+destellos, trazadores, rayos, el cañón de iones, el brillo del mineral y los reflejos del agua) desprende
+un halo suave (bloom, `grade.bloom` y `grade.threshold`); el umbral queda por encima de la nieve más
+iluminada, así que el suelo nunca brilla, y lo oculto por la niebla tampoco. Los temas están en `src/themes.js`;
 [tools/map-preview.html](http://localhost:8765/tools/map-preview.html?map=desert&layout=river) acepta
 `?map=` y `?layout=`.
 

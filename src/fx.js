@@ -9,19 +9,24 @@ export const lobApex = (w, d) => (w.lob ? 1 + w.lob * d : Math.min(30, 4 + d * 0
 export const hitY = (t) => (t.kind === 'building' ? Math.max(0.8, t.def.height * 0.45) : t.def.height * 0.45);
 
 const MAXP = 2200;
-const FIRE0 = [1, 0.85, 0.35], FIRE1 = [0.55, 0.1, 0.02];
+// Things that give off light (fire, sparks, flashes, beams, tracers) are this many times brighter
+// than white, so the bloom picks them up. The tone curve scales a colour by its brightest channel,
+// so without the halo they keep the hue they always had.
+export const GLOW = 3;
+const hot = (c, k = GLOW) => c.map((v) => v * k);
+const FIRE0 = hot([1, 0.85, 0.35]), FIRE1 = hot([0.55, 0.1, 0.02], 1.4);
 const SMOKE0 = [0.34, 0.34, 0.34], SMOKE1 = [0.1, 0.1, 0.1];
 const DEBRIS0 = [0.25, 0.22, 0.2], DEBRIS1 = [0.1, 0.1, 0.1];
-const SPARK0 = [1, 1, 0.7], SPARK1 = [1, 0.5, 0.1];
-const GREEN0 = [0.5, 1, 0.8], GREEN1 = [0.1, 0.5, 0.4];
-const RED0 = [1, 0.5, 0.4], RED1 = [0.6, 0.05, 0.05];
+const SPARK0 = hot([1, 1, 0.7]), SPARK1 = hot([1, 0.5, 0.1], 1.6);
+const GREEN0 = hot([0.5, 1, 0.8], 1.8), GREEN1 = [0.1, 0.5, 0.4];
+const RED0 = hot([1, 0.5, 0.4]), RED1 = hot([0.6, 0.05, 0.05], 1.4);
 
 const PROJ_STYLE = {
-  bullet:    { speed: 95, color: 0xffe9a0, geo: 'tracer', trail: null },
-  laserbolt: { speed: 80, color: 0xff4a3a, geo: 'tracer', trail: null },
+  bullet:    { speed: 95, color: 0xffe9a0, geo: 'tracer', trail: null, glow: true },
+  laserbolt: { speed: 80, color: 0xff4a3a, geo: 'tracer', trail: null, glow: true },
   rocket:    { speed: 34, color: 0xffffff, geo: 'rocket', trail: 'smoke', homing: true },
-  shell:     { speed: 60, color: 0xffb040, geo: 'ball', size: 0.28, trail: null },
-  plasma:    { speed: 44, color: 0xff5040, geo: 'ball', size: 0.38, trail: 'red' },
+  shell:     { speed: 60, color: 0xffb040, geo: 'ball', size: 0.28, trail: null, glow: true },
+  plasma:    { speed: 44, color: 0xff5040, geo: 'ball', size: 0.38, trail: 'red', glow: true },
   arty:      { speed: 26, color: 0x2a2a2a, geo: 'ball', size: 0.4, trail: 'smoke', arc: true },
   // Unguided artillery rocket: flies the lobbed arc to where it was aimed and noses along it.
   rocketlob: { speed: 26, color: 0xd8dcdc, geo: 'rocket', trail: 'smoke', arc: true },
@@ -122,7 +127,7 @@ export class FX {
       this.group.add(m);
       f = { mesh: m, life: 0 }; this.flashes.push(f);
     }
-    f.mesh.material.color.setHex(color);
+    f.mesh.material.color.setHex(color).multiplyScalar(GLOW);
     f.mesh.position.set(x, y, z); f.size = size; f.life = f.max = life; f.mesh.visible = true;
   }
 
@@ -208,7 +213,7 @@ export class FX {
       this.group.add(mesh);
       b = { mesh, life: 0 }; this.beams.push(b);
     }
-    b.mesh.material.color.setHex(color);
+    b.mesh.material.color.setHex(color).multiplyScalar(GLOW);
     b.mesh.position.set(x0, y0, z0);
     b.mesh.lookAt(x1, y1, z1);
     const len = Math.hypot(x1 - x0, y1 - y0, z1 - z0);
@@ -246,6 +251,7 @@ export class FX {
     if (!m) {
       const geo = style.geo === 'tracer' ? this.tracerGeo : style.geo === 'rocket' ? this.rocketGeo : this.ballGeo;
       m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: style.color }));
+      if (style.glow) m.material.color.multiplyScalar(GLOW);
       m.userData.key = key;
       this.group.add(m);
     }

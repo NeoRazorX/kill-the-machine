@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { N, CELL, SIZE } from './config.js';
 import { cloneModel } from './assets.js';
+import { GLOW } from './fx.js';
 
 const rectDist = (px, pz, r) => Math.hypot(Math.max(r.x0 - px, 0, px - r.x1), Math.max(r.z0 - pz, 0, pz - r.z1));
 const FIRE0 = [1, 0.9, 0.6], FIRE1 = [0.6, 0.15, 0.03];
@@ -180,8 +181,8 @@ export class Superweapons {
       missile.add(body, tip);
       s.missile = missile; s.meshes.push(missile);
     } else if (sw.kind === 'ion') {
-      const column = new THREE.Mesh(this.columnGeo, new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0,
-        depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+      const column = new THREE.Mesh(this.columnGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0x9fe8ff).multiplyScalar(GLOW),
+        transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
       column.position.set(x, 0, z); column.scale.set(0.2, 160, 0.2);
       s.column = column; s.meshes.push(column);
     }
