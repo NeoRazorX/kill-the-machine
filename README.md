@@ -7,10 +7,13 @@ Se puede jugar con cualquiera de los dos bandos; la IA lleva el otro.
 **Juega en el navegador:** <https://neorazorx.github.io/kill-the-machine/> (se publica con GitHub Pages en cada
 `push` a `main`; ver `.github/workflows/pages.yml`).
 
-La web incluye favicon SVG/ICO y PNG, icono de Apple (180 px) y un manifiesto con iconos
+La web incluye favicon ICO y PNG, icono de Apple (180 px) y un manifiesto con iconos
 de Android (192 y 512 px, también adaptable o *maskable*). Las rutas son relativas para
-funcionar bajo el subdirectorio de GitHub Pages. Para regenerar los iconos desde su geometría
-vectorial: `python3 tools/build_icons.py` (requiere Pillow; no hace falta para servir ni publicar).
+funcionar bajo el subdirectorio de GitHub Pages. El icono es un render del modelo real del
+**Segador** (`assets/models/m_crusher.glb`). Para actualizarlo: `blender -b --python tools/render_icon.py`
+y después `python3 tools/build_icons.py` (requiere Pillow; no hace falta para servir ni publicar).
+
+Portada para el vídeo de lanzamiento: [`docs/promo/youtube-launch.png`](docs/promo/youtube-launch.png).
 
 ## Ejecutar
 Los módulos ES necesitan un servidor HTTP (no funciona con `file://`):
