@@ -17,6 +17,7 @@
     "test:radar": "node tests/radar.mjs",
     "test:ground-trails": "node tests/ground-trails.mjs",
     "test:track-marks": "node tests/track-marks.mjs",
+    "test:walk": "node tests/walk.mjs",
     "test:building-repair": "node tests/building-repair.mjs",
     "test:music": "node tests/music.mjs",
     "test:harvest-queue": "node tests/harvest-queue.mjs",

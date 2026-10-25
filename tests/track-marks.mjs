@@ -54,10 +54,14 @@ for (const id of ['h_rifle', 'h_medic', 'm_sentinel', 'm_drone', 'm_engineer']) 
   assert(fx.count === 0, `${id}: infantry and drones leave no vehicle marks`);
 }
 {
-  const { fx } = fixture(), u = unit('h_juggernaut');
+  // A walker's footprints come from its walk cycle (tests/walk.mjs), not from the distance travelled.
+  const { fx } = fixture(), u = { ...unit('h_juggernaut'), heading: Math.PI / 2 };
   for (let i = 0; i < 6; i++) travel(fx, u, u.radius * .95);
-  const sides = Array.from({ length: fx.count }, (_, i) => Math.sign(position(fx, i).z - 10));
-  assert(fx.count === 6 && sides.every((s, i) => !i || s === -sides[i - 1]) && fx.kind.array[0] === 1, 'walker footprints alternate left and right');
+  assert(fx.count === 0, 'walking alone leaves no footprints');
+  fx.footprint(u, -1.3, 1.4); fx.footprint(u, 1.3, 1.4);
+  const [a, b] = [position(fx, 0), position(fx, 1)];
+  assert(fx.count === 2 && fx.kind.array[0] === 1 && Math.abs(a.x - (u.x + 1.4)) < 1e-6 && Math.abs(a.z - 10 - 1.3) < 1e-6 && Math.abs(b.z - 10 + 1.3) < 1e-6,
+    'a footprint lands ahead of the hips, on the side of the leg that came down');
 }
 function marks(steps) {
   const { fx } = fixture(), u = unit();

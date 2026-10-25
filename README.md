@@ -162,7 +162,10 @@ La fábrica admite punto de reunión. Si la capturan o la destruyen, se pierde l
 **Fábrica Juggernaut**: reparada, construye el **Juggernaut** (2000 $, 36 s), un caminante bípedo
 de artillería. Eleva los cañones unos 25° y dispara salvas de tres proyectiles en una parábola más
 tendida que la de la artillería (uno por cañón, con daño en área y más daño contra edificios) desde 30 de distancia, más lejos que el Mamut (20). Ve igual de lejos que
-dispara. A cambio tiene 650 de vida, no se repara solo y tiene que detenerse para disparar.
+dispara. A cambio tiene 650 de vida, no se repara solo y tiene que detenerse para disparar. Camina con los pies
+bien apoyados: cada pie apoyado retrocede justo a la velocidad a la que avanza el casco, el paso sigue la
+distancia recorrida (más lento al vadear) y el casco baja al inclinarse la pierna; cada pisada deja una
+huella donde cae el pie. `npm run test:walk` comprueba que el pie apoyado no resbala y dónde quedan las huellas.
 
 La IA mezcla Mamuts y Juggernauts en su producción cuando tiene la fábrica correspondiente reparada.
 

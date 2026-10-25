@@ -81,13 +81,15 @@ export class TrackMarks {
 
   emit(unit, dt, oldX, oldZ) {
     const g = this.game, style = trackStyle(unit.def);
+    // A walker's feet are printed by its walk cycle, where each one lands (see footprint).
+    if (style === 'feet') return;
     const dx = unit.x - oldX, dz = unit.z - oldZ, dist = Math.hypot(dx, dz);
     if (!style || unit.dead || !unit.moving || dt <= 0 || dist < .001 || !g.isVisibleEntity(unit)) {
       this.distance.delete(unit);
       return;
     }
     const r = unit.radius, nx = dx / dist, nz = dz / dist, angle = Math.atan2(nx, nz);
-    const spacing = style === 'tread' ? .9 : style === 'feet' ? r * .95 : r * .7;
+    const spacing = style === 'tread' ? .9 : r * .7;
     const previous = this.distance.has(unit) ? this.distance.get(unit) : spacing;
     this.distance.set(unit, (previous + dist) % spacing);
     // Bound catch-up work after a long frame; stamp along the path actually travelled.
@@ -99,10 +101,16 @@ export class TrackMarks {
         const stride = (this.stride.get(unit) || 0) + 1;
         this.stride.set(unit, stride);
         const side = stride % 2 ? 1 : -1;
-        if (style === 'feet') this.stamp(cx, cz, nx, nz, side * r * .42, 0, angle, r * .36, r * .5, 1, 1.15);
-        else for (const lane of [.55, 1]) this.stamp(cx, cz, nx, nz, side * r * lane, -lane * r * .4, angle, r * .16, r * .2, 1, .9);
+        for (const lane of [.55, 1]) this.stamp(cx, cz, nx, nz, side * r * lane, -lane * r * .4, angle, r * .16, r * .2, 1, .9);
       }
     }
+  }
+
+  // A walker's foot coming down `lateral` to its right and `ahead` in front of its hips.
+  footprint(unit, lateral, ahead) {
+    if (unit.dead || !this.game.isVisibleEntity(unit)) return;
+    const nx = Math.sin(unit.heading), nz = Math.cos(unit.heading), r = unit.radius;
+    this.stamp(unit.x, unit.z, nx, nz, lateral, ahead, unit.heading, r * .36, r * .5, 1, 1.15);
   }
 
   // lateral/back: offset from the path point; width across and length along the direction of travel.

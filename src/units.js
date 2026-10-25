@@ -19,6 +19,9 @@ const refineryUp = (r) => !!r && !r.dead && !r.selling;
 // How far behind the rearmost escorted unit support keeps; the radar sees far, so it hangs further back.
 const ESCORT_GAP = 5, ESCORT_GAP_RADAR = 12;
 
+// How far either way a heavy walker's leg swings, in radians.
+const STRIDE = 0.5;
+
 export class Unit {
   constructor(game, def, x, z, team) {
     this.kind = 'unit';
@@ -43,6 +46,13 @@ export class Unit {
 
     const m = buildUnitModel(def, team);
     this.mesh = m.group; this.parts = m.parts;
+    if (m.parts.legs) {
+      // Where the legs hang from, measured on the model still at the origin: hip height and each hip's side.
+      m.group.updateMatrixWorld(true);
+      m.parts.hip = m.parts.legs[0].matrixWorld.elements[13];
+      m.parts.hipSide = m.parts.legs.map((l) => l.matrixWorld.elements[12]);
+    }
+    this.walkX = x; this.walkZ = z;
     // Elevation of the gun as authored; lobbing guns return to it when they have nothing to aim at.
     this.restPitch = this.pitch = m.parts.barrel ? -m.parts.barrel.rotation.x : 0;
     game.scene.add(this.mesh);
@@ -632,17 +642,41 @@ export class Unit {
     this.syncMesh(dt);
   }
 
+  // A heavy walker's gait, with its feet planted: each leg spends half the cycle on the ground, its
+  // foot going back in a straight line exactly as fast as the hull goes forward, and the other half
+  // swinging ahead to land again. The cycle advances with the ground actually covered (the full
+  // stride, 2·hip·sin(STRIDE), every half cycle), and the hull sinks as the planted leg leans, so the
+  // foot stays on the ground. Each landing leaves a footprint.
+  stomp(w) {
+    const p = this.parts, m = this.mesh, reach = p.hip * Math.sin(STRIDE);
+    const moved = Math.hypot(this.x - this.walkX, this.z - this.walkZ), before = Math.floor(this.anim / Math.PI);
+    if (this.moving) this.anim += moved / (2 * reach) * Math.PI;
+    let drop = 0;
+    p.legs.forEach((l, i) => {
+      // u: where this leg is in its cycle, 0..1; it lands at 0, stands until 0.5, then swings.
+      const u = ((this.anim / (2 * Math.PI) + i / 2) % 1 + 1) % 1;
+      const ahead = (u < 0.5 ? 1 - 4 * u : -Math.cos((u - 0.5) * 2 * Math.PI)) * reach * w;
+      l.rotation.x = Math.asin(-ahead / p.hip);
+      if (u < 0.5) drop = p.hip - Math.sqrt(p.hip * p.hip - ahead * ahead);
+    });
+    m.position.y = -drop;
+    const landed = Math.floor(this.anim / Math.PI);
+    if (landed !== before && this.moving && w > 0.5) this.game.fx.trackMarks?.footprint(this, p.hipSide[((landed % 2) + 2) % 2], reach);
+  }
+
   syncMesh(dt) {
     const g = this.game, m = this.mesh, p = this.parts, t = g.time;
     m.position.set(this.x, 0, this.z);
     m.rotation.y = this.heading;
     this.walk += ((this.moving ? 1 : 0) - this.walk) * Math.min(1, dt * 8);
-    if (this.moving) this.anim += dt * this.def.speed * 1.5;
     const w = this.walk;
-    if (p.legs) {
+    if (p.legs && this.def.tracks === 'feet') this.stomp(w);
+    else if (p.legs) {
+      if (this.moving) this.anim += dt * this.def.speed * 1.5;
       p.legs.forEach((l, i) => { l.rotation.x = Math.sin(this.anim + i * Math.PI) * 0.7 * w; });
       if (p.body) p.body.position.y = Math.abs(Math.sin(this.anim)) * 0.07 * w;
     }
+    this.walkX = this.x; this.walkZ = this.z;
     if (p.spider) walkSpider(this, dt);
     if (p.turret) p.turret.rotation.y = angleDiff(this.aim, this.heading);
     if (p.barrel) {
