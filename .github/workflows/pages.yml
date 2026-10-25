@@ -1,0 +1,42 @@
+# Publishes the game on GitHub Pages on every push to main: only what the browser loads (the page,
+# its styles, the sources, three.js and the exported models), plus the licences. The Blender sources,
+# tests and tools stay in the repository.
+name: Publicar en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push replaces one still waiting.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Reunir los archivos del juego
+        run: |
+          mkdir -p _site/assets/models
+          cp index.html style.css LICENSE _site/
+          cp -r src lib _site/
+          cp assets/models/*.glb _site/assets/models/
+          cp assets/LICENSE _site/assets/
+          du -sh _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
