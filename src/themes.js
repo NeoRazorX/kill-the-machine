@@ -12,8 +12,11 @@ export const THEMES = {
     sky: 0x0e1216, hemi: [0xd6e4ff, 0x40483a, 1.25], sun: [0xfff0d8, 2.3],
     tree: { model: 'tree', tint: [1, 1, 1] }, rock: [1, 1, 1], cliff: [1, 1, 1], ruin: [1, 1, 1],
     cover: null, slab: { tint: [.86, .88, .9], dust: [118, 112, 96], dustAmount: .18 },
-    // Rivers: bank mud, the bed under deep water, ford gravel; the surface colour and its ripples.
-    water: { bank: [78, 74, 56], bed: [44, 56, 54], ford: [124, 118, 98], color: 0x5d8f9a, opacity: .86, shallow: .4, ripple: .22 },
+    // Rivers: bank mud, the bed under deep water, ford gravel (ground canvas); then the surface: colour in
+    // the shallows and over the channel, opacity at the bank and in the channel, foam, the sky it reflects
+    // and how many ice floes drift on it.
+    water: { bank: [78, 74, 56], bed: [44, 56, 54], ford: [124, 118, 98],
+      shallow: 0x5e8c78, deep: 0x1b3f4c, clear: .3, opacity: .93, foam: 0xdde6e2, sky: 0x8fb0c4, floes: 0 },
     mini: { tree: 'rgba(20,50,20,0.9)', rock: 'rgba(110,110,110,0.95)', cliff: '#969783', water: '#2f5866', ford: '#6f8a86' },
   },
   desert: {
@@ -27,7 +30,8 @@ export const THEMES = {
     tree: { model: 'cactus', tint: [1, 1, 1] }, rock: [1.25, .95, .7], cliff: [1.3, .92, .66], ruin: [1.2, 1, .8],
     cover: { color: [232, 196, 140], from: .55, to: .95, amount: .45 },
     slab: { tint: [1.08, 1, .86], dust: [214, 176, 122], dustAmount: .4 },
-    water: { bank: [142, 112, 78], bed: [98, 84, 64], ford: [184, 156, 114], color: 0x5fa3a0, opacity: .84, shallow: .38, ripple: .2 },
+    water: { bank: [142, 112, 78], bed: [98, 84, 64], ford: [184, 156, 114],
+      shallow: 0x5fae9c, deep: 0x17545e, clear: .32, opacity: .92, foam: 0xf1ebdf, sky: 0xb4d0d8, floes: 0 },
     mini: { tree: 'rgba(70,96,46,0.95)', rock: 'rgba(130,92,62,0.95)', cliff: '#a7754c', water: '#3f7f80', ford: '#a99a72' },
   },
   ice: {
@@ -42,7 +46,8 @@ export const THEMES = {
     cover: { color: [244, 250, 255], from: .35, to: .75, amount: .9 },
     slab: { tint: [.8, .84, .9], dust: [238, 244, 250], dustAmount: .55 },
     // Meltwater: dark and cold, with drifting floes of ice.
-    water: { bank: [150, 166, 180], bed: [70, 90, 108], ford: [150, 160, 170], color: 0x6f9ab8, opacity: .9, shallow: .45, ripple: .45 },
+    water: { bank: [150, 166, 180], bed: [70, 90, 108], ford: [150, 160, 170],
+      shallow: 0x7fa6ba, deep: 0x1f3b55, clear: .38, opacity: .95, foam: 0xeef5fb, sky: 0xc4d8ea, floes: .85 },
     mini: { tree: 'rgba(36,70,72,0.95)', rock: 'rgba(120,134,150,0.95)', cliff: '#c8d6e2', water: '#3d6584', ford: '#8ea3b4' },
   },
 };

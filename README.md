@@ -38,7 +38,10 @@ lo fija solo para esa visita (`pass` para Duelo del Paso). El fondo del menú ca
   yacimiento más rico. En los vados toda unidad va más despacio (`FORD_SPEED` en `src/config.js`) y no se
   puede construir sobre el agua. El río mide unas 10 celdas: los fusileros, tanques y lanzacohetes no
   alcanzan la otra orilla, pero las torretas y la artillería sí. El mapa es simétrico respecto a los dos
-  ejes, así que cualquier emparejamiento permitido es justo.
+  ejes, así que cualquier emparejamiento permitido es justo. El agua deja ver el lecho junto a las orillas
+  y se oscurece hacia el cauce; sus ondas bajan con la corriente, reflejan el cielo y el sol, dibujan
+  cáusticas en lo somero y rompen en espuma en las orillas y sobre los vados (en el tema helado arrastran
+  placas de hielo). El shader está en `MapVisuals.buildWater` (`src/map.js`) y los colores en `src/themes.js`.
 - **Duelo del Paso**: un duelo en esquinas opuestas (abajo a la izquierda y arriba a la derecha), así que
   los dos bandos saben desde el principio dónde está el rival. Una sierra de 13 celdas de grosor cruza el
   mapa en diagonal, de esquina a esquina, y solo se atraviesa por tres pasos: dos laterales estrechos

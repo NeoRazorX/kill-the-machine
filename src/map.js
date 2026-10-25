@@ -370,13 +370,31 @@ export function waterField(map) {
     }
   };
   blur(wet); blur(ford);
+  // Distance from the nearest dry cell, in cells (two-pass chamfer); the bank itself sits at .5.
+  const shore = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++) shore[i] = map.water[i] ? 1e9 : 0;
+  const relax = (i, x, z, dx, dz, w) => {
+    if (x + dx < 0 || x + dx >= N || z + dz < 0 || z + dz >= N) return;
+    shore[i] = Math.min(shore[i], shore[i + dz * N + dx] + w);
+  };
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+    const i = z * N + x;
+    if (shore[i]) { relax(i, x, z, -1, 0, 1); relax(i, x, z, 0, -1, 1); relax(i, x, z, -1, -1, 1.414); relax(i, x, z, 1, -1, 1.414); }
+  }
+  for (let z = N - 1; z >= 0; z--) for (let x = N - 1; x >= 0; x--) {
+    const i = z * N + x;
+    if (shore[i]) { relax(i, x, z, 1, 0, 1); relax(i, x, z, 0, 1, 1); relax(i, x, z, 1, 1, 1.414); relax(i, x, z, -1, 1, 1.414); }
+  }
   const sample = (a, wx, wz) => {
     const fx = Math.min(N - 1.001, Math.max(0, wx / CELL - .5)), fz = Math.min(N - 1.001, Math.max(0, wz / CELL - .5));
     const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, o = j * N + i;
     return (a[o] * (1 - u) + a[o + 1] * u) * (1 - v) + (a[o + N] * (1 - u) + a[o + N + 1] * u) * v;
   };
-  // World z range that holds water, with room for the banks.
-  return { z0: Math.max(0, z0 - 4) * CELL, z1: Math.min(N, z1 + 5) * CELL, at: (wx, wz) => [sample(wet, wx, wz), sample(ford, wx, wz)] };
+  // World z range that holds water, with room for the banks. at() also gives the distance from the bank in cells.
+  return {
+    z0: Math.max(0, z0 - 4) * CELL, z1: Math.min(N, z1 + 5) * CELL,
+    at: (wx, wz) => [sample(wet, wx, wz), sample(ford, wx, wz), Math.max(0, sample(shore, wx, wz) - .5)],
+  };
 }
 const smooth = (a, b, t) => { const x = Math.max(0, Math.min(1, (t - a) / (b - a))); return x * x * (3 - 2 * x); };
 
@@ -585,49 +603,107 @@ export class MapVisuals {
     this.buildWater();
   }
 
-  // A sheet of water over the river bed: nearly opaque where deep, thin over the fords, with
-  // ripples (or floes, in the ice theme) drifting downstream.
+  // A sheet of moving water over the river bed. A data texture holds, per quarter cell, how much of it
+  // is water (R), how far it is from the bank (G) and how much of it is ford (B); the shader turns that
+  // into shallows that let the bed show through, a dark channel, ripples drifting downstream that catch
+  // the sky and the sun, foam along the banks and over the fords, and caustics on the shallows (or
+  // floes, in the ice theme).
   buildWater() {
     const river = waterField(this.map);
     if (!river) return;
-    const w = this.theme.water, PX = 4;
+    const w = this.theme.water, PX = 4, DEEP = 5;   // cells from the bank to the darkest water
     const cw = N * PX, ch = Math.ceil((river.z1 - river.z0) / CELL) * PX;
-    const alpha = document.createElement('canvas');
-    alpha.width = cw; alpha.height = ch;
-    const actx = alpha.getContext('2d'), img = actx.createImageData(cw, ch);
+    const data = new Uint8Array(cw * ch * 4);
     for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
-      const [wet, ford] = river.at((x + .5) / PX * CELL, river.z0 + (y + .5) / PX * CELL);
-      const shallow = ford / Math.max(wet, .01);
-      const a = smooth(.42, .62, wet) * (w.opacity + (w.shallow - w.opacity) * shallow);
+      const [wet, ford, bank] = river.at((x + .5) / PX * CELL, river.z0 + (y + .5) / PX * CELL);
       const o = (y * cw + x) * 4;
-      img.data[o] = img.data[o + 1] = img.data[o + 2] = a * 255; img.data[o + 3] = 255;
+      data[o] = smooth(.42, .62, wet) * 255;
+      data[o + 1] = Math.min(1, bank / DEEP) * 255;
+      data[o + 2] = Math.min(1, ford / Math.max(wet, .01)) * 255;
+      data[o + 3] = 255;
     }
-    actx.putImageData(img, 0, 0);
-    const alphaMap = new THREE.CanvasTexture(alpha);
-    // Ripples: a smooth tileable brightness pattern that slides along the river.
-    const T = 128, rip = document.createElement('canvas'), TAU = Math.PI * 2;
-    rip.width = rip.height = T;
-    const rctx = rip.getContext('2d'), rimg = rctx.createImageData(T, T);
-    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
-      const u = x / T * TAU, v0 = y / T * TAU;
-      const wave = (Math.sin(u * 3 + Math.sin(v0 * 2) * 1.4) + Math.sin(u * 5 - v0 * 3 + Math.sin(u * 2) * .8) * .6 + Math.sin(v0 * 4 + u) * .4) / 4 + .5;
-      const v = 1 - w.ripple + w.ripple * wave;
-      const o = (y * T + x) * 4;
-      rimg.data[o] = rimg.data[o + 1] = rimg.data[o + 2] = v * 255; rimg.data[o + 3] = 255;
-    }
-    rctx.putImageData(rimg, 0, 0);
-    const ripples = new THREE.CanvasTexture(rip);
-    ripples.wrapS = ripples.wrapT = THREE.RepeatWrapping;
-    ripples.colorSpace = THREE.SRGBColorSpace;
-    ripples.repeat.set(SIZE / 22, (river.z1 - river.z0) / 22);
-    const material = new THREE.MeshStandardMaterial({ color: w.color, map: ripples, alphaMap, transparent: true,
-      depthWrite: false, roughness: .22, metalness: .05 });
+    const info = new THREE.DataTexture(data, cw, ch, THREE.RGBAFormat);
+    info.magFilter = info.minFilter = THREE.LinearFilter;
+    info.needsUpdate = true;
+    const time = { value: 0 }, f = (v) => v.toFixed(3);
+    const material = new THREE.MeshStandardMaterial({ transparent: true, depthWrite: false, roughness: .16, metalness: 0 });
+    material.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, {
+        waterInfo: { value: info }, waterTime: time,
+        waterShallow: { value: new THREE.Color(w.shallow) }, waterDeep: { value: new THREE.Color(w.deep) },
+        waterFoam: { value: new THREE.Color(w.foam) }, waterSky: { value: new THREE.Color(w.sky) },
+      });
+      shader.vertexShader = 'varying vec2 vWater;\n' + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        vWater = (modelMatrix * vec4(transformed, 1.0)).xz;`);
+      shader.fragmentShader = `uniform sampler2D waterInfo;
+        uniform float waterTime;
+        uniform vec3 waterShallow, waterDeep, waterFoam, waterSky;
+        varying vec2 vWater;
+        float waterHash(vec2 p) { vec3 q = fract(p.xyx * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+        // Value noise and its gradient: (value, d/dx, d/dy).
+        vec3 waterNoise(vec2 x) {
+          vec2 i = floor(x), f = fract(x), u = f * f * (3.0 - 2.0 * f), du = 6.0 * f * (1.0 - f);
+          float a = waterHash(i), b = waterHash(i + vec2(1.0, 0.0)), c = waterHash(i + vec2(0.0, 1.0)), d = waterHash(i + vec2(1.0, 1.0));
+          return vec3(a + (b - a) * u.x + (c - a) * u.y + (a - b - c + d) * u.x * u.y, du * (vec2(b - a, c - a) + (a - b - c + d) * u.yx));
+        }
+        // Slope of one octave of waves, turned by rot, stretched by freq and carried along by drift. Octaves
+        // finer than a few pixels (px: world units per pixel) fade out instead of glittering.
+        vec2 waterWaves(vec2 p, mat2 rot, vec2 freq, vec2 drift, float px) {
+          return (waterNoise(rot * p * freq + drift).yz * freq) * rot * (1.0 - smoothstep(.12, .3, px * max(freq.x, freq.y)));
+        }
+        ` + shader.fragmentShader
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          vec4 wInfo = texture2D(waterInfo, vec2(vWater.x / ${f(SIZE)}, (vWater.y - ${f(river.z0)}) / ${f(river.z1 - river.z0)}));
+          float wt = waterTime, wFord = wInfo.b;
+          // The channel deepens away from the bank, unevenly so the shallows do not trace it; fords stay shallow.
+          float wDepth = clamp(wInfo.g + (waterNoise(vWater * .09).x - .5) * .3, 0.0, 1.0) * (1.0 - wFord * .8);
+          // Ripples run downstream (+x), choppier over the fords where the water rushes across the gravel.
+          float wPx = length(fwidth(vWater));
+          vec2 wSlope = waterWaves(vWater, mat2(1.0, 0.0, 0.0, 1.0), vec2(.16, .34), vec2(-wt * .45, 0.0), wPx) * .9
+            + waterWaves(vWater, mat2(.8, .6, -.6, .8), vec2(.42, .7), vec2(-wt * .9, wt * .15), wPx) * .45
+            + waterWaves(vWater, mat2(.8, -.6, .6, .8), vec2(.9, 1.3), vec2(-wt * 1.6, -wt * .2), wPx) * .22
+            + waterWaves(vWater, mat2(.6, .8, -.8, .6), vec2(2.1, 2.6), vec2(-wt * 2.4, wt * .4), wPx) * .1;
+          float wChop = (.9 + wFord * 1.3) * smoothstep(0.0, .35, wInfo.g + wFord);
+          // Ice floes drift on the current, flat and white.
+          float wFloe = 0.0;
+          ${w.floes ? `wFloe = smoothstep(.6, .66, waterNoise(vWater * vec2(.07, .12) + vec2(-wt * .05, 0.0)).x * .65
+            + waterNoise(vWater * .23 + vec2(-wt * .16, 0.0)).x * .35) * smoothstep(.15, .45, wDepth) * ${f(w.floes)};` : ''}
+          wChop *= 1.0 - wFloe;
+          vec3 wNormal = normalize(vec3(-wSlope.x * wChop, 1.0, -wSlope.y * wChop));
+          vec3 wColor = mix(waterShallow, waterDeep, smoothstep(0.0, .8, wDepth));
+          float wAlpha = wInfo.r * mix(${f(w.clear)}, ${f(w.opacity)}, smoothstep(0.0, .55, wDepth)) * (1.0 - wFord * .35);
+          // Caustics: light focused by the ripples, a web of bright lines where two drifting fields agree.
+          float wCaustic = pow(1.0 - abs(waterNoise(vWater * .5 + vec2(-wt * .4, wt * .12)).x - waterNoise(vWater * .62 + vec2(-wt * .25, -wt * .2) + 17.0).x), 9.0);
+          wColor += waterSky * wCaustic * (1.0 - smoothstep(.1, .6, wDepth)) * .45;
+          // Foam: a broken line along the banks and white streaks where the fords break the current.
+          float wBank = (1.0 - smoothstep(0.0, .09, wInfo.g)) * smoothstep(.15, .7, wInfo.r);
+          float wLace = waterNoise(vWater * vec2(.5, .9) + vec2(-wt * .6, 0.0)).x * .6 + waterNoise(vWater * 1.9 + vec2(-wt * 1.1, wt * .3)).x * .4;
+          float wFoam = smoothstep(.5, .8, wBank * (.25 + wLace)) * .6;
+          wFoam = max(wFoam, wFord * smoothstep(.62, .85, waterNoise(vWater * vec2(.45, 1.5) + vec2(-wt * 2.2, 0.0)).x * .7
+            + waterNoise(vWater * vec2(1.2, 2.4) + vec2(-wt * 3.0, 0.0)).x * .3 + length(wSlope) * .12) * .85);
+          wFoam = max(wFoam, wFloe);
+          wColor = mix(wColor, waterFoam, wFoam);
+          wAlpha = mix(wAlpha, wInfo.r * .9, wFoam);
+          diffuseColor = vec4(wColor, wAlpha);`)
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          normal = normalize((viewMatrix * vec4(wNormal, 0.0)).xyz);`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+          // The sky reflected off the ripples: strong at grazing angles, a sheen from above.
+          vec3 wView = normalize(cameraPosition - vec3(vWater.x, .22, vWater.y));
+          float wFresnel = .04 + .96 * pow(1.0 - max(dot(wNormal, wView), 0.0), 5.0);
+          totalEmissiveRadiance += waterSky * (wFresnel * 1.6 + .03) * (1.0 - wFoam) * .55;
+          // Glints: ripples tilted towards a bright patch of sky ahead of the camera flash as they pass.
+          float wGlint = pow(max(dot(reflect(-wView, wNormal), normalize(vec3(.1, .6, -.8))), 0.0), 90.0);
+          totalEmissiveRadiance += waterSky * wGlint * 1.1 * (1.0 - wFoam) * (1.0 - wFloe) * smoothstep(.1, .5, wDepth + wFord);`);
+    };
+    material.customProgramCacheKey = () => `water:${this.theme.id}`;
     const water = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, river.z1 - river.z0), material);
     water.rotation.x = -Math.PI / 2;
     water.position.set(SIZE / 2, .22, (river.z0 + river.z1) / 2);
     water.receiveShadow = true;
     water.renderOrder = 1;
-    water.onBeforeRender = () => { ripples.offset.x = (performance.now() / 1000 * .015) % 1; };
+    water.onBeforeRender = () => { time.value = performance.now() / 1000; };
+    water.userData.info = info;
     this.water = water;
     this.group.add(water);
   }
@@ -643,7 +719,7 @@ export class MapVisuals {
     this.group.removeFromParent();
     this.group.traverse((o) => {
       if (o.isInstancedMesh) o.dispose();
-      else if (o.isMesh) { o.geometry.dispose(); o.material.map?.dispose(); o.material.alphaMap?.dispose(); o.material.dispose(); }
+      else if (o.isMesh) { o.geometry.dispose(); o.material.map?.dispose(); o.userData.info?.dispose(); o.material.dispose(); }
     });
     for (const m of this.materials) m.dispose();
   }
