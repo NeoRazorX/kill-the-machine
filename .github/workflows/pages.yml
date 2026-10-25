@@ -29,8 +29,9 @@ jobs:
       - name: Reunir los archivos del juego
         run: |
           mkdir -p _site/assets/models
-          cp index.html style.css LICENSE _site/
+          cp index.html style.css favicon.ico site.webmanifest LICENSE _site/
           cp -r src lib _site/
+          cp -r assets/icons _site/assets/
           cp assets/models/*.glb _site/assets/models/
           cp assets/LICENSE _site/assets/
           du -sh _site
