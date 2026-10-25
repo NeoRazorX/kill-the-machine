@@ -192,7 +192,10 @@ una pasada, un tanque queda con una cuarta parte o un tercio de su vida, una pla
 la mitad, una refinería un tercio y una torreta casi la mitad. Si se lanza sobre tropas enemigas que el
 bando ve, la escuadrilla persigue a la más cercana (con el mismo desfase que el clic) mientras la ve, y
 mantiene su último paradero si la pierde de vista; 1 s antes de llegar fija el rumbo, así que dispersarse
-en el último momento aún puede salvar a alguien. La IA construye su aeródromo tras su primera oleada y
+en el último momento aún puede salvar a alguien. Los pilotos ven lo que bombardean: desde justo antes
+de la primera bomba hasta 3 s después de la pasada, el bando ve un radio de 18 alrededor del objetivo,
+aunque no tenga allí otros ojos (por ejemplo, cuando ya ha terminado el reconocimiento que lo descubrió).
+La IA construye su aeródromo tras su primera oleada y
 lo usa contra ejércitos que ve.
 
 El aeródromo tiene una segunda habilidad con su propia carga de 60 s, el **reconocimiento** (avión

@@ -771,7 +771,12 @@ for (const team of ['human', 'machine']) {
   assert(strike.lock?.unit && squad.concat(tank).includes(strike.lock.unit), `${team}: aimed at troops it can see, the squadron locks on to them`);
   run(game, strike.delay - W.length / 2 / W.speed - 0.15);
   assert(tank.hp === tank.maxHp && squad.every((u) => u.hp === u.maxHp) && strike.bombs.length > 0, `${team}: bombs are falling before the first one lands`);
+  const pilots = sw.spotters.find((e) => e.team === team && Math.hypot(e.x - strike.x, e.z - strike.z) < 1 && e.def.sight === W.sight);
+  assert(pilots, `${team}: the pilots see the target as the bombs fall`);
+  run(game, (W.length / 2 + 10) / W.speed + 0.3);
+  assert(sw.spotters.includes(pilots), `${team}: and still see it just after the run, to show what was hit`);
   run(game, 30, () => !sw.strikes.length);
+  assert(!sw.spotters.includes(pilots), `${team}: then the target goes dark again`);
   assert(squad.length >= 2 && squad.filter((u) => u.dead).length >= squad.length - 1, `${team}: the bombs wipe out infantry`);
   assert(!tank.dead && tank.hp < tank.maxHp * 0.6, `${team}: tanks come out badly damaged but alive`);
   assert(clear.hp === clear.maxHp, `${team}: units outside the strip are untouched`);

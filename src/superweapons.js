@@ -403,8 +403,12 @@ export class Superweapons {
       this.bomb(s, bx, bz);
     }
     // The marker goes once the last plane has passed the end of the strip.
-    if (!s.hit && s.t >= s.delay + (sw.length / 2 + 10) / sw.speed) { s.hit = true; s.ring.visible = false; }
-    return out && s.hit && !s.bombs.length;
+    const past = s.delay + (sw.length / 2 + 10) / sw.speed;
+    if (!s.hit && s.t >= past) { s.hit = true; s.ring.visible = false; }
+    // The pilots see what they bomb, even where the side has no eyes of its own.
+    if (!s.eye && !s.looked && s.t >= s.delay - sw.length / 2 / sw.speed - 1) { s.looked = true; s.eye = this.spot(s.team, s.x, s.z, sw.sight); }
+    if (s.eye && s.t >= past + sw.linger) { this.unspot(s.eye); s.eye = null; }
+    return out && s.hit && !s.bombs.length && !s.eye;
   }
 
   // One bomb: damage falls off from where it lands to half at the edge of its blast, scaled by what is hit.

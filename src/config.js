@@ -68,9 +68,10 @@ const B = (o) => def({ kind: 'building', buildable: true, ...o });
 // behind the airfield, so the farther the target the longer the warning, and bombs a strip `length`
 // long along its run. Each bomb deals `damage` where it lands, falling to half at the edge of its
 // `radius`, times mult by target class. Aimed at enemy troops it follows them until `commit` seconds
-// before it arrives.
+// before it arrives. The pilots see `sight` around the target from just before the first bomb until
+// `linger` seconds after the run, so the side sees what it hit.
 const AIRSTRIKE = { kind: 'air', charge: 100, radius: 2.5, length: 24, damage: 200, commit: 1, altitude: 16,
-  mult: { light: 1, armor: 0.6, building: 0.4 } };
+  sight: 18, linger: 3, mult: { light: 1, armor: 0.6, building: 0.4 } };
 // The airfield's second power, with a charge of its own: one fast plane that may be sent anywhere, even
 // over unexplored ground. It sees `trail` around itself on the way and, over the target, reveals
 // `radius` for `duration` seconds; the ground then stays explored. craft: what the warnings call it.
