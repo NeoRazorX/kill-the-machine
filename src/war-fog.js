@@ -3,9 +3,12 @@ import { SIZE } from './config.js';
 
 // No grading: the image passes through unchanged.
 export const NEUTRAL_GRADE = { exposure: 1, white: 1, contrast: 1, saturation: 1, shadows: [1, 1, 1], highlights: [1, 1, 1], vignette: 0 };
+// No clouds.
+export const CLEAR_SKY = { shade: 0, cover: 1, size: 80, wind: [0, 0] };
 
 // The final pass over the rendered scene. It reconstructs each visible surface in world space, so fog
-// follows X/Z at any height, then grades the colour and tone maps it. The scene is drawn in half float
+// follows X/Z at any height and clouds drifting overhead can shade it, then grades the colour and tone
+// maps it. The scene is drawn in half float
 // so highlights keep their range and dark tones do not band before the tone mapping. The tone curve
 // leaves the darks and mid tones as they are and eases the brightest light into white, reached at
 // `white`, so the art keeps its colours while snow, glints and explosions stop clipping.
@@ -16,6 +19,10 @@ export class WarFog {
     this.target.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedIntType);
     this.target.texture.minFilter = this.target.texture.magFilter = THREE.LinearFilter;
     this.size = new THREE.Vector2();
+    // The light the clouds block, if any; main sets it.
+    this.sun = null;
+    this.wind = [0, 0];
+    this.slant = new THREE.Vector3();
     this.material = new THREE.ShaderMaterial({
       depthTest: false, depthWrite: false,
       uniforms: {
@@ -28,6 +35,8 @@ export class WarFog {
         fogAmount: { value: 1 },
         gradeExposure: { value: 1 }, gradeWhite: { value: 1 }, gradeContrast: { value: 1 }, gradeSaturation: { value: 1 }, gradeVignette: { value: 0 },
         gradeShadows: { value: new THREE.Vector3(1, 1, 1) }, gradeHighlights: { value: new THREE.Vector3(1, 1, 1) },
+        cloudShade: { value: 0 }, cloudCover: { value: 1 }, cloudSize: { value: 80 },
+        cloudDrift: { value: new THREE.Vector2() }, cloudSlant: { value: new THREE.Vector2() },
       },
       vertexShader: `varying vec2 screenUV;
         void main() { screenUV = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
@@ -36,7 +45,21 @@ export class WarFog {
         uniform mat4 inverseProjection, cameraWorld;
         uniform float mapSize, fogAmount, gradeExposure, gradeWhite, gradeContrast, gradeSaturation, gradeVignette;
         uniform vec3 gradeShadows, gradeHighlights;
+        uniform float cloudShade, cloudCover, cloudSize;
+        uniform vec2 cloudDrift, cloudSlant;
         varying vec2 screenUV;
+        float cloudHash(vec2 p) { vec3 q = fract(p.xyx * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+        float cloudNoise(vec2 x) {
+          vec2 i = floor(x), f = fract(x), u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(cloudHash(i), cloudHash(i + vec2(1.0, 0.0)), u.x), mix(cloudHash(i + vec2(0.0, 1.0)), cloudHash(i + vec2(1.0, 1.0)), u.x), u.y);
+        }
+        // How much cloud stands over p (in cloud sizes): a few octaves of noise, warped so the puffs
+        // are irregular, with a soft threshold so the shadows have no hard edge.
+        float clouds(vec2 p) {
+          p += vec2(cloudNoise(p * .7 + 3.1), cloudNoise(p * .7 + 9.7)) * .8;
+          float n = cloudNoise(p) * .55 + cloudNoise(p * 2.03 + 1.7) * .28 + cloudNoise(p * 4.1 + 5.3) * .17;
+          return smoothstep(cloudCover, cloudCover + .22, n);
+        }
         void main() {
           vec4 color = texture2D(sceneColor, screenUV);
           float depth = texture2D(sceneDepth, screenUV).r;
@@ -46,6 +69,8 @@ export class WarFog {
             vec2 fogUV = vec2(world.x / mapSize, 1.0 - world.z / mapSize);
             float obscured = texture2D(visibilityMap, clamp(fogUV, 0.0, 1.0)).a;
             color.rgb *= 1.0 - obscured * fogAmount;
+            // Cloud shadows, cast along the sunlight so tall things are shaded where the ray meets them.
+            if (cloudShade > 0.0) color.rgb *= 1.0 - cloudShade * clouds((world.xz - world.y * cloudSlant) / cloudSize + cloudDrift);
           }
           // Grading in linear light: saturation, contrast around mid grey, a tint for the shadows and
           // another for the highlights, and a soft darkening towards the corners.
@@ -81,7 +106,15 @@ export class WarFog {
     renderer.info.autoReset = false;
     renderer.info.reset();
     try {
-      this.material.uniforms.fogAmount.value = this.game.spectate ? 0 : 1;
+      const u = this.material.uniforms;
+      u.fogAmount.value = this.game.spectate ? 0 : 1;
+      // The clouds drift on the wind in real time, paused or not, like the water.
+      const t = performance.now() / 1000;
+      u.cloudDrift.value.set(this.wind[0] * t / u.cloudSize.value % 1000, this.wind[1] * t / u.cloudSize.value % 1000);
+      if (this.sun) {
+        const d = this.slant.subVectors(this.sun.position, this.sun.target.position);
+        u.cloudSlant.value.set(d.x / d.y, d.z / d.y);
+      }
       if (output) this.size.set(output.width, output.height);
       else renderer.getDrawingBufferSize(this.size);
       if (this.target.width !== this.size.x || this.target.height !== this.size.y) this.target.setSize(this.size.x, this.size.y);
@@ -102,6 +135,14 @@ export class WarFog {
     const u = this.material.uniforms;
     u.gradeExposure.value = grade.exposure; u.gradeWhite.value = grade.white; u.gradeContrast.value = grade.contrast; u.gradeSaturation.value = grade.saturation; u.gradeVignette.value = grade.vignette;
     u.gradeShadows.value.set(...grade.shadows); u.gradeHighlights.value.set(...grade.highlights);
+  }
+
+  // clouds: { shade: darkening under a cloud, cover: 0..1 (higher, fewer), size: world units across a
+  // cloud, wind: [x, z] in world units per second }, as in CLEAR_SKY.
+  setClouds(clouds) {
+    const u = this.material.uniforms;
+    u.cloudShade.value = clouds.shade; u.cloudCover.value = clouds.cover; u.cloudSize.value = clouds.size;
+    this.wind = clouds.wind;
   }
 
   dispose() {

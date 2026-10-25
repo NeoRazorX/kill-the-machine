@@ -72,7 +72,9 @@ unidad cuando la niebla la oculta, y la de los drones flotantes es más tenue y 
 una gradación de color por tema (`grade`: exposición, contraste, saturación, tinte frío en las sombras y
 cálido en las luces, y viñeta) y una curva de tono que deja intactos los tonos medios y lleva suavemente a
 blanco las luces más fuertes (nieve, destellos, explosiones) en vez de recortarlas. La escena se dibuja en
-coma flotante de 16 bits con antialiasing 4×. Los temas están en `src/themes.js`;
+coma flotante de 16 bits con antialiasing 4×. El mismo pase proyecta las sombras de nubes que el viento
+arrastra por el mapa (`clouds` en cada tema): suaves, de bordes difusos y oscureciendo como mucho un 20 %,
+para que no tapen nada; caen a lo largo de los rayos del sol, así que también sombrean unidades y edificios. Los temas están en `src/themes.js`;
 [tools/map-preview.html](http://localhost:8765/tools/map-preview.html?map=desert&layout=river) acepta
 `?map=` y `?layout=`.
 
