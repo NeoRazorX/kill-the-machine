@@ -612,8 +612,8 @@ export class Game {
 
   // ----------------------------------------------------------------- combate
   damage(target, amount, srcTeam, srcPos, source = null) {
-    // Ruins belong to nobody and cannot be damaged.
-    if (target.dead || amount <= 0 || !target.team) return;
+    // Ruins belong to nobody and cannot be damaged, and nothing can once the match is over.
+    if (this.over || target.dead || amount <= 0 || !target.team) return;
     target.hp -= amount; target.lastHit = this.time;
     const tt = this.teams[target.team];
     tt.lastAttacked = { x: target.x, z: target.z, t: this.time, src: srcPos || null };
@@ -694,6 +694,15 @@ export class Game {
   // ------------------------------------------------------------------- ciclo
   update(dt) {
     if (this.paused) return;
+    // Once the match is decided the battle stops where it stands: no income, no charging, no building
+    // or training, no fighting, and the clock stops with the results. Only what is already in the air
+    // plays out, harmlessly: shots and explosions finish, aircraft fly off.
+    if (this.over) {
+      this.fx.update(dt);
+      this.superweapons?.update(dt);
+      this.contactShadows?.update();
+      return;
+    }
     this.time += dt;
     this.rebuildHash();
     for (const u of this.units) if (!u.dead) u.update(dt);

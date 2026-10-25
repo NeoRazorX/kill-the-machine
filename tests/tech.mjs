@@ -273,6 +273,28 @@ for (const team of ['human', 'machine']) {
 }
 
 {
+  // Once the match is over nothing moves on: no income, no charging, no production, no damage, no clock.
+  const { game } = fixture();
+  addStructure(game, 'human', 'power'); addStructure(game, 'human', 'refinery');
+  const field = addStructure(game, 'human', 'airfield'), factory = addStructure(game, 'human', 'factory');
+  game.recomputePower();
+  game.teams.human.credits = 5000;
+  game.queueUnit('human', ROLE.human.tank.id); game.queueUnit('human', ROLE.human.tank.id);
+  run(game, 20);
+  const harvester = game.units.find((u) => u.team === 'human' && u.def.harvester);
+  const enemy = game.spawnUnit(ROLE.machine.tank, 'machine', harvester.x + 6, harvester.z);
+  game.kill(game.teamBuildings('machine', 'hq')[0], 'human');
+  const before = { time: game.time, credits: game.teams.human.credits, charge: game.superweapons.progress(field),
+    queue: factory.queue[0]?.progress, pos: game.units.map((u) => `${u.x},${u.z}`).join(), hp: enemy.hp };
+  assert(game.over && before.charge > 0 && before.charge < 1 && harvester.hstate !== 'idle', 'a decided match has a harvester at work, an airfield charging and a tank in production');
+  run(game, 20);
+  game.damage(enemy, 50, 'human');
+  assert(game.time === before.time && game.teams.human.credits === before.credits && game.superweapons.progress(field) === before.charge &&
+    factory.queue[0]?.progress === before.queue && game.units.map((u) => `${u.x},${u.z}`).join() === before.pos && enemy.hp === before.hp,
+    'after victory or defeat the clock, credits, charges, production, units and health all stand still');
+}
+
+{
   // Under fog, the player keeps the last state seen of a site.
   const { game, events } = fixture({ spectate: false });
   const site = game.techSites.items[0];

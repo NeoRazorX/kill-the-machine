@@ -122,7 +122,7 @@ export class Superweapons {
   update(dt) {
     const g = this.game;
     for (const b of this.sites) for (const sw of powersOf(b.def)) {
-      if (!this.online(b) || this.isReady(b, sw) || g.lowPower(b.team)) continue;
+      if (g.over || !this.online(b) || this.isReady(b, sw) || g.lowPower(b.team)) continue;
       const st = this.state(b, sw);
       st.charge = Math.min(sw.charge, (st.charge || 0) + dt);
       if (this.isReady(b, sw) && !st.announcedReady) {
