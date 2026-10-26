@@ -7,7 +7,8 @@ Se puede jugar con cualquiera de los dos bandos; la IA lleva el otro.
 **Juega en el navegador:** <https://neorazorx.github.io/kill-the-machine/> (se publica con GitHub Pages en cada
 `push` a `main`; ver `.github/workflows/pages.yml`). `index.html` es la portada: qué es el juego, capturas,
 controles, enlaces a GitHub y al canal de YouTube, y los últimos cambios, que el despliegue genera a partir de
-los commits (`tools/changes.py` → `changes.json`). El juego está en `game.html`. Las capturas y la portada para
+los commits (`tools/changes.py` → `changes.json`). El juego está en `game.html`. Los problemas y las ideas se tratan en las [issues](https://github.com/NeoRazorX/kill-the-machine/issues),
+con formularios en español (`.github/ISSUE_TEMPLATE/`); la portada enlaza a ellos. Las capturas y la portada para
 compartir están en `docs/promo/` (`cover.jpg` es la portada de YouTube reducida a 1280×720).
 
 La web incluye favicon ICO y PNG, icono de Apple (180 px) y un manifiesto con iconos

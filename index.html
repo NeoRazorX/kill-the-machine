@@ -83,6 +83,9 @@
     .card.human { border-top: 3px solid var(--human); }
     .card.machine { border-top: 3px solid var(--machine); }
     .card.gold { border-top: 3px solid var(--gold); }
+    .feedback { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+    .feedback .card { display: flex; flex-direction: column; gap: 14px; }
+    .feedback .card .btn { align-self: flex-start; }
 
     .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
     figure { margin: 0; }
@@ -123,6 +126,7 @@
         <a href="#juego">El juego</a>
         <a href="#controles">Controles</a>
         <a href="#novedades">Novedades</a>
+        <a href="#sugerencias">Sugerencias</a>
         <a href="https://github.com/NeoRazorX/kill-the-machine">GitHub</a>
         <a href="https://www.youtube.com/@neorazorx">YouTube</a>
         <a class="btn play" href="game.html">JUGAR</a>
@@ -199,6 +203,25 @@
       </div>
     </section>
 
+    <section id="sugerencias">
+      <div class="wrap">
+        <h2>Problemas y sugerencias</h2>
+        <p class="sub">Los fallos y las ideas se tratan en las <a href="https://github.com/NeoRazorX/kill-the-machine/issues">issues de GitHub</a>: así todo queda a la vista,
+          se puede comentar y se sabe en qué estado está. Hace falta una cuenta de GitHub, que es gratuita.</p>
+        <div class="feedback">
+          <div class="card machine"><h3>¿Algo no funciona?</h3>
+            <p>Cuenta qué ha pasado, cómo repetirlo y con qué navegador juegas. Una captura ayuda mucho.</p>
+            <a class="btn" href="https://github.com/NeoRazorX/kill-the-machine/issues/new?template=problema.yml">Informar de un problema</a></div>
+          <div class="card gold"><h3>¿Tienes una idea?</h3>
+            <p>Unidades, mapas, mejoras de la IA o de la interfaz: proponla y explica por qué haría el juego mejor.</p>
+            <a class="btn" href="https://github.com/NeoRazorX/kill-the-machine/issues/new?template=idea.yml">Proponer una idea</a></div>
+          <div class="card"><h3>Lo que ya está abierto</h3>
+            <p>Mira si alguien ya ha avisado de lo mismo; si es así, apóyalo con un 👍 o añade lo que sepas en un comentario.</p>
+            <a class="btn" href="https://github.com/NeoRazorX/kill-the-machine/issues">Ver las issues</a></div>
+        </div>
+      </div>
+    </section>
+
     <section id="novedades">
       <div class="wrap">
         <h2>Novedades</h2>
@@ -212,7 +235,7 @@
   <footer>
     <div class="wrap">
       <p>© 2026 Carlos Garcia · Código <a href="LICENSE">GPL-3.0</a> · Modelos y arte <a href="assets/LICENSE">CC BY-SA 4.0</a> · Three.js MIT</p>
-      <p><a href="https://github.com/NeoRazorX/kill-the-machine">GitHub</a> · <a href="https://www.youtube.com/@neorazorx">YouTube</a> · <a href="game.html">Jugar</a></p>
+      <p><a href="https://github.com/NeoRazorX/kill-the-machine">GitHub</a> · <a href="https://github.com/NeoRazorX/kill-the-machine/issues">Problemas y sugerencias</a> · <a href="https://www.youtube.com/@neorazorx">YouTube</a> · <a href="game.html">Jugar</a></p>
     </div>
   </footer>
 

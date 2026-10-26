@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Jugar a Kill the Machine
+    url: https://neorazorx.github.io/kill-the-machine/game.html
+    about: El juego, en el navegador.
+  - name: Canal de YouTube
+    url: https://www.youtube.com/@neorazorx
+    about: Vídeos del desarrollo y de partidas.

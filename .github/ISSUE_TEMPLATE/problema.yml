@@ -1,0 +1,61 @@
+name: Informar de un problema
+description: Algo no funciona como debería en el juego o en la web.
+title: "[Problema] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por avisar. Cuanto más concreto seas, antes se podrá arreglar.
+        Antes de enviarlo, mira si ya hay una [issue abierta](https://github.com/NeoRazorX/kill-the-machine/issues) sobre lo mismo.
+  - type: textarea
+    id: que
+    attributes:
+      label: ¿Qué ha pasado?
+      description: Describe el problema.
+      placeholder: Al lanzar un ataque aéreo sobre la base enemiga, los aviones no aparecen…
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Cómo reproducirlo
+      description: Los pasos para que vuelva a ocurrir, si los sabes.
+      placeholder: |
+        1. Empieza una partida en Río Partido con las máquinas
+        2. Construye un nido de drones
+        3. …
+  - type: textarea
+    id: esperado
+    attributes:
+      label: ¿Qué esperabas que pasara?
+  - type: dropdown
+    id: bando
+    attributes:
+      label: Bando
+      options:
+        - Humanos
+        - Máquinas
+        - IA contra IA (espectador)
+        - No tiene que ver con la partida
+  - type: dropdown
+    id: mapa
+    attributes:
+      label: Mapa
+      options:
+        - Cuatro Vientos
+        - Río Partido
+        - Duelo del Paso
+        - No lo sé / no importa
+  - type: input
+    id: navegador
+    attributes:
+      label: Navegador y sistema
+      placeholder: Chrome 140 en Windows 11, Firefox 142 en Ubuntu…
+    validations:
+      required: true
+  - type: textarea
+    id: capturas
+    attributes:
+      label: Capturas o vídeo
+      description: Arrastra aquí imágenes o vídeos si ayudan a verlo. Si hay errores en la consola del navegador (F12), pégalos también.

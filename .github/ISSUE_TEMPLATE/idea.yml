@@ -1,0 +1,27 @@
+name: Proponer una idea
+description: Una mejora, una unidad, un mapa o cualquier sugerencia para el juego.
+title: "[Idea] "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ¡Las ideas son bienvenidas! Mira antes si alguien ya ha propuesto
+        [algo parecido](https://github.com/NeoRazorX/kill-the-machine/issues?q=is%3Aissue+label%3Aenhancement); si es así, apóyala con un 👍.
+  - type: textarea
+    id: idea
+    attributes:
+      label: ¿Qué propones?
+      placeholder: Que la infantería pueda entrar en los edificios para defenderlos…
+    validations:
+      required: true
+  - type: textarea
+    id: porque
+    attributes:
+      label: ¿Por qué mejoraría el juego?
+      description: Qué problema resuelve o qué hace más divertido.
+  - type: textarea
+    id: referencias
+    attributes:
+      label: Referencias
+      description: Otros juegos que lo hagan así, dibujos, capturas…
